@@ -17,6 +17,7 @@ class User(Model):
     role = fields.CharField(max_length=20, default="user")     # user | admin
     avatar_url = fields.CharField(max_length=500, null=True)
     is_active = fields.BooleanField(default=True)
+    is_ephemeral = fields.BooleanField(default=False)  # anonymous temp-user; prune later
 
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
