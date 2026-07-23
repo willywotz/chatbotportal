@@ -136,9 +136,6 @@ class ResponseAccumulator:
             "response": self._response_body(status="failed", with_output=False),
         }
 
-    def failed_event(self, message: str, code: int | None = None) -> dict:
-        return self._failed(message)
-
     def final_response(self) -> dict:
         return self._response_body(status="completed", with_output=True)
 

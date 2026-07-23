@@ -477,6 +477,9 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   `model` echoes the request verbatim and `output` stays `[]` on an empty answer; and the previously
   unstated error `message` strings (input validation §2.1, conversation mismatch §3, binary frame §8)
   are now pinned. Full findings + fix list: `spec/openai-responses-spec-gap-log.md`.
+  A follow-up code↔spec reconciliation (2026-07-24) found **zero wire divergences** — the layer
+  passes all 49 responses tests and conforms to the contract; the only change was deleting the
+  dead `ResponseAccumulator.failed_event()` (unreferenced; `_failed` is used directly).
 - **Editing `frontend/vite.config.ts` does not affect a running stack.** The dev override's
   `develop.watch` syncs only `frontend/src`, and `docker compose up` will not rebuild an existing
   image — so config changes silently do nothing until `docker compose up -d --build frontend`.
