@@ -3,10 +3,10 @@ Conversation & message-history routes.
 
 Endpoints
 ---------
-  POST   /conversations                Save a new conversation (with messages)
-  GET    /conversations                List conversations (history) — with search/filter
-  GET    /conversations/{id}           Get single conversation with messages
-  DELETE /conversations/{id}           Delete conversation (cascades to messages)
+  POST   /history                Save a new conversation (with messages)
+  GET    /history                List conversations (history) — with search/filter
+  GET    /history/{id}           Get single conversation with messages
+  DELETE /history/{id}           Delete conversation (cascades to messages)
 """
 
 import time
@@ -27,7 +27,7 @@ from app.schemas.conversation import (
 )
 from app.utils import now
 
-router = APIRouter(prefix="/conversations", tags=["Conversations"])
+router = APIRouter(prefix="/history", tags=["History"])
 
 
 # ---------------------------------------------------------------------------

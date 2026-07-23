@@ -30,7 +30,7 @@ async def test_history_returns_full_list_when_no_params():
     for i in range(3):
         await Conversation.create(title=f"t{i}", preview="p", status="success", message_count=2)
     async with await _client() as c:
-        r = await c.get("/api/v1/conversations")
+        r = await c.get("/api/v1/history")
     app.dependency_overrides.clear()
     assert r.status_code == 200
     body = r.json()
@@ -43,7 +43,7 @@ async def test_history_search_filter_unchanged():
     await Conversation.create(title="visa renewal", preview="p", status="success", message_count=2)
     await Conversation.create(title="tax return", preview="p", status="success", message_count=2)
     async with await _client() as c:
-        r = await c.get("/api/v1/conversations", params={"search": "visa"})
+        r = await c.get("/api/v1/history", params={"search": "visa"})
     app.dependency_overrides.clear()
     assert [d["title"] for d in r.json()["data"]] == ["visa renewal"]
 
@@ -53,7 +53,7 @@ async def test_history_paginates_and_reports_full_total():
     for i in range(5):
         await Conversation.create(title=f"t{i}", preview="p", status="success", message_count=2)
     async with await _client() as c:
-        r = await c.get("/api/v1/conversations", params={"page": 1, "page_size": 2})
+        r = await c.get("/api/v1/history", params={"page": 1, "page_size": 2})
     app.dependency_overrides.clear()
     body = r.json()
     assert len(body["data"]) == 2
@@ -67,7 +67,7 @@ async def test_history_date_range_filters_in_query():
     await Conversation.create(title="new", preview="p", status="success", message_count=2)
     cutoff = (now() - timedelta(days=2)).strftime("%Y-%m-%d")
     async with await _client() as c:
-        r = await c.get("/api/v1/conversations", params={"date_from": cutoff})
+        r = await c.get("/api/v1/history", params={"date_from": cutoff})
     app.dependency_overrides.clear()
     assert [d["title"] for d in r.json()["data"]] == ["new"]
 

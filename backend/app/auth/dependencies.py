@@ -39,10 +39,10 @@ _invalid_credentials = HTTPException(
 _MESSAGE_RATING_PATH = re.compile(r"^/api/v1/messages/[^/]+/rating$")
 # Matches the collection and /{id} only. The /{id}/messages sub-resource is granted
 # separately and GET-only (see below), so adding a write verb there would not inherit access.
-_CONVERSATION_PATH = re.compile(r"^/api/v1/conversations(?:/[^/]+)?$")
+_HISTORY_PATH = re.compile(r"^/api/v1/history(?:/[^/]+)?$")
 # The History page reads this to expand a conversation. Safe to grant because the
-# handler applies the same own-or-admin ownership check as GET /conversations/{id}.
-_CONVERSATION_MESSAGES_GET_PATTERN = re.compile(r"^/api/v1/conversations/[^/]+/messages$")
+# handler applies the same own-or-admin ownership check as GET /history/{id}.
+_HISTORY_MESSAGES_GET_PATTERN = re.compile(r"^/api/v1/history/[^/]+/messages$")
 
 _PUBLIC_PREFIX = "/api/v1/public"
 # Agency logo images are already publicly exposed via GET /public/agencies;
@@ -85,7 +85,7 @@ def _is_shared_write(method: str, path: str) -> bool:
     """Writes every authenticated role (incl. read-only ones) may perform.
 
     Chat (including the OpenAI-compatible /responses surface), message rating,
-    own-conversation management, and the self/auth endpoints. Everything else is
+    own-history management, and the self/auth endpoints. Everything else is
     a privileged write.
     """
     if path.startswith("/api/v1/auth/"):  # all auth endpoints — each guards itself internally
@@ -96,7 +96,9 @@ def _is_shared_write(method: str, path: str) -> bool:
         return True
     if method == "PATCH" and _MESSAGE_RATING_PATH.match(path):
         return True
-    if _CONVERSATION_PATH.match(path):  # all verbs: manage own conversation history
+    if _HISTORY_PATH.match(path):  # all verbs: manage own history
+        return True
+    if method == "POST" and path == "/api/v1/conversations":  # OpenAI create (own/temp)
         return True
     return False
 
@@ -107,7 +109,7 @@ def _is_allowed_for_basic_user(method: str, path: str) -> bool:
         return True
     if method == "GET" and path == "/api/v1/agencies":  # Architecture page (list only)
         return True
-    if method == "GET" and _CONVERSATION_MESSAGES_GET_PATTERN.match(path):
+    if method == "GET" and _HISTORY_MESSAGES_GET_PATTERN.match(path):
         return True
     return False
 

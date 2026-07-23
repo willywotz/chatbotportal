@@ -76,12 +76,12 @@ async def test_user_surface_is_exactly_this(db):
         ("POST", "/api/v1/chat/stream"),
         ("POST", "/api/v1/responses"),
         ("PATCH", f"/api/v1/messages/{_SAMPLE_ID}/rating"),
-        ("GET", "/api/v1/conversations"),
-        ("POST", "/api/v1/conversations"),
-        ("GET", f"/api/v1/conversations/{_SAMPLE_ID}"),
-        ("DELETE", f"/api/v1/conversations/{_SAMPLE_ID}"),
+        ("GET", "/api/v1/history"),
+        ("POST", "/api/v1/history"),
+        ("GET", f"/api/v1/history/{_SAMPLE_ID}"),
+        ("DELETE", f"/api/v1/history/{_SAMPLE_ID}"),
         # History page expands a conversation; ownership-scoped in the handler.
-        ("GET", f"/api/v1/conversations/{_SAMPLE_ID}/messages"),
+        ("GET", f"/api/v1/history/{_SAMPLE_ID}/messages"),
         # NOTE: the six read-only ops dashboards (dashboard/stats, executive-summary,
         # agency-health, usage-heatmap, insight/usage, feedback/stats) were moved to
         # `staff`-only in the staff-role split — a plain `user` can no longer reach
