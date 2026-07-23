@@ -73,7 +73,7 @@ function findAgency(id: string): AgencyRow | undefined {
 }
 
 export const handlers = [
-  http.get("*/api/v1/conversations", ({ request }) => {
+  http.get("*/api/v1/history", ({ request }) => {
     const url = new URL(request.url);
     const page = Number(url.searchParams.get("page") ?? "1");
     const pageSize = Number(url.searchParams.get("page_size") ?? "0");
@@ -91,7 +91,7 @@ export const handlers = [
     return HttpResponse.json({ success: true, data, total, responseTime: 10 });
   }),
 
-  http.post("*/api/v1/conversations", async ({ request }) => {
+  http.post("*/api/v1/history", async ({ request }) => {
     const body = (await request.json()) as Partial<HistoryItem>;
     const created: HistoryItem = {
       id: crypto.randomUUID(),
@@ -105,14 +105,14 @@ export const handlers = [
     return HttpResponse.json({ success: true, conversationId: created.id }, { status: 201 });
   }),
 
-  http.delete("*/api/v1/conversations/:id", ({ params }) => {
+  http.delete("*/api/v1/history/:id", ({ params }) => {
     const idx = MOCK_HISTORY_ITEMS.findIndex((c) => c.id === params.id);
     if (idx === -1) return HttpResponse.json({ detail: "Not found" }, { status: 404 });
     MOCK_HISTORY_ITEMS.splice(idx, 1);
     return HttpResponse.json({ success: true });
   }),
 
-  http.get("*/api/v1/conversations/:id/messages", () =>
+  http.get("*/api/v1/history/:id/messages", () =>
     HttpResponse.json({ success: true, data: [] }),
   ),
 

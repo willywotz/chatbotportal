@@ -41,7 +41,7 @@ export async function fetchChatHistory(
     if (params.pageSize) qs.set('page_size', String(params.pageSize));
 
     const query = qs.toString() ? `?${qs.toString()}` : '';
-    const res = await api.get<HistoryApiResponse>(`/api/v1/conversations${query}`);
+    const res = await api.get<HistoryApiResponse>(`/api/v1/history${query}`);
 
     if (res.success) return res;
     throw new Error('API unsuccessful');
@@ -70,7 +70,7 @@ export interface SaveConversationInput {
 
 export async function saveConversation(input: SaveConversationInput): Promise<string | null> {
   try {
-    const res = await api.post<{ success: boolean; conversationId: string }>('/api/v1/conversations', {
+    const res = await api.post<{ success: boolean; conversationId: string }>('/api/v1/history', {
       title: input.title,
       preview: input.preview,
       agencies: input.agencies,
@@ -94,7 +94,7 @@ export async function saveConversation(input: SaveConversationInput): Promise<st
 
 export async function deleteConversation(id: string): Promise<boolean> {
   try {
-    await api.delete(`/api/v1/conversations/${id}`);
+    await api.delete(`/api/v1/history/${id}`);
     return true;
   } catch (err) {
     console.warn('Failed to delete conversation:', err);
