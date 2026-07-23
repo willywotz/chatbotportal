@@ -55,15 +55,21 @@ def _default_events(conversation_id: str):
     )
 
 
+def _body(response) -> dict:
+    """Decode a non-streaming create_response() return (a JSONResponse)."""
+    return json.loads(response.body)
+
+
 @pytest.mark.asyncio
 async def test_non_streaming_returns_a_complete_response(db):
     request = ResponsesRequest(model="thai-citizen-guide-v5", input="บัตรหาย")
     with patch.object(turn_stream, "find_similar_question", new=AsyncMock(return_value=None)), \
          patch.object(turn_stream, "_stream_live", new=_fake_live(*_default_events("s"))):
-        body = await responses_router.create_response(
+        response = await responses_router.create_response(
             request, BackgroundTasks(), user=None,
         )
 
+    body = _body(response)
     assert body["object"] == "response"
     assert body["status"] == "completed"
     assert body["output_text"] == "คำตอบเต็ม"
@@ -103,7 +109,7 @@ async def test_previous_response_id_continues_the_conversation(db):
     first = ResponsesRequest(model="thai-citizen-guide", input="หนึ่ง")
     with patch.object(turn_stream, "find_similar_question", new=AsyncMock(return_value=None)), \
          patch.object(turn_stream, "_stream_live", new=_fake_live(*_default_events("s"))):
-        body = await responses_router.create_response(first, BackgroundTasks(), user=None)
+        body = _body(await responses_router.create_response(first, BackgroundTasks(), user=None))
 
     conversation_id = body["portal"]["conversation_id"]
     second = ResponsesRequest(
@@ -111,7 +117,8 @@ async def test_previous_response_id_continues_the_conversation(db):
     )
     with patch.object(turn_stream, "ensure_session_warmed", new=AsyncMock(return_value=None)), \
          patch.object(turn_stream, "_stream_live", new=_fake_live(*_default_events("s"))):
-        second_body = await responses_router.create_response(second, BackgroundTasks(), user=None)
+        second_response = await responses_router.create_response(second, BackgroundTasks(), user=None)
+    second_body = _body(second_response)
 
     assert second_body["portal"]["conversation_id"] == conversation_id
     assert second_body["id"] != body["id"]
@@ -160,11 +167,12 @@ async def test_cache_hit_is_reported_in_portal(db):
 
     with patch.object(turn_stream, "find_similar_question",
                       new=AsyncMock(return_value=(user_msg, asst_msg, _Log()))):
-        body = await responses_router.create_response(
+        response = await responses_router.create_response(
             ResponsesRequest(model="thai-citizen-guide", input="q"),
             BackgroundTasks(), user=None,
         )
 
+    body = _body(response)
     assert body["portal"]["cached"] is True
     assert body["output_text"] == "cached answer"
 
