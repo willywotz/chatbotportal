@@ -121,30 +121,30 @@ async def test_published_resolves_agency(db):
 
 @pytest.mark.asyncio
 async def test_ask_llm_parses_markdown_fenced_json(monkeypatch):
-    content = '```json\n{"questions": [{"text": "คำถาม1", "agency": "", "score": 0.5}]}\n```'
+    content = '```json\n{"questions": [{"text": "คำถาม1", "agency_id": "", "score": 0.5}]}\n```'
 
     async def fake_chat(**_kwargs):
         return _fake_llm_result(content)
 
     monkeypatch.setattr("app.services.llm.chat", fake_chat)
 
-    result = await pq_service._ask_llm(["q"])
+    result = await pq_service._ask_llm([{"text": "q", "agencies": []}])
 
-    assert result == [{"text": "คำถาม1", "agency": "", "score": 0.5}]
+    assert result == [{"text": "คำถาม1", "agency_id": "", "score": 0.5}]
 
 
 @pytest.mark.asyncio
 async def test_ask_llm_parses_json_with_leading_prose(monkeypatch):
-    content = 'นี่คือคำถามยอดนิยม:\n{"questions": [{"text": "q2", "agency": "", "score": 0.3}]}\nขอบคุณครับ'
+    content = 'นี่คือคำถามยอดนิยม:\n{"questions": [{"text": "q2", "agency_id": "", "score": 0.3}]}\nขอบคุณครับ'
 
     async def fake_chat(**_kwargs):
         return _fake_llm_result(content)
 
     monkeypatch.setattr("app.services.llm.chat", fake_chat)
 
-    result = await pq_service._ask_llm(["q"])
+    result = await pq_service._ask_llm([{"text": "q", "agencies": []}])
 
-    assert result == [{"text": "q2", "agency": "", "score": 0.3}]
+    assert result == [{"text": "q2", "agency_id": "", "score": 0.3}]
 
 
 @pytest.mark.asyncio
@@ -154,15 +154,19 @@ async def test_ask_llm_returns_empty_on_garbage_output(monkeypatch):
 
     monkeypatch.setattr("app.services.llm.chat", fake_chat)
 
-    result = await pq_service._ask_llm(["q"])
+    result = await pq_service._ask_llm([{"text": "q", "agencies": []}])
 
     assert result == []
 
 
-async def _make_successful_turns(n: int, question: str = "คำถามทดสอบ") -> None:
+async def _make_successful_turns(n: int, question: str = "คำถามทดสอบ", agency_ids=None) -> None:
     for _ in range(n):
         conv = await Conversation.create(status="success")
-        await Message.create(conversation=conv, role="user", content=question)
+        user_msg = await Message.create(conversation=conv, role="user", content=question)
+        await Message.create(
+            conversation=conv, role="assistant", parent_id=user_msg.id,
+            content="ตอบ", agency_ids=agency_ids or [],
+        )
 
 
 @pytest.mark.asyncio
@@ -259,16 +263,39 @@ async def test_regenerate_skips_candidate_matching_hidden_tombstone(db, monkeypa
 
 
 @pytest.mark.asyncio
-async def test_regenerate_resolves_agency_case_insensitively(db, monkeypatch):
+async def test_regenerate_feeds_known_agency_to_llm_and_resolves(db, monkeypatch):
     monkeypatch.setattr(pq_service.settings, "POPULAR_QUESTIONS_MIN_TURNS", 1)
-    await _make_successful_turns(3)
     ag = await Agency.create(name="กรมที่ดิน")
+    await _make_successful_turns(2, question="ขอคัดโฉนด", agency_ids=[str(ag.id)])
 
-    async def fake_ask_llm(_questions):
-        return [{"text": "เกี่ยวกับที่ดิน", "agency": "กรมที่ดิน", "score": 0.6}]
+    captured = {}
+
+    async def fake_chat(**kwargs):
+        captured["prompt"] = kwargs["messages"][0]["content"]
+        return _fake_llm_result(
+            f'{{"questions": [{{"text": "ขอคัดโฉนดที่ดิน", "agency_id": "{ag.id}", "score": 0.8}}]}}'
+        )
+
+    monkeypatch.setattr("app.services.llm.chat", fake_chat)
+
+    await pq_service.regenerate()
+
+    assert "กรมที่ดิน" in captured["prompt"]
+    assert str(ag.id) in captured["prompt"]
+    row = await PopularQuestion.get(text_key=pq_service.normalize_text_key("ขอคัดโฉนดที่ดิน"))
+    assert row.agency_id == ag.id
+
+
+@pytest.mark.asyncio
+async def test_regenerate_resolves_agency_by_id(db, monkeypatch):
+    monkeypatch.setattr(pq_service.settings, "POPULAR_QUESTIONS_MIN_TURNS", 1)
+    ag = await Agency.create(name="กรมที่ดิน")
+    await _make_successful_turns(3, agency_ids=[str(ag.id)])
+
+    async def fake_ask_llm(_samples):
+        return [{"text": "เกี่ยวกับที่ดิน", "agency_id": str(ag.id), "score": 0.6}]
 
     monkeypatch.setattr(pq_service, "_ask_llm", fake_ask_llm)
-
     await pq_service.regenerate()
 
     row = await PopularQuestion.get(text_key=pq_service.normalize_text_key("เกี่ยวกับที่ดิน"))
@@ -276,19 +303,68 @@ async def test_regenerate_resolves_agency_case_insensitively(db, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_regenerate_leniently_keeps_unmatched_agency(db, monkeypatch):
+async def test_regenerate_resolves_one_of_multiple_agencies(db, monkeypatch):
     monkeypatch.setattr(pq_service.settings, "POPULAR_QUESTIONS_MIN_TURNS", 1)
-    await _make_successful_turns(3)
+    ag1 = await Agency.create(name="กรมที่ดิน")
+    ag2 = await Agency.create(name="กรมการปกครอง")
+    await _make_successful_turns(2, agency_ids=[str(ag1.id), str(ag2.id)])
 
-    async def fake_ask_llm(_questions):
-        return [{"text": "ไม่มีหน่วยงานตรง", "agency": "หน่วยงานที่ไม่มีอยู่จริง", "score": 0.4}]
+    async def fake_ask_llm(_samples):
+        return [{"text": "คำถามรวม", "agency_id": str(ag2.id), "score": 0.7}]
 
     monkeypatch.setattr(pq_service, "_ask_llm", fake_ask_llm)
+    await pq_service.regenerate()
 
+    row = await PopularQuestion.get(text_key=pq_service.normalize_text_key("คำถามรวม"))
+    assert row.agency_id == ag2.id
+
+
+@pytest.mark.asyncio
+async def test_regenerate_drops_out_of_set_agency_id(db, monkeypatch):
+    monkeypatch.setattr(pq_service.settings, "POPULAR_QUESTIONS_MIN_TURNS", 1)
+    await _make_successful_turns(3)  # replies carry no agency
+
+    async def fake_ask_llm(_samples):
+        return [{"text": "ไม่มีหน่วยงานตรง", "agency_id": "11111111-1111-1111-1111-111111111111", "score": 0.4}]
+
+    monkeypatch.setattr(pq_service, "_ask_llm", fake_ask_llm)
     created = await pq_service.regenerate()
 
     assert created == 1
     row = await PopularQuestion.get(text_key=pq_service.normalize_text_key("ไม่มีหน่วยงานตรง"))
+    assert row.agency_id is None
+
+
+@pytest.mark.asyncio
+async def test_regenerate_rejects_real_agency_never_fed(db, monkeypatch):
+    """An agency that exists in the DB but was not fed to the LLM is not a valid target."""
+    monkeypatch.setattr(pq_service.settings, "POPULAR_QUESTIONS_MIN_TURNS", 1)
+    unfed = await Agency.create(name="หน่วยงานที่ไม่ได้ป้อน")
+    await _make_successful_turns(3)  # replies carry no agency, so unfed is absent from samples
+
+    async def fake_ask_llm(_samples):
+        return [{"text": "อ้างหน่วยงานที่ไม่ได้ป้อน", "agency_id": str(unfed.id), "score": 0.5}]
+
+    monkeypatch.setattr(pq_service, "_ask_llm", fake_ask_llm)
+    await pq_service.regenerate()
+
+    row = await PopularQuestion.get(text_key=pq_service.normalize_text_key("อ้างหน่วยงานที่ไม่ได้ป้อน"))
+    assert row.agency_id is None
+
+
+@pytest.mark.asyncio
+async def test_regenerate_no_agency_when_reply_has_none(db, monkeypatch):
+    monkeypatch.setattr(pq_service.settings, "POPULAR_QUESTIONS_MIN_TURNS", 1)
+    await _make_successful_turns(3)
+
+    async def fake_ask_llm(_samples):
+        return [{"text": "คำถามไม่มีหน่วยงาน", "agency_id": "", "score": 0.5}]
+
+    monkeypatch.setattr(pq_service, "_ask_llm", fake_ask_llm)
+    created = await pq_service.regenerate()
+
+    assert created == 1
+    row = await PopularQuestion.get(text_key=pq_service.normalize_text_key("คำถามไม่มีหน่วยงาน"))
     assert row.agency_id is None
 
 
