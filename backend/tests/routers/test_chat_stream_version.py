@@ -40,5 +40,6 @@ def test_unknown_value_falls_back_to_v5(restore_version):
 def test_v5_url_is_registered_in_settings_group():
     from app.config import SETTINGS_GROUPS
 
-    assert "ONECHAT_V5_URL" in SETTINGS_GROUPS["OneChat"]
+    assert "ONECHAT_BASE_URL" in SETTINGS_GROUPS["OneChat"]
+    assert "ONECHAT_V5_URL" not in SETTINGS_GROUPS["OneChat"]
     assert "CHAT_STREAM_VERSION" in SETTINGS_GROUPS["OneChat"]
