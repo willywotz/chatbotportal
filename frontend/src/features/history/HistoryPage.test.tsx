@@ -31,7 +31,7 @@ describe("HistoryPage server-side filtering", () => {
   it("sends date_from and date_to query params when date range is set", async () => {
     const captured: string[] = [];
     server.use(
-      http.get("*/api/v1/conversations", ({ request }) => {
+      http.get("*/api/v1/history", ({ request }) => {
         const url = new URL(request.url);
         captured.push(url.search);
         return HttpResponse.json({
@@ -60,7 +60,7 @@ describe("HistoryPage server-side filtering", () => {
   it("sends page param in query string", async () => {
     const captured: string[] = [];
     server.use(
-      http.get("*/api/v1/conversations", ({ request }) => {
+      http.get("*/api/v1/history", ({ request }) => {
         const url = new URL(request.url);
         captured.push(url.search);
         const page = Number(url.searchParams.get("page") ?? "1");
@@ -95,7 +95,7 @@ describe("HistoryPage server-side filtering", () => {
 
   it("uses server total for pagination (not client-filtered count)", async () => {
     server.use(
-      http.get("*/api/v1/conversations", () =>
+      http.get("*/api/v1/history", () =>
         HttpResponse.json({
           success: true,
           data: makeConversations(10),
@@ -116,7 +116,7 @@ describe("HistoryPage server-side filtering", () => {
   it("sends date_from and date_to when dateRange state has values", async () => {
     const captured: Array<Record<string, string>> = [];
     server.use(
-      http.get("*/api/v1/conversations", ({ request }) => {
+      http.get("*/api/v1/history", ({ request }) => {
         const url = new URL(request.url);
         const params: Record<string, string> = {};
         url.searchParams.forEach((v, k) => { params[k] = v; });

@@ -39,10 +39,17 @@ _invalid_credentials = HTTPException(
 _MESSAGE_RATING_PATH = re.compile(r"^/api/v1/messages/[^/]+/rating$")
 # Matches the collection and /{id} only. The /{id}/messages sub-resource is granted
 # separately and GET-only (see below), so adding a write verb there would not inherit access.
-_CONVERSATION_PATH = re.compile(r"^/api/v1/conversations(?:/[^/]+)?$")
+_HISTORY_PATH = re.compile(r"^/api/v1/history(?:/[^/]+)?$")
 # The History page reads this to expand a conversation. Safe to grant because the
-# handler applies the same own-or-admin ownership check as GET /conversations/{id}.
-_CONVERSATION_MESSAGES_GET_PATTERN = re.compile(r"^/api/v1/conversations/[^/]+/messages$")
+# handler applies the same own-or-admin ownership check as GET /history/{id}.
+_HISTORY_MESSAGES_GET_PATTERN = re.compile(r"^/api/v1/history/[^/]+/messages$")
+# Covers create, /{id}, and the /{id}/items* sub-resources. Safe for all verbs: every
+# OpenAI conversations endpoint applies its own owns() check (404s a non-owner).
+_OAI_CONVERSATION_PATH = re.compile(r"^/api/v1/conversations(?:/.*)?$")
+# Covers create plus the retrieve/delete/input_items/cancel/input_tokens/compact
+# sub-resources. Safe for all verbs: every /responses/{id} endpoint owner-checks,
+# and the rest are create or unsupported (501) stubs.
+_RESPONSES_PATH = re.compile(r"^/api/v1/responses(?:/.*)?$")
 
 _PUBLIC_PREFIX = "/api/v1/public"
 # Agency logo images are already publicly exposed via GET /public/agencies;
@@ -85,18 +92,20 @@ def _is_shared_write(method: str, path: str) -> bool:
     """Writes every authenticated role (incl. read-only ones) may perform.
 
     Chat (including the OpenAI-compatible /responses surface), message rating,
-    own-conversation management, and the self/auth endpoints. Everything else is
+    own-history management, and the self/auth endpoints. Everything else is
     a privileged write.
     """
     if path.startswith("/api/v1/auth/"):  # all auth endpoints — each guards itself internally
         return True
-    if method == "POST" and path in (
-        "/api/v1/chat", "/api/v1/chat/stream", "/api/v1/responses",
-    ):
+    if method == "POST" and path in ("/api/v1/chat", "/api/v1/chat/stream"):
         return True
     if method == "PATCH" and _MESSAGE_RATING_PATH.match(path):
         return True
-    if _CONVERSATION_PATH.match(path):  # all verbs: manage own conversation history
+    if _HISTORY_PATH.match(path):  # all verbs: manage own history
+        return True
+    if _OAI_CONVERSATION_PATH.match(path):  # OpenAI conversations + items; each endpoint owner-checks
+        return True
+    if _RESPONSES_PATH.match(path):  # OpenAI responses + sub-resources; each endpoint owner-checks
         return True
     return False
 
@@ -107,7 +116,7 @@ def _is_allowed_for_basic_user(method: str, path: str) -> bool:
         return True
     if method == "GET" and path == "/api/v1/agencies":  # Architecture page (list only)
         return True
-    if method == "GET" and _CONVERSATION_MESSAGES_GET_PATTERN.match(path):
+    if method == "GET" and _HISTORY_MESSAGES_GET_PATTERN.match(path):
         return True
     return False
 

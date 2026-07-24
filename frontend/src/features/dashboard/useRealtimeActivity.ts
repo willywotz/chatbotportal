@@ -80,7 +80,7 @@ export function useRealtimeActivity() {
     const poll = async () => {
       try {
         const result = await api.get<{ data: Array<{ id: string; title: string; agencies: string[]; status: string }> }>(
-          '/api/v1/conversations?limit=20'
+          '/api/v1/history?limit=20'
         );
         const conversations = result?.data ?? [];
 

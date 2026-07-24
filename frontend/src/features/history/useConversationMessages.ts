@@ -5,7 +5,7 @@ import { STALE_TIME } from '@/shared/constants/query';
 
 async function fetchConversationMessages(conversationId: string): Promise<ConversationMessage[]> {
   const data = await api.get<ConversationMessage[]>(
-    `/api/v1/conversations/${conversationId}/messages`
+    `/api/v1/history/${conversationId}/messages`
   );
   return data ?? [];
 }

@@ -54,12 +54,15 @@ async def resolve_conversation(
                 message_id = uuid.UUID(raw)
             except ValueError:
                 raise _not_found(previous_response_id)
-            message = await Message.filter(id=message_id, role="assistant").first()
+            message = await Message.filter(
+                id=message_id, role="assistant", deleted_at=None
+            ).first()
             if message is None:
                 raise _not_found(previous_response_id)
             resolved = str(message.conversation_id)
 
     if conversation:
+        conversation = conversation.removeprefix("conv_")
         if resolved is not None and not _same_conversation(resolved, conversation):
             raise ResponsesApiError(
                 "`conversation` does not match the conversation of "

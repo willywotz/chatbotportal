@@ -121,7 +121,28 @@ pipeline (`routers/responses.py`), in three transports: HTTP non-streaming, HTTP
 WebSocket on the same path. It shares one turn implementation with `/chat/stream` via
 `services/chat/stream.py` (`prepare_turn` / `run_turn`), and translates to OpenAI's wire
 format in `services/responses/`. `store` is accepted but ignored, `usage` is always zero, and
-pipeline progress events are not surfaced. See `spec/openai-responses.md`.
+pipeline progress events are not surfaced. Response **creation, retrieval (`GET /responses/{id}`,
+reconstructed from the stored assistant `Message` in `services/responses/retrieve.py`), soft
+delete, and input-item listing** are implemented; `cancel`/`compact`/`input_tokens` are registered
+`501 not_implemented` stubs. **The entire OpenAI Conversations + items API is implemented** in
+`routers/openai_conversations.py` (create/get/update/delete + items create/list/retrieve/delete,
+backed by the `Conversation`/`Message` store, `conv_`/`msg_` ids, keyset item pagination). Both
+surfaces enforce **ephemeral temp-user ownership** (`services/openai/identity.py`: anonymous
+callers get a minted temp `User` + JWT returned via the `X-Portal-Session` header; every read/delete
+checks `owns()` → 404, never 403) and **soft delete** (`deleted_at`, filtered from all reads). Full
+contract: `spec/openai-responses-extended.md`; base tables in `spec/openai-responses.md`.
+Streaming is still a subset: the upstream declares 53 event
+types (`spec/openai-responses-api/4-streaming-events.md`) but the module emits only **9** (the
+8-event happy path plus `response.failed`); the other 44 — tools, reasoning, audio, image gen,
+MCP, code interpreter, refusals, background/queued lifecycle — are out of scope (§ 5.1 "Event
+scope"). The WebSocket reference (`spec/openai-responses-api/5-websocket-events.md`) declares
+1 client event + those same 53 server events; the WS transport implements the 1 client event
+(`response.create` only) and emits the same 9 server events, so § 8.1 states the 1/1 + 9/53 gap
+(the upstream `error` server event is out of scope — the portal's `error` frame is its own
+shape). The native SPA history router (`routers/conversations.py`) moved from
+`/api/v1/conversations` to **`/api/v1/history`** to free the former path for the OpenAI
+Conversations surface; it is a different contract — not a partial OpenAI Conversations
+implementation.
 
 In-process agency dispatch (API/MCP/A2A) also exists in `services/chat/dispatch.py`
 (retry/backoff, per-agency timeouts) — used for the direct-orchestration path.
@@ -250,9 +271,9 @@ and the mandatory rules in `CLAUDE.md`.
   (`เข้าสู่ระบบ`) now serves both citizens and staff.
   On `/history` a non-admin sees and deletes **only their own** conversations: `list_conversations`
   filters `user_id` for non-admins, and the three detail handlers apply an own-or-admin check.
-  `GET /conversations/{id}/messages` is allowlisted **GET-only** via
-  `_CONVERSATION_MESSAGES_GET_PATTERN`, deliberately separate from the all-verbs
-  `_CONVERSATION_PATH`, so a future write verb on that sub-resource does not inherit access.
+  `GET /history/{id}/messages` is allowlisted **GET-only** via
+  `_HISTORY_MESSAGES_GET_PATTERN`, deliberately separate from the all-verbs
+  `_HISTORY_PATH`, so a future write verb on that sub-resource does not inherit access.
   `staff` is read-only on those six pages: the staff allowlist grants only their six backing GETs
   (`_STAFF_GET_EXACT`), so writes like `POST /executive-summary/regenerate` stay admin-only
   and the UI hides the control (`canRegenerate={isAdmin}`) rather than letting it 403. A plain
@@ -271,8 +292,12 @@ and the mandatory rules in `CLAUDE.md`.
   The `viewer`/`auditor`/`agency_owner` roles and the ReBAC/ABAC engine (`authz.py`,
   `relationships` table) were removed 2026-07 — see
   `docs/superpowers/specs/2026-07-23-rbac-simplification-design.md`.
-- **`POST /api/v1/responses` is a shared write** (`_is_shared_write`), allowed for every
+- **The OpenAI programmatic surface is a shared write** (`_is_shared_write`), allowed for every
   authenticated role exactly like `/chat` — it is a programmatic surface, not a privileged one.
+  Two subtree regexes grant it: `_RESPONSES_PATH` (`^/api/v1/responses(?:/.*)?$`) and
+  `_OAI_CONVERSATION_PATH` (`^/api/v1/conversations(?:/.*)?$`). These are coarse role gates only;
+  each endpoint under them enforces its own `owns()` ownership check (404, never 403), mirroring
+  the `_HISTORY_PATH` precedent.
   The **WebSocket on that same path is not covered by the HTTP chokepoint** (a WS route is a
   different ASGI protocol): it resolves auth itself in `routers/responses.py::_ws_user`, from
   the `Authorization` header only. A bad or invalid token there degrades to anonymous
@@ -446,6 +471,26 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   `/{agency_id}` and returns **422** (UUID validation), not 404.
 - Error responses use a unified envelope `{"error":{"code","message","retryable","upstream_status"}}`
   (`app/errors.py`); frontend unwraps it, with legacy `detail` fallback.
+- **Responses surface has no rate/quota enforcement.** `/api/v1/responses` only ever produces
+  `invalid_request_error` and `server_error` types — there is no `_enforce_limits`,
+  `rate_limit_exceeded`, or `quota_exceeded` in the responses router/services (unlike `app/errors.py`,
+  which has its own `quota_exceeded` for other routes). WS defaults live in `app/config.py`:
+  `RESPONSES_WS_MAX_CONNECTIONS = 1024`, `RESPONSES_WS_MAX_DURATION_SECONDS = 900` (15 min), and the
+  limit frame interpolates the value in **seconds**. `spec/openai-responses.md` was corrected to match
+  (it had drifted to fabricated rate/quota rows and stale 100/3600/"60 minutes" values).
+- **`spec/openai-responses.md` was a complete *output* contract but not a complete *build* contract —
+  now fixed.** A spec-first rebuild of the responses layer produced **25/25 byte-identical** wire
+  output (pinned-upstream differential diff), but only after resolving 8 wire-visible gaps from the
+  code. Those gaps are now closed in the spec: a new **"Upstream input — the OneChat `ChatEvent`
+  stream"** section (between §3 and §4) documents the `answer`/`done`/`error` inputs to
+  `translate.consume()` and the `answer` payload shape feeding `portal.agency_ids`
+  (`sections[].agencies[].id`); §5 states the `ensure_ascii=False` UTF-8 rule; §4 states that response
+  `model` echoes the request verbatim and `output` stays `[]` on an empty answer; and the previously
+  unstated error `message` strings (input validation §2.1, conversation mismatch §3, binary frame §8)
+  are now pinned. Full findings + fix list: `spec/openai-responses-spec-gap-log.md`.
+  A follow-up code↔spec reconciliation (2026-07-24) found **zero wire divergences** — the layer
+  passes all 49 responses tests and conforms to the contract; the only change was deleting the
+  dead `ResponseAccumulator.failed_event()` (unreferenced; `_failed` is used directly).
 - **Editing `frontend/vite.config.ts` does not affect a running stack.** The dev override's
   `develop.watch` syncs only `frontend/src`, and `docker compose up` will not rebuild an existing
   image — so config changes silently do nothing until `docker compose up -d --build frontend`.

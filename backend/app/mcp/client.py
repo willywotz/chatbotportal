@@ -1,7 +1,6 @@
 import asyncio
 
 from fastmcp import Client
-from app.config import settings
 
 async def main():
 
@@ -19,7 +18,7 @@ async def main():
     #     print("list_tools: ", await client.list_tools())
     #     print("list_agency: ", await client.call_tool("list_agency"))
 
-    async with Client(settings.MCP_CLIENT_URL) as client:
+    async with Client("https://chatbotportal.opdc.ai.in.th/mcp") as client:
         print(await client.call_tool("list_agency"))
 
 if __name__ == "__main__":

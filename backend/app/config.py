@@ -71,11 +71,6 @@ class Settings(BaseSettings):
     CHAT_STREAM_VERSION: str = "v5"        # "v4" | "v5" — upstream for POST /chat/stream
     MCP_ENDPOINT_URL: str = "http://185.84.161.145/mcp/"
 
-    # ── MCP ──────────────────────────────────────────────────────────────────
-    MCP_CLIENT_URL: str = "http://localhost:8080/mcp/"
-    MCP_PROTOCOL_VERSION: str = "2024-11-05"
-    MCP_CLIENT_VERSION: str = "1.0"
-
     # ── Chat ─────────────────────────────────────────────────────────────────
     A2A_DISPATCH_TIMEOUT: int = 30
     V4_STREAM_TIMEOUT: float = 300.0
@@ -83,8 +78,8 @@ class Settings(BaseSettings):
     TITLE_MAX_LENGTH: int = 50
     PREVIEW_MAX_LENGTH: int = 100
     SPEC_TEXT_MAX_CHARS: int = 30000
-    RESPONSES_WS_MAX_CONNECTIONS: int = 100
-    RESPONSES_WS_MAX_DURATION_SECONDS: int = 3600
+    RESPONSES_WS_MAX_CONNECTIONS: int = 1024
+    RESPONSES_WS_MAX_DURATION_SECONDS: int = 900
 
     # ── Agency health / scheduler ────────────────────────────────────────────
     AGENCY_CHAT_TIMEOUT: int = 180
@@ -114,7 +109,7 @@ class Settings(BaseSettings):
 
     # ── Embedding / similarity ──────────────────────────────────────────────
     SIMILARITY_THRESHOLD: float = 0.95
-    SIMILARITY_WINDOW_SECONDS: int = 259200  # 3 days
+    SIMILARITY_WINDOW_SECONDS: int = 60
     SIMILARITY_CACHE_ENABLED: bool = True
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
@@ -157,11 +152,10 @@ def assert_production_secrets(s: "Settings") -> None:
 
 SETTINGS_GROUPS: dict[str, list[str]] = {
     "Similarity": ["SIMILARITY_THRESHOLD", "SIMILARITY_WINDOW_SECONDS", "SIMILARITY_CACHE_ENABLED"],
-    "App": ["APP_NAME", "APP_VERSION", "TIMEZONE", "USER_AGENT_PREFIX", "ENV"],
-    "OneChat": ["ONECHAT_V3_URL", "ONECHAT_V4_URL", "ONECHAT_V5_URL", "CHAT_STREAM_VERSION", "MCP_ENDPOINT_URL"],
-    "MCP": ["MCP_CLIENT_URL", "MCP_PROTOCOL_VERSION", "MCP_CLIENT_VERSION"],
-    "Chat": ["A2A_DISPATCH_TIMEOUT", "V4_STREAM_TIMEOUT", "EXTERNAL_CHAT_TIMEOUT", "TITLE_MAX_LENGTH", "PREVIEW_MAX_LENGTH", "SPEC_TEXT_MAX_CHARS", "RESPONSES_WS_MAX_CONNECTIONS", "RESPONSES_WS_MAX_DURATION_SECONDS"],
-    "Agency health": ["AGENCY_CHAT_TIMEOUT", "AGENCY_CHAT_CONCURRENCY", "HEALTH_CHECK_INTERVAL_MINUTES", "CONNECTION_TEST_TIMEOUT", "HEALTH_DEGRADED_UPTIME_PCT", "CONNECTION_LOG_BODY_MAX_CHARS", "CONNECTION_LOG_RETENTION_DAYS", "EVAL_INTERVAL_HOURS"],
+    # "App": ["APP_NAME", "APP_VERSION", "TIMEZONE", "USER_AGENT_PREFIX", "ENV"],
+    "OneChat": ["CHAT_STREAM_VERSION", "MCP_ENDPOINT_URL", "ONECHAT_V3_URL", "ONECHAT_V4_URL", "ONECHAT_V5_URL"],
+    # "Chat": ["A2A_DISPATCH_TIMEOUT", "V4_STREAM_TIMEOUT", "EXTERNAL_CHAT_TIMEOUT", "TITLE_MAX_LENGTH", "PREVIEW_MAX_LENGTH", "SPEC_TEXT_MAX_CHARS", "RESPONSES_WS_MAX_CONNECTIONS", "RESPONSES_WS_MAX_DURATION_SECONDS"],
+    # "Agency health": ["AGENCY_CHAT_TIMEOUT", "AGENCY_CHAT_CONCURRENCY", "HEALTH_CHECK_INTERVAL_MINUTES", "CONNECTION_TEST_TIMEOUT", "HEALTH_DEGRADED_UPTIME_PCT", "CONNECTION_LOG_BODY_MAX_CHARS", "CONNECTION_LOG_RETENTION_DAYS", "EVAL_INTERVAL_HOURS"],
 }
 
 SECRET_FIELD_NAMES: set[str] = {

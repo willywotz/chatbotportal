@@ -17,6 +17,63 @@ Three transports, one pipeline (`app/routers/responses.py`):
 All three drive the same generator (`run_response()` in `app/routers/responses.py`), so their
 event output cannot drift from one another.
 
+### Endpoint scope
+
+The upstream OpenAI Responses reference (`spec/openai-responses-api/1-responses.md`) declares
+seven endpoints. The portal now implements response **creation, retrieval, deletion, and
+input-item listing**, and registers the three OneChat-incompatible endpoints as explicit
+`501 Not Implemented` stubs. The full wire contract for everything beyond creation lives in
+**`spec/openai-responses-extended.md`** — read it for the retrieve/delete/input_items shapes, the
+Conversations + items family, ephemeral temp-user auth, and soft-delete semantics.
+
+| Upstream endpoint | Status | Note |
+|---|---|---|
+| `POST /responses` | ✅ Implemented | HTTP, SSE, and WebSocket transports (above) |
+| `GET /responses/{id}` | ✅ Implemented | Reconstructed from the stored assistant `Message` — extended spec § 1 (`cached`/`stream_version`/`model` are best-effort, not persisted per-turn) |
+| `DELETE /responses/{id}` | ✅ Implemented | **Soft** delete (`deleted_at`); the turn is retained for analytics/audit but 404s afterward — extended spec § 2 |
+| `POST /responses/{id}/cancel` | ⚠️ 501 stub | Registered, returns `501` `not_implemented`: a turn is one synchronous OneChat call, no `background` mode to cancel — extended spec § 4 |
+| `POST /responses/compact` | ⚠️ 501 stub | Registered, returns `501` `not_implemented`: OneChat owns context/history server-side — extended spec § 4 |
+| `GET /responses/{id}/input_items` | ✅ Implemented | Lists the single preceding user message (only the newest is ever forwarded, § 2.1) — extended spec § 3 |
+| `POST /responses/input_tokens` | ⚠️ 501 stub | Registered, returns `501` `not_implemented`: OneChat does not report token counts (see `usage` deviation below) — extended spec § 4 |
+
+Retrieve/delete/input_items and the Conversations family enforce **ephemeral temp-user ownership**
+(extended spec § 0.2). Clients needing the three `501` operations must not treat the portal as a
+drop-in for the full OpenAI Responses API.
+
+#### Conversations API — implemented (see `spec/openai-responses-extended.md` §§ 5–6)
+
+The upstream reference also defines a **Conversations** family (`spec/openai-responses-api/2-conversations.md`)
+and its **items** subresource (`spec/openai-responses-api/3-conversations-items.md`). The portal
+now implements **all** of these as OpenAI-compatible endpoints, backed by the existing
+`Conversation`/`Message` store (`app/routers/openai_conversations.py`).
+
+Conversations resource (`2-conversations.md`):
+
+| Upstream endpoint | Status |
+|---|---|
+| `POST /conversations` | ✅ Implemented (extended § 5.1) |
+| `GET /conversations/{id}` | ✅ Implemented (extended § 5.2) |
+| `POST /conversations/{id}` (update) | ✅ Implemented — replaces `metadata` (extended § 5.3) |
+| `DELETE /conversations/{id}` | ✅ Implemented — soft delete (extended § 5.4) |
+
+Items subresource (`3-conversations-items.md`) — all four endpoints it declares:
+
+| Upstream endpoint | Status |
+|---|---|
+| `POST /conversations/{id}/items` (create items) | ✅ Implemented — persisted as `Message` rows, no effect on generation (extended § 6.2) |
+| `GET /conversations/{id}/items` (list items) | ✅ Implemented — keyset pagination (extended § 6.3) |
+| `GET /conversations/{id}/items/{item_id}` (retrieve an item) | ✅ Implemented (extended § 6.4) |
+| `DELETE /conversations/{id}/items/{item_id}` (delete an item) | ✅ Implemented — soft delete (extended § 6.5) |
+
+Ids are `conv_<uuid>`/`msg_<uuid>`; items map `Message` rows to the `conversation.item` message
+shape. Injected items are stored for retrieval but do **not** change what OneChat generates (only
+the newest user message is ever forwarded, § 2.1).
+
+⚠️ **The native SPA history router moved to `/api/v1/conversations` → `/api/v1/history`**
+(`app/routers/conversations.py`) to free `/api/v1/conversations` for the OpenAI-compatible surface
+above. The native contract (save-with-messages, list-with-search, get, delete) is unchanged except
+for the prefix and is **not** OpenAI-shaped.
+
 ---
 
 ## 1. Models
@@ -98,12 +155,13 @@ or a list of content parts, each part's `text` joined with a space:
 (`"part one" + "part two"` → `"part one part two"`). A plain string `content` on the last item
 is accepted directly (`{"role": "user", "content": "hello"}` → `"hello"`).
 
-**Rejected as `400 invalid_request_error`, `param: "input"`:**
+**Rejected as `400 invalid_request_error`, `param: "input"`** with one of these exact `message`
+values:
 
-- Empty string, whitespace-only string, or empty array
-- Last array item is not a `role: "user"` message
-- Last item's `content` is `null`, a non-string/non-list, or resolves to an empty string after
-  trimming
+| Cause | `message` |
+|---|---|
+| Empty string, whitespace-only string, empty array, or last item's `content` is `null` / a non-string-non-list / trims to empty | ``` `input` must not be empty. ``` |
+| Last array item is not a `role: "user"` message | ``` The last item of `input` must be a message with role 'user'. ``` |
 
 Source: `extract_query()` in `app/services/responses/request.py`;
 `backend/tests/services/test_responses_request.py`.
@@ -120,7 +178,7 @@ the SPA.
 | Field | Behavior |
 |---|---|
 | `previous_response_id` | `resp_<uuid>` → look up that assistant `Message` → its `conversation_id`. Not found or malformed → `404`, `code: "previous_response_not_found"`, `param: "previous_response_id"` |
-| `conversation` | A raw portal `conversation_id`. May be supplied alone, or together with `previous_response_id` if it resolves to the *same* conversation. Supplied together and disagreeing → `400 invalid_request_error`, `param: "conversation"` |
+| `conversation` | A raw portal `conversation_id`. May be supplied alone, or together with `previous_response_id` if it resolves to the *same* conversation (compared as UUID values, so textual case never causes a spurious conflict). Supplied together and disagreeing → `400 invalid_request_error`, `param: "conversation"`, `message` ``` `conversation` does not match the conversation of `previous_response_id`; supply only one. ``` |
 | Neither supplied | A new conversation id is generated; the turn is eligible for the similarity cache like any new `/chat/stream` turn |
 
 On the WebSocket transport, a connection-local `dict[str, str]` (response id → conversation id)
@@ -138,6 +196,44 @@ for it — e.g. it was deleted, or a WS `generate: false` warm-up targets a stal
 Source: `app/services/responses/continuity.py`; the `conversation_not_found` raise sites in
 `app/routers/responses.py` (`run_response`, via `ConversationNotFound`) and
 `app/services/responses/session.py` (`WsSession._warm`).
+
+---
+
+## Upstream input — the OneChat `ChatEvent` stream
+
+Everything in §§ 4–7 is a *translation* of the upstream turn, so a rebuild needs this **input**
+contract as much as the output shapes below. `run_turn()` yields `ChatEvent(name, data)` values
+(the OneChat pipeline vocabulary, unchanged) and `ResponseAccumulator.consume()` maps each one to
+zero or more OpenAI events:
+
+| `ChatEvent.name` | Drives | Notes |
+|---|---|---|
+| `answer` | The six output-item events (§ 5, events 2–7) and the populated response body (§ 4) | The terminal answer, delivered whole — OneChat does not stream token deltas |
+| `done` | `response.completed` (§ 5, event 8) | Ends the turn; suppressed if a `response.failed` was already emitted |
+| `error` | `response.failed` (§ 7) | Mid-stream upstream failure; `data["message"]` is copied verbatim into `response.error.message` |
+| `step`, `intent`, `routing`, `agency_start`, `agency_responded`, `agency_verified` | *Nothing* | Pipeline-progress events, dropped (§ 5.1) |
+
+The `answer` event's `data` is the **sole** source of the answer text, summary, references and
+agency ids that §§ 4 and 6 expose:
+
+```json
+{
+  "answer": "คำตอบเต็ม",
+  "summary": "สรุป",
+  "references": [{ "number": 1, "agency_id": "a-1", "agency_name": "กรมการปกครอง", "url": null }],
+  "sections": [{ "agencies": [{ "id": "a-1", "name": "กรมการปกครอง" }] }]
+}
+```
+
+| `data` key | Becomes | Notes |
+|---|---|---|
+| `answer` | `output_text` and every `output_text` field (§ 4, § 5) | Leading/trailing whitespace trimmed; missing or empty → `""` |
+| `summary` | `portal.summary` (§ 6) | v5 only; `""` on v4 or a degraded summary |
+| `references` | `portal.references` (§ 6) | Passed through verbatim — OneChat v5 shape |
+| `sections[].agencies[].id` | `portal.agency_ids` (§ 6) | The `id` of each agency, flattened across every section |
+
+Source: `ChatEvent` and `run_turn()` in `app/services/chat/stream.py`;
+`ResponseAccumulator.consume` / `_answer_events` in `app/services/responses/translate.py`.
 
 ---
 
@@ -179,8 +275,9 @@ transport deliver the same object as the `response` field of the terminal
 | Field | Notes |
 |---|---|
 | `id` | `resp_<assistant message uuid>` |
+| `model` | Echoes the requested `model` **verbatim** — the default id stays `"thai-citizen-guide"`, not the resolved `"…-v5"` (§ 1) |
 | `status` | `"in_progress"` (on `response.created`), `"completed"`, or `"failed"` |
-| `output` / `output_text` | `output` is empty and `output_text` is `""` until the answer arrives; `output_text` is the composed `answer` byte-for-byte, including any v5 summary prefix — no client-side stripping |
+| `output` / `output_text` | `output` is empty and `output_text` is `""` until the answer arrives — and `output` stays `[]` even in a `completed` response whose answer is empty (the degrade case); `output_text` is the composed `answer`, including any v5 summary prefix — no summary-side stripping, though leading/trailing whitespace is trimmed |
 | `usage` | Always the zero object — see § 6 |
 | `portal` | Non-standard top-level block — see § 6 |
 | `error` | Present only on a failed response — see § 7 |
@@ -245,15 +342,48 @@ Over HTTP SSE, each event is framed as `event: <type>\ndata: <json>\n\n`, and th
 terminates with the literal line `data: [DONE]`. On the WebSocket, each event is one JSON text
 frame (no `event:`/`data:` framing, no `[DONE]` sentinel — the sequence simply ends).
 
+All JSON on this surface — SSE `data:` payloads, WebSocket frames, and non-streaming/error bodies
+alike — is serialized as UTF-8 with `ensure_ascii=False`, so Thai and other non-ASCII text appears
+literally (e.g. `คำตอบเต็ม`) and is **never** `\uXXXX`-escaped.
+
 **Upstream pipeline-progress events are dropped.** `step`, `intent`, `routing`, `agency_start`,
 `agency_responded` and `agency_verified` produce zero OpenAI events — there is no standard
 Responses event that carries them, and injecting non-standard SSE event types is exactly what
 breaks strict SDK parsers. Clients wanting the pipeline view use `/api/v1/chat/stream`.
 
+### 5.1 Event scope — 9 of 53 upstream events
+
+The upstream OpenAI streaming reference (`spec/openai-responses-api/4-streaming-events.md`)
+declares **53 event types**. The portal emits the **9** listed in the sequence above (the 8-event
+happy path plus `response.failed` on a mid-stream failure) and deliberately emits none of the
+other 44. This is a scope decision, not an oversight: the omitted events all announce features
+OneChat does not surface through this endpoint (tool calls, reasoning, audio, image generation,
+MCP, code interpreter, refusals, and the background/queued lifecycle). A client must not wait for
+any of them — a portal stream is the 9-event set and nothing else.
+
+| Upstream event(s) | Status | Note |
+|---|---|---|
+| `response.created`, `response.output_item.added`, `response.content_part.added`, `response.output_text.delta`, `response.output_text.done`, `response.content_part.done`, `response.output_item.done`, `response.completed` | ✅ Emitted | The 8-event happy path (§ 5) |
+| `response.failed` | ✅ Emitted | Mid-stream upstream failure (§ 7) |
+| `response.in_progress`, `response.queued`, `response.incomplete` | ❌ Out of scope | The portal only transitions `created → completed` (or `created → failed`); no background/queued mode (§ 8) and no truncated/incomplete status |
+| `error` | ❌ Out of scope | The SSE-level error event is never emitted — pre-stream failures return the HTTP error envelope (§ 7) and mid-stream failures use `response.failed`. WS `error` frames are a separate, non-OpenAI shape (§ 8) |
+| `response.refusal.delta`, `response.refusal.done` | ❌ Out of scope | No refusal channel; answers are plain `output_text` |
+| `response.output_text.annotation.added` | ❌ Out of scope | `annotations` is always `[]` (§ 4); none are streamed |
+| `response.function_call_arguments.delta` / `.done`, `response.custom_tool_call_input.delta` / `.done` | ❌ Out of scope | No function or custom tool calling |
+| `response.file_search_call.*`, `response.web_search_call.*` | ❌ Out of scope | No hosted file-search or web-search tools |
+| `response.mcp_call_arguments.*`, `response.mcp_call.*`, `response.mcp_list_tools.*` | ❌ Out of scope | No MCP tool surface |
+| `response.code_interpreter_call.*`, `response.code_interpreter_call_code.*` | ❌ Out of scope | No code interpreter |
+| `response.image_generation_call.*` | ❌ Out of scope | No image generation |
+| `response.reasoning_summary_part.*`, `response.reasoning_summary_text.*`, `response.reasoning_text.*` | ❌ Out of scope | No reasoning surface exposed |
+| `response.audio.*`, `response.audio.transcript.*` | ❌ Out of scope | Text-only; no audio modality |
+
+Source: the `"type": "response.*"` literals in `ResponseAccumulator` in
+`app/services/responses/translate.py` are the only nine event types the module emits.
+
 **Two error timings, not one:**
 
 - **Before the stream starts** — request-validation failures (unknown `model`, unknown
-  `previous_response_id`, empty `input`, rate limit, quota) are detected in the prelude of
+  `previous_response_id`, empty `input`) are detected in the prelude of
   `run_response()`, before any bytes are sent. They are returned as a normal HTTP error response
   with the JSON error envelope (§ 7), **not** as an SSE event, even when `stream: true` was
   requested — HTTP status and headers are already committed by the time an SSE body iterator
@@ -306,8 +436,8 @@ Source: `ResponseAccumulator._response_body`, `_answer_events` in
 { "error": { "message": "...", "type": "invalid_request_error", "param": null, "code": null } }
 ```
 
-`type` is `"invalid_request_error"` for client errors, `"rate_limit_error"` for rate/quota
-errors, and `"server_error"` for unexpected 5xx failures. This router uses this shape instead
+`type` is `"invalid_request_error"` for client errors and `"server_error"` for unexpected 5xx
+failures. This router uses this shape instead
 of the portal's `app/errors.py` envelope, via a dedicated exception handler scoped to
 `/api/v1/responses`.
 
@@ -319,8 +449,6 @@ Source: `ResponsesApiError.envelope()` in `app/services/responses/errors.py`.
 |---|---|---|---|
 | `previous_response_not_found` | 404 | `invalid_request_error` | `app/services/responses/continuity.py` |
 | `conversation_not_found` | 404 | `invalid_request_error` | `app/services/responses/session.py`, `app/routers/responses.py` |
-| `rate_limit_exceeded` | 429 | `rate_limit_error` | `app/routers/responses.py` (`_enforce_limits`) |
-| `quota_exceeded` | 429 | `rate_limit_error` | `app/routers/responses.py` (`_enforce_limits`) |
 | `websocket_connection_limit_reached` | — (WS close, not an HTTP status) | `invalid_request_error` | `app/routers/responses.py` (`_connection_limit_frame`) |
 | `no_answer` | 502 | `server_error` | `app/routers/responses.py` (`create_response`) — the non-streaming path ran to completion without a `response.completed` or `response.failed` |
 
@@ -345,6 +473,29 @@ Source: `ResponseAccumulator._failed` in `app/services/responses/translate.py`.
 allowed, matching `POST /chat`); there is no query-parameter token fallback, since that would
 leak keys into access logs. Browsers cannot set headers on a WebSocket, so browser clients
 should use the SSE transport instead.
+
+### 8.1 Event scope — 1 client event, 9 of 53 server events
+
+The upstream OpenAI WebSocket reference (`spec/openai-responses-api/5-websocket-events.md`)
+declares **1 client event** (`response.create`) and **53 server events**. That server set is
+identical to the streaming reference's 53 events (`4-streaming-events.md`), so the § 5.1 split
+applies here unchanged.
+
+| Direction | Upstream declares | Portal | Status |
+|---|---|---|---|
+| Client → server | `response.create` (1) | Accepts only `response.create`; any other `type` → an `error` frame | ✅ 1 of 1 |
+| Server → client | 53 events | The same **9** as § 5.1 (the 8-event happy path plus `response.failed`), one JSON object per text frame | ✅ 9 of 53; the other 44 out of scope, same reasons as § 5.1 |
+
+One nuance beyond § 5.1: the upstream **`error` server event** is out of scope. The portal does
+send `{"type": "error", ...}` frames (below), but that is the portal's own envelope shape, **not**
+the OpenAI `error` event — a strict client must not parse it as the upstream `error` type. As over
+SSE, a client must not wait for any of the other 44 server events; a portal socket carries the
+9-event set and the portal `error` frame, nothing else.
+
+Source: `WsSession.handle_text` in `app/services/responses/session.py` (accepts `response.create`
+only; wraps errors via `_error_frame`); `ResponseAccumulator` in
+`app/services/responses/translate.py` (the same nine `response.*` literals emitted over every
+transport).
 
 **Inbound frames** — JSON text frames. Only `{"type": "response.create", ...}` is accepted; the
 rest of the body is the same `ResponsesRequest` fields as the HTTP body (§ 2):
@@ -375,6 +526,7 @@ fault while generating, produces an `error` frame — the socket is never closed
 | Situation | Frame |
 |---|---|
 | Invalid JSON | `{"type": "error", "error": {"message": "Frame is not valid JSON.", "type": "invalid_request_error", "param": null, "code": null}}` |
+| Binary (non-text) frame | `{"type": "error", "error": {"message": "This endpoint accepts text frames only; binary frames are not supported.", "type": "invalid_request_error", "param": null, "code": null}}` |
 | Wrong/missing `type` | `{"type": "error", "error": {"message": "Unsupported frame type; this endpoint accepts \`response.create\` only.", "type": "invalid_request_error", "param": "type", "code": null}}` |
 | Body fails `ResponsesRequest` validation | `{"type": "error", "error": {"message": "<pydantic ValidationError text>", "type": "invalid_request_error", "param": null, "code": null}}` |
 | A `ResponsesApiError` raised while generating (e.g. `previous_response_not_found`) | Its own `envelope()`, wrapped in `{"type": "error", ...}` |
@@ -386,14 +538,14 @@ exception inside `_generate` is logged server-side and reported as `server_error
 leaking its message.
 
 **Connection limit.** The server closes the socket after
-`RESPONSES_WS_MAX_DURATION_SECONDS` (default `3600`, 60 minutes), sending this frame first
-and then closing with code `1000`:
+`RESPONSES_WS_MAX_DURATION_SECONDS` (default `900`, 15 minutes), sending this frame first
+and then closing with code `1000`. The message interpolates the configured duration in seconds:
 
 ```json
-{ "type": "error", "error": { "message": "Responses websocket connection limit reached (60 minutes). Create a new websocket connection to continue.", "type": "invalid_request_error", "param": null, "code": "websocket_connection_limit_reached" } }
+{ "type": "error", "error": { "message": "Responses websocket connection limit reached (900 seconds). Create a new websocket connection to continue.", "type": "invalid_request_error", "param": null, "code": "websocket_connection_limit_reached" } }
 ```
 
-A new handshake beyond `RESPONSES_WS_MAX_CONNECTIONS` (default `100`) concurrent sockets is
+A new handshake beyond `RESPONSES_WS_MAX_CONNECTIONS` (default `1024`) concurrent sockets is
 refused at `accept()` time with WebSocket close code `1013` ("try again later") — no frame is
 sent, since the connection was never accepted.
 

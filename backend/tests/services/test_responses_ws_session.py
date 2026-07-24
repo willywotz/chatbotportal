@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.config import SETTINGS_GROUPS, settings
+from app.config import settings
 from app.services.chat import stream as turn_stream
 from app.services.chat.stream import ChatEvent
 from app.services.responses import session as ws_session
@@ -196,7 +196,5 @@ async def test_deeply_nested_json_errors_without_closing(db):
 
 
 def test_ws_settings_are_registered():
-    assert settings.RESPONSES_WS_MAX_CONNECTIONS == 100
-    assert settings.RESPONSES_WS_MAX_DURATION_SECONDS == 3600
-    assert "RESPONSES_WS_MAX_CONNECTIONS" in SETTINGS_GROUPS["Chat"]
-    assert "RESPONSES_WS_MAX_DURATION_SECONDS" in SETTINGS_GROUPS["Chat"]
+    assert settings.RESPONSES_WS_MAX_CONNECTIONS == 1024
+    assert settings.RESPONSES_WS_MAX_DURATION_SECONDS == 900

@@ -14,8 +14,8 @@ import logging
 import time
 from typing import Any, AsyncIterator
 
-from fastapi import APIRouter, BackgroundTasks, Depends, WebSocket, WebSocketDisconnect
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, WebSocket, WebSocketDisconnect
+from fastapi.responses import JSONResponse, StreamingResponse
 from opentelemetry import trace
 
 from app.auth.dependencies import _resolve_token, get_current_user_optional
@@ -23,11 +23,16 @@ from app.models.user import User
 from app.schemas.responses import ResponsesRequest
 from app.services.chat.stream import ConversationNotFound, prepare_turn, run_turn
 from app.config import settings
+from app.services.openai.identity import owner_or_ephemeral
 from app.services.responses.continuity import resolve_conversation, response_id_for
 from app.services.responses.errors import ResponsesApiError
 from app.services.responses.request import extract_query, resolve_model
+from app.services.responses.retrieve import (
+    input_items as build_input_items, load_assistant_message, response_object,
+)
 from app.services.responses.session import WsSession, _error_frame
 from app.services.responses.translate import ResponseAccumulator
+from app.utils import now
 
 router = APIRouter(prefix="/responses", tags=["Responses"])
 tracer = trace.get_tracer(__name__)
@@ -97,9 +102,10 @@ async def create_response(
 ) -> Any:
     with tracer.start_as_current_span("responses_endpoint") as span:
         span.set_attribute("stream", body.stream)
+        owner, session_token = await owner_or_ephemeral(user)
 
         if body.stream:
-            events = run_response(body, user=user, background_tasks=background_tasks)
+            events = run_response(body, user=owner, background_tasks=background_tasks)
             # Prime the generator now, while we're still inside this handler and
             # any ResponsesApiError from the prelude (resolve_model,
             # resolve_conversation, prepare_turn) is caught by the
@@ -118,13 +124,16 @@ async def create_response(
                     yield render(event)
                 yield "data: [DONE]\n\n"
 
-            return StreamingResponse(
+            resp = StreamingResponse(
                 sse(), media_type="text/event-stream",
                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
             )
+            if session_token:
+                resp.headers["X-Portal-Session"] = session_token
+            return resp
 
         final = None
-        async for event in run_response(body, user=user, background_tasks=background_tasks):
+        async for event in run_response(body, user=owner, background_tasks=background_tasks):
             if event["type"] in ("response.completed", "response.failed"):
                 final = event["response"]
         if final is None:
@@ -132,7 +141,54 @@ async def create_response(
                 "The upstream produced no answer.", type="server_error",
                 code="no_answer", status=502,
             )
-        return final
+        resp = JSONResponse(content=final)
+        if session_token:
+            resp.headers["X-Portal-Session"] = session_token
+        return resp
+
+
+def _not_implemented(message: str) -> ResponsesApiError:
+    return ResponsesApiError(message, code="not_implemented", status=501)
+
+
+@router.post("/input_tokens", summary="(unsupported) token counting")
+async def input_tokens_stub(body: dict | None = None):
+    raise _not_implemented("`input_tokens` is not supported: OneChat does not report "
+                           "token counts to the portal.")
+
+
+@router.post("/compact", summary="(unsupported) compaction")
+async def compact_stub(body: dict | None = None):
+    raise _not_implemented("`compact` is not supported: OneChat owns context/history "
+                           "server-side.")
+
+
+@router.get("/{response_id}", summary="Retrieve a response")
+async def get_response(response_id: str, user: User | None = Depends(get_current_user_optional)):
+    return response_object(await load_assistant_message(response_id, user))
+
+
+@router.delete("/{response_id}", summary="Delete a response")
+async def delete_response(response_id: str, user: User | None = Depends(get_current_user_optional)):
+    msg = await load_assistant_message(response_id, user)
+    msg.deleted_at = now()
+    await msg.save(update_fields=["deleted_at"])
+    return {"id": f"resp_{msg.id}", "object": "response", "deleted": True}
+
+
+@router.post("/{response_id}/cancel", summary="(unsupported) cancel")
+async def cancel_stub(response_id: str):
+    raise _not_implemented("`cancel` is not supported: a turn is one synchronous OneChat "
+                           "call with no background mode to cancel.")
+
+
+@router.get("/{response_id}/input_items", summary="List a response's input items")
+async def response_input_items(response_id: str, limit: int = Query(20, ge=1, le=100),
+                               order: str = Query("desc"),
+                               after: str | None = Query(None),
+                               user: User | None = Depends(get_current_user_optional)):
+    msg = await load_assistant_message(response_id, user)
+    return await build_input_items(msg, order=order, limit=limit)
 
 
 # ─── WebSocket mode ───────────────────────────────────────────────────────────
@@ -226,7 +282,7 @@ def _connection_limit_frame() -> dict:
     return {
         "type": "error",
         **ResponsesApiError(
-            "Responses websocket connection limit reached (60 minutes). "
+            f"Responses websocket connection limit reached ({settings.RESPONSES_WS_MAX_DURATION_SECONDS} seconds). "
             "Create a new websocket connection to continue.",
             type="invalid_request_error",
             code="websocket_connection_limit_reached",

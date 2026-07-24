@@ -3,10 +3,10 @@ Conversation & message-history routes.
 
 Endpoints
 ---------
-  POST   /conversations                Save a new conversation (with messages)
-  GET    /conversations                List conversations (history) — with search/filter
-  GET    /conversations/{id}           Get single conversation with messages
-  DELETE /conversations/{id}           Delete conversation (cascades to messages)
+  POST   /history                Save a new conversation (with messages)
+  GET    /history                List conversations (history) — with search/filter
+  GET    /history/{id}           Get single conversation with messages
+  DELETE /history/{id}           Delete conversation (cascades to messages)
 """
 
 import time
@@ -27,7 +27,7 @@ from app.schemas.conversation import (
 )
 from app.utils import now
 
-router = APIRouter(prefix="/conversations", tags=["Conversations"])
+router = APIRouter(prefix="/history", tags=["History"])
 
 
 # ---------------------------------------------------------------------------
@@ -89,7 +89,7 @@ async def list_conversations(
 ) -> HistoryResponse:
     start = time.time()
 
-    qs = Conversation.all()
+    qs = Conversation.filter(deleted_at=None)
 
     if not user.is_admin:
         qs = qs.filter(user_id=user.id)
@@ -148,14 +148,15 @@ async def list_conversations(
 
 @router.get("/{conversation_id}", summary="Get conversation with messages")
 async def get_conversation(conversation_id: uuid.UUID, user: User = Depends(get_current_user)) -> dict:
-    try:
-        conv = await Conversation.get(id=conversation_id)
-    except DoesNotExist:
+    conv = await Conversation.get_or_none(id=conversation_id, deleted_at=None)
+    if conv is None:
         raise HTTPException(status_code=404, detail="Conversation not found")
     if str(conv.user_id) != str(user.id) and not user.is_admin:
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    messages = await Message.filter(conversation_id=conversation_id).order_by("created_at")
+    messages = await Message.filter(
+        conversation_id=conversation_id, deleted_at=None
+    ).order_by("created_at")
 
     return {
         "id": str(conv.id),
@@ -185,14 +186,15 @@ async def get_conversation(conversation_id: uuid.UUID, user: User = Depends(get_
 
 @router.get("/{conversation_id}/messages", summary="Get messages for a conversation")
 async def get_conversation_messages(conversation_id: uuid.UUID, user: User = Depends(get_current_user)) -> list[dict]:
-    try:
-        conv = await Conversation.get(id=conversation_id)
-    except DoesNotExist:
+    conv = await Conversation.get_or_none(id=conversation_id, deleted_at=None)
+    if conv is None:
         raise HTTPException(status_code=404, detail="Conversation not found")
     if str(conv.user_id) != str(user.id) and not user.is_admin:
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    messages = await Message.filter(conversation_id=conversation_id).order_by("created_at")
+    messages = await Message.filter(
+        conversation_id=conversation_id, deleted_at=None
+    ).order_by("created_at")
 
     return [
         {
