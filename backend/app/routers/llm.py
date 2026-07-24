@@ -28,10 +28,11 @@ from app.schemas.llm_route import (
     LLMRouteCreate,
     LLMRouteListResponse,
     LLMRouteResponse,
+    LLMRouteTestResult,
     LLMRouteUpdate,
 )
 from app.services.audit import record_audit
-from app.services.llm import KNOWN_PURPOSES, invalidate
+from app.services.llm import KNOWN_PURPOSES, invalidate, ping
 
 logger = logging.getLogger(__name__)
 
@@ -195,6 +196,20 @@ async def create_route(body: LLMRouteCreate, user: User = Depends(require_admin)
     await record_audit(user, "llm_route.create", object_type="llm_route", object_id=route.id)
     invalidate()
     return await _route_response(route)
+
+
+@router.post(
+    "/routes/{purpose}/test",
+    response_model=LLMRouteTestResult,
+    dependencies=[Depends(require_admin)],
+    summary="Test an LLM route end-to-end",
+)
+async def test_route(purpose: str):
+    if purpose not in KNOWN_PURPOSES:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown purpose")
+    result = await ping(purpose)
+    return LLMRouteTestResult(ok=result.ok, latency_ms=result.latency_ms,
+                              model=result.model, error=result.error)
 
 
 @router.get(

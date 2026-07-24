@@ -22,3 +22,13 @@ export const deleteRoute = (id: string) =>
 
 export const listPurposes = () =>
   api.get<{ data: string[] }>("/api/v1/llm/purposes");
+
+export interface LlmRouteTestResult {
+  ok: boolean;
+  latency_ms: number;
+  model: string | null;
+  error: string | null;
+}
+
+export const testRoute = (purpose: string) =>
+  api.post<LlmRouteTestResult>(`/api/v1/llm/routes/${purpose}/test`, {});

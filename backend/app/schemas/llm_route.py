@@ -49,3 +49,11 @@ class LLMRouteListResponse(BaseModel):
     """Paginated list of LLM routes."""
     data: list[LLMRouteResponse]
     total: int
+
+
+class LLMRouteTestResult(BaseModel):
+    """Result of firing a minimal completion through a route (failures ride in `ok`)."""
+    ok: bool
+    latency_ms: int
+    model: str | None = None
+    error: str | None = None

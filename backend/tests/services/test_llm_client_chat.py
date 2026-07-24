@@ -48,3 +48,42 @@ async def test_chat_non_2xx_raises_llmerror(db):
         with pytest.raises(c.LlmError) as e:
             await c.chat(purpose="judge", messages=[])
     assert e.value.status == 500
+
+
+@pytest.mark.asyncio
+async def test_chat_passes_max_tokens(db):
+    c.invalidate()
+    p = await LlmProvider.create(name="p", base_url="u", api_key="k")
+    await LlmRoute.create(purpose="brief", provider=p, model="m")
+    body = {"model": "m", "choices": [{"message": {"content": "hi"}}]}
+    factory, client = _mock_httpx(body)
+    with patch.object(c.httpx, "AsyncClient", factory):
+        await c.chat(purpose="brief", messages=[], max_tokens=1)
+    _, kwargs = client.post.call_args
+    assert kwargs["json"]["max_tokens"] == 1
+
+
+@pytest.mark.asyncio
+async def test_ping_ok_reports_latency_and_model(db):
+    c.invalidate()
+    p = await LlmProvider.create(name="p", base_url="u", api_key="k")
+    await LlmRoute.create(purpose="classification", provider=p, model="m1")
+    body = {"model": "m1", "choices": [{"message": {"content": "pong"}}]}
+    factory, _ = _mock_httpx(body)
+    with patch.object(c.httpx, "AsyncClient", factory):
+        res = await c.ping("classification")
+    assert res.ok is True
+    assert res.model == "m1"
+    assert res.latency_ms >= 0
+    assert res.error is None
+
+
+@pytest.mark.asyncio
+async def test_ping_disabled_route_reports_error(db):
+    c.invalidate()
+    p = await LlmProvider.create(name="p", base_url="u", api_key="k")
+    await LlmRoute.create(purpose="judge", provider=p, model="m", enabled=False)
+    res = await c.ping("judge")
+    assert res.ok is False
+    assert res.model is None
+    assert "no enabled route" in res.error
