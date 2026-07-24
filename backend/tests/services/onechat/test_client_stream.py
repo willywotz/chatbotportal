@@ -59,3 +59,12 @@ async def test_stream_non_200_raises_onechat_error():
     with pytest.raises(OneChatError) as exc:
         _ = [ev async for ev in client.stream_v5("q", "http://mcp", "c")]
     assert exc.value.status_code == 500
+
+
+async def test_stream_read_timeout_maps_to_504():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("slow", request=request)
+    client = OneChatClient("http://oc:8000", transport=httpx.MockTransport(handler))
+    with pytest.raises(OneChatError) as exc:
+        _ = [ev async for ev in client.stream_v5("q", "http://mcp", "c")]
+    assert exc.value.status_code == 504
