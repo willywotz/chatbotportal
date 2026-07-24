@@ -5,6 +5,7 @@ or business logic lives here; callers keep that.
 """
 import json
 import logging
+from typing import AsyncIterator
 
 import httpx
 
@@ -79,13 +80,13 @@ class OneChatClient:
             raise OneChatError(resp.status_code, resp.text[:200])
         return resp.json()
 
-    async def chat_v1(self, query, mcp_endpoint_url, session_id=None) -> dict:
+    async def chat_v1(self, query: str, mcp_endpoint_url: str, session_id: str | None = None) -> dict:
         return await self._post_json("/v1/chat", query, mcp_endpoint_url, session_id)
 
-    async def chat_v2(self, query, mcp_endpoint_url, session_id=None) -> dict:
+    async def chat_v2(self, query: str, mcp_endpoint_url: str, session_id: str | None = None) -> dict:
         return await self._post_json("/v2/chat", query, mcp_endpoint_url, session_id)
 
-    async def chat_v3(self, query, mcp_endpoint_url, session_id=None) -> dict:
+    async def chat_v3(self, query: str, mcp_endpoint_url: str, session_id: str | None = None) -> dict:
         return await self._post_json("/v3/chat", query, mcp_endpoint_url, session_id)
 
     async def health(self) -> dict:
@@ -101,15 +102,21 @@ class OneChatClient:
             raise OneChatError(resp.status_code, resp.text[:200])
         return resp.json()
 
-    async def stream_v4(self, query, mcp_endpoint_url, session_id=None):
+    async def stream_v4(
+        self, query: str, mcp_endpoint_url: str, session_id: str | None = None
+    ) -> AsyncIterator[SseEvent]:
         async for ev in self._stream("/v4/chat", query, mcp_endpoint_url, session_id):
             yield ev
 
-    async def stream_v5(self, query, mcp_endpoint_url, session_id=None):
+    async def stream_v5(
+        self, query: str, mcp_endpoint_url: str, session_id: str | None = None
+    ) -> AsyncIterator[SseEvent]:
         async for ev in self._stream("/v5/chat", query, mcp_endpoint_url, session_id):
             yield ev
 
-    def stream_by_version(self, version, query, mcp_endpoint_url, session_id=None):
+    def stream_by_version(
+        self, version: str, query: str, mcp_endpoint_url: str, session_id: str | None = None
+    ) -> AsyncIterator[SseEvent]:
         v = (version or "").strip().lower()
         if v == "v4":
             return self.stream_v4(query, mcp_endpoint_url, session_id)
@@ -117,7 +124,9 @@ class OneChatClient:
             logger.warning("Unknown OneChat stream version %r — falling back to v5", version)
         return self.stream_v5(query, mcp_endpoint_url, session_id)
 
-    async def _stream(self, path, query, mcp_endpoint_url, session_id):
+    async def _stream(
+        self, path: str, query: str, mcp_endpoint_url: str, session_id: str | None
+    ) -> AsyncIterator[SseEvent]:
         url = f"{self._base_url}{path}"
         try:
             async with self._open(settings.V4_STREAM_TIMEOUT) as client:

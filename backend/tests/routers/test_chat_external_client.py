@@ -42,3 +42,14 @@ def test_chat_external_calls_v3_via_client():
     assert r.status_code == 200
     assert r.json()["data"]["answer"] == "A"
     assert seen["url"] == "http://oc:8000/v3/chat"
+
+
+def test_chat_external_upstream_error_returns_502():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503, text="upstream down")
+
+    fake = OneChatClient("http://oc:8000", transport=httpx.MockTransport(handler))
+    with patch.object(chat_router, "get_client", lambda: fake):
+        with TestClient(_app()) as tc:
+            r = tc.post("/api/v1/chat", json={"query": "hello"})
+    assert r.status_code == 502
