@@ -212,6 +212,9 @@ Both entry points share it: `GET /api/v1/agencies/{id}/test` (admin-only; also r
   `POPULAR_QUESTIONS_WINDOW_DAYS` (30). No-ops below `POPULAR_QUESTIONS_MIN_TURNS` (20) so the
   dopa/dol/fda seed shows on a fresh deploy. Churn: replaces only unpinned/unhidden `auto` rows;
   seed/manual/pinned/hidden untouched; hidden `text_key`s act as tombstones (never regenerated).
+  Reads assistant `agency_ids` through `_clean_agency_ids` (splits comma-joined legacy elements
+  like `["id1,id2"]` into lone UUIDs) so the `Agency.id__in` query never receives a malformed
+  UUID — a raw joined value previously crashed the whole `regenerate` task on asyncpg.
 
 **External integrations (config.py):** OpenRouter (`CLASSIFICATION_MODEL`
 `google/gemini-2.5-flash-lite`), ThaiLLM parse-spec endpoint, OneChat (`ONECHAT_BASE_URL`, via

@@ -353,6 +353,31 @@ async def test_regenerate_rejects_real_agency_never_fed(db, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_regenerate_survives_comma_joined_agency_ids(db, monkeypatch):
+    """A reply row whose agency_ids holds a single comma-joined element must not
+    crash the UUID query; both agencies are still resolved into the sample."""
+    monkeypatch.setattr(pq_service.settings, "POPULAR_QUESTIONS_MIN_TURNS", 1)
+    ag1 = await Agency.create(name="กรมที่ดิน")
+    ag2 = await Agency.create(name="กรมการปกครอง")
+    # Dirty legacy data: three ids collapsed into one string element.
+    await _make_successful_turns(2, agency_ids=[f"{ag1.id},{ag2.id}"])
+
+    captured = {}
+
+    async def fake_ask_llm(samples):
+        captured["samples"] = samples
+        return []
+
+    monkeypatch.setattr(pq_service, "_ask_llm", fake_ask_llm)
+
+    created = await pq_service.regenerate()
+
+    assert created == 0
+    names = {a["name"] for s in captured["samples"] for a in s["agencies"]}
+    assert names == {"กรมที่ดิน", "กรมการปกครอง"}
+
+
+@pytest.mark.asyncio
 async def test_regenerate_no_agency_when_reply_has_none(db, monkeypatch):
     monkeypatch.setattr(pq_service.settings, "POPULAR_QUESTIONS_MIN_TURNS", 1)
     await _make_successful_turns(3)

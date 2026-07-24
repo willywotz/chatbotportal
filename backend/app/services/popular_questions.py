@@ -174,6 +174,21 @@ def _format_question(sample: dict) -> str:
     return f"- {sample['text']}  [หน่วยงาน: {names}]"
 
 
+def _clean_agency_ids(raw) -> list[str]:
+    """Flatten agency_ids into clean single-UUID strings.
+
+    Legacy rows can hold a single comma-joined element (e.g.
+    ``["id1,id2"]``); feeding that raw into a UUID ``id__in`` query crashes
+    asyncpg. Split on commas and drop blanks so every id is a lone UUID.
+    """
+    return [
+        part.strip()
+        for item in raw or []
+        for part in str(item).split(",")
+        if part.strip()
+    ]
+
+
 async def _build_samples(user_rows: list[dict]) -> list[dict]:
     """Pair each question with the agencies its assistant reply resolved to."""
     user_ids = [r["id"] for r in user_rows]
@@ -184,7 +199,7 @@ async def _build_samples(user_rows: list[dict]) -> list[dict]:
             role="assistant", parent_id__in=user_ids,
         ).values("parent_id", "agency_ids")
         for reply in replies:
-            ids = [str(a) for a in (reply["agency_ids"] or [])]
+            ids = _clean_agency_ids(reply["agency_ids"])
             agency_ids_by_parent[reply["parent_id"]] = ids
             all_ids.update(ids)
     name_by_id: dict[str, str] = {}
