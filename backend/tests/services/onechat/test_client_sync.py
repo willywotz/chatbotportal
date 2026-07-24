@@ -67,6 +67,15 @@ async def test_timeout_maps_to_504():
     assert exc.value.status_code == 504
 
 
+async def test_health_timeout_maps_to_504():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("slow", request=request)
+    client = OneChatClient("http://oc:8000", transport=httpx.MockTransport(handler))
+    with pytest.raises(OneChatError) as exc:
+        await client.health()
+    assert exc.value.status_code == 504
+
+
 def test_default_base_url_from_settings():
     from app.config import settings
     assert OneChatClient()._base_url == settings.ONECHAT_BASE_URL.rstrip("/")

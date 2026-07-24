@@ -76,6 +76,8 @@ class OneChatClient:
         try:
             async with self._open(settings.EXTERNAL_CHAT_TIMEOUT) as client:
                 resp = await client.get(url)
+        except httpx.ReadTimeout as e:
+            raise OneChatError(504, "onechat /health timed out") from e
         except httpx.HTTPError as e:
             raise OneChatError(502, f"onechat /health transport error: {e}") from e
         if resp.status_code != 200:
