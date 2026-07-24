@@ -476,6 +476,15 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
 
 ## Conventions & gotchas
 
+- **Popular-questions agency mapping is grounded in real turn data, not LLM name-guessing.**
+  `services/popular_questions.regenerate()` no longer asks the LLM to guess an agency *name* and
+  match it via `name__iexact` (unreliable). Each turn already stores the real `agency_ids` on the
+  **assistant** message, linked to the question by `parent_id`. `_build_samples()` joins each
+  recent successful user question to its reply's agencies (`{text, agencies:[{id,name}]}`); the
+  LLM prompt feeds `question [หน่วยงาน: …]` pairs plus a `name = id` reference block and asks for
+  an `agency_id` back. The returned id is resolved **only** against the set of agencies actually
+  fed (`agency_by_id` from `valid_ids`) — hallucinated, unknown, empty, *or real-but-unfed* ids all
+  resolve to `None`. Churn/dedupe/tombstone/public-shape logic unchanged.
 - After any completed code change: **update this `context.md`, then commit**; on merge to `main`,
   **rebuild docker compose**.
 - **Multi-task work → create a branch first** (`feat/`, `fix/`, `chore/`, `refactor/`); never commit

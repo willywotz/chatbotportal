@@ -38,14 +38,18 @@ _SEED_QUESTIONS = [
 
 _LLM_PROMPT = """\
 คุณเป็นผู้ช่วยวิเคราะห์คำถามยอดนิยมของประชาชนที่ถามเข้าระบบพอร์ทัลบริการภาครัฐ
-จากรายการคำถามของผู้ใช้ด้านล่าง ให้เลือกและเรียบเรียงคำถามที่พบบ่อยที่สุดไม่เกิน {k} ข้อ
-เป็นคำถามภาษาไทยที่กระชับและชัดเจน พร้อมระบุชื่อหน่วยงานที่เกี่ยวข้องเต็มรูปแบบ (ถ้าไม่ทราบให้เว้นว่าง)
+จากรายการคำถามของผู้ใช้ด้านล่าง (แต่ละข้อมีหน่วยงานที่เกี่ยวข้องกำกับไว้ในวงเล็บ)
+ให้เลือกและเรียบเรียงคำถามที่พบบ่อยที่สุดไม่เกิน {k} ข้อ เป็นคำถามภาษาไทยที่กระชับและชัดเจน
+สำหรับแต่ละข้อ ให้ระบุ agency_id โดยเลือกจาก "หน่วยงานอ้างอิง" ด้านล่างที่ตรงที่สุด (ถ้าไม่มีที่ตรงให้เว้นว่าง)
+
+หน่วยงานอ้างอิง:
+{agencies}
 
 รายการคำถาม:
 {questions}
 
 ตอบเป็น JSON เท่านั้น ไม่มีข้อความอื่นปน ในรูปแบบ:
-{{"questions": [{{"text": "<คำถาม>", "agency": "<ชื่อหน่วยงาน หรือค่าว่าง>", "score": <ตัวเลข 0.0-1.0>}}]}}
+{{"questions": [{{"text": "<คำถาม>", "agency_id": "<id หน่วยงาน หรือค่าว่าง>", "score": <ตัวเลข 0.0-1.0>}}]}}
 """
 
 
@@ -94,16 +98,24 @@ async def regenerate() -> int:
         )
         return 0
 
-    questions = await Message.filter(
+    user_rows = await Message.filter(
         role="user", created_at__gte=cutoff, conversation__status="success",
-    ).order_by("-created_at").limit(_LLM_QUESTION_SAMPLE).values_list("content", flat=True)
+    ).order_by("-created_at").limit(_LLM_QUESTION_SAMPLE).values("id", "content")
 
-    candidates = await _ask_llm(list(questions))
+    samples = await _build_samples(list(user_rows))
+    candidates = await _ask_llm(samples)
     if not candidates:
         return 0
 
     # Churn: drop stale auto-generated rows that were never pinned or hidden.
     await PopularQuestion.filter(source=PopularQuestionSource.auto, pinned=False, hidden=False).delete()
+
+    # Only agencies we actually fed the LLM are valid targets — blocks hallucinated ids.
+    valid_ids = {a["id"] for s in samples for a in s["agencies"]}
+    agency_by_id: dict[str, Agency] = {}
+    if valid_ids:
+        for ag in await Agency.filter(id__in=valid_ids):
+            agency_by_id[str(ag.id)] = ag
 
     created = 0
     for cand in candidates[:_LLM_MAX_QUESTIONS]:
@@ -114,10 +126,7 @@ async def regenerate() -> int:
         if await PopularQuestion.filter(text_key=key).exists():
             continue  # any existing row (incl. a hidden tombstone) blocks recreation
 
-        agency = None
-        agency_name = str(cand.get("agency") or "").strip()
-        if agency_name:
-            agency = await Agency.filter(name__iexact=agency_name).first()
+        agency = agency_by_id.get(str(cand.get("agency_id") or "").strip())
 
         score = cand.get("score")
         try:
@@ -150,9 +159,56 @@ def _extract_json_payload(text: str) -> str:
     return text[start:end + 1]
 
 
-async def _ask_llm(questions: list[str]) -> list[dict]:
+def _format_agency_reference(samples: list[dict]) -> str:
+    seen: dict[str, str] = {}
+    for sample in samples:
+        for agency in sample["agencies"]:
+            seen[agency["id"]] = agency["name"]
+    if not seen:
+        return "(ไม่มี)"
+    return "\n".join(f"{name} = {aid}" for aid, name in seen.items())
+
+
+def _format_question(sample: dict) -> str:
+    names = ", ".join(a["name"] for a in sample["agencies"]) or "ไม่ทราบ"
+    return f"- {sample['text']}  [หน่วยงาน: {names}]"
+
+
+async def _build_samples(user_rows: list[dict]) -> list[dict]:
+    """Pair each question with the agencies its assistant reply resolved to."""
+    user_ids = [r["id"] for r in user_rows]
+    agency_ids_by_parent: dict = {}
+    all_ids: set[str] = set()
+    if user_ids:
+        replies = await Message.filter(
+            role="assistant", parent_id__in=user_ids,
+        ).values("parent_id", "agency_ids")
+        for reply in replies:
+            ids = [str(a) for a in (reply["agency_ids"] or [])]
+            agency_ids_by_parent[reply["parent_id"]] = ids
+            all_ids.update(ids)
+    name_by_id: dict[str, str] = {}
+    if all_ids:
+        for ag in await Agency.filter(id__in=all_ids).values("id", "name"):
+            name_by_id[str(ag["id"])] = ag["name"]
+    samples: list[dict] = []
+    for r in user_rows:
+        agencies = [
+            {"id": aid, "name": name_by_id[aid]}
+            for aid in agency_ids_by_parent.get(r["id"], [])
+            if aid in name_by_id
+        ]
+        samples.append({"text": r["content"], "agencies": agencies})
+    return samples
+
+
+async def _ask_llm(samples: list[dict]) -> list[dict]:
     from app.services.llm import LlmError, Purpose, chat
-    prompt = _LLM_PROMPT.format(k=_LLM_MAX_QUESTIONS, questions="\n".join(f"- {q}" for q in questions))
+    prompt = _LLM_PROMPT.format(
+        k=_LLM_MAX_QUESTIONS,
+        agencies=_format_agency_reference(samples),
+        questions="\n".join(_format_question(s) for s in samples),
+    )
     try:
         res = await chat(purpose=Purpose.POPULAR_QUESTIONS, messages=[{"role": "user", "content": prompt}])
         data = json.loads(_extract_json_payload(res.content))
