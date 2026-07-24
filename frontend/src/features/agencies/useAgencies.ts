@@ -5,6 +5,7 @@ import type { Agency } from '@/shared/types';
 import type {
   AgencyLifecycleStatus,
   AgencyRow,
+  ConformanceReport,
   HealthHistoryBucket,
   HealthHistoryBucketRow,
   HealthWindow,
@@ -160,6 +161,15 @@ export function useTestConnection() {
       // shows the new entry without a manual reload.
       qc.invalidateQueries({ queryKey: ['connection-logs', variables.agencyId] }); // matches ['connection-logs', agencyId, ...rest]
     },
+  });
+}
+
+export function useRunConformance() {
+  const qc = useQueryClient();
+  return useMutation<ConformanceReport, Error, { agencyId: string }>({
+    mutationFn: async ({ agencyId }) =>
+      await api.post<ConformanceReport>(`/api/v1/agencies/${agencyId}/conformance`, {}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['agencies'] }),
   });
 }
 
