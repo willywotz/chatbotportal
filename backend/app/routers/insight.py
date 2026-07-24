@@ -12,7 +12,7 @@ from app.models import Agency, Conversation, LlmUsage, Message
 from app.models.user import User, UserAPIKey
 from app.schemas.insight import AnalyticsInsightsData, AgencyHealthData, BusiestInsight, HeatmapInsights, UsageHeatmapData, HeatmapRange
 from app.services.analytics import get_agency_health
-from app.utils import now
+from app.utils import clean_agency_ids, now
 
 router = APIRouter(tags=["insight"])
 logger = logging.getLogger(__name__)
@@ -133,7 +133,7 @@ async def get_insight_usage_heatmap(range: HeatmapRange) -> UsageHeatmapData:
             .values("agency_ids", "hour", "cnt")
 
         for entry in rawHourlyByAgency:
-            for agency_id in entry["agency_ids"]:
+            for agency_id in clean_agency_ids(entry["agency_ids"]):
                 if agency_id in hourlyByAgency:
                     hourlyByAgency[agency_id]["data"][int(entry["hour"])] += entry["cnt"]
 

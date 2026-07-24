@@ -14,7 +14,7 @@ from app.config import settings
 from app.models.agency import Agency
 from app.models.conversation import Message
 from app.models.popular_question import PopularQuestion, PopularQuestionSource
-from app.utils import now
+from app.utils import clean_agency_ids, now
 
 logger = logging.getLogger(__name__)
 
@@ -184,7 +184,7 @@ async def _build_samples(user_rows: list[dict]) -> list[dict]:
             role="assistant", parent_id__in=user_ids,
         ).values("parent_id", "agency_ids")
         for reply in replies:
-            ids = [str(a) for a in (reply["agency_ids"] or [])]
+            ids = clean_agency_ids(reply["agency_ids"])
             agency_ids_by_parent[reply["parent_id"]] = ids
             all_ids.update(ids)
     name_by_id: dict[str, str] = {}

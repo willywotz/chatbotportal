@@ -17,6 +17,7 @@ from app.models.conversation import Message
 from app.schemas.conversation import RatingUpdate
 
 from app.models.agency import Agency
+from app.utils import clean_agency_ids
 
 router = APIRouter(prefix="/messages", tags=["Messages"])
 
@@ -38,7 +39,7 @@ async def update_rating(message_id: uuid.UUID, body: RatingUpdate) -> dict:
 
     # Update agency metrics if applicable
     if msg.rating in ("up", "down") and msg.agency_ids:
-        for agency_id in msg.agency_ids:
+        for agency_id in clean_agency_ids(msg.agency_ids):
             try:
                 agency = await Agency.get(id=agency_id)
                 if msg.rating == "up":

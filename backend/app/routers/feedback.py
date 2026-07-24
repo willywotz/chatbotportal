@@ -19,7 +19,7 @@ from app.config import settings
 from app.models.conversation import Conversation, Message
 from app.schemas.conversation import FeedbackStats
 from app.models.agency import Agency
-from app.utils import now
+from app.utils import clean_agency_ids, now
 
 router = APIRouter(prefix="/feedback", tags=["Feedback"])
 
@@ -37,7 +37,7 @@ async def agency_low_rated(agency_id: str, limit: int = 50) -> list[dict]:
         await Message.filter(role="assistant", rating="down")
         .order_by("-created_at").limit(limit)
     )
-    out = [m for m in rows if agency_id in (m.agency_ids or [])]
+    out = [m for m in rows if agency_id in clean_agency_ids(m.agency_ids)]
     return [
         {"id": str(m.id), "content": m.content, "feedback_text": m.feedback_text,
          "created_at": str(m.created_at)}
@@ -259,7 +259,7 @@ async def feedback_stats(_user: User = Depends(get_current_user)) -> FeedbackSta
 
         for index, entry in enumerate(rawLowRatedQuestions):        
             agency_names = []
-            for ag_id in entry["agency_ids"] or []:
+            for ag_id in clean_agency_ids(entry["agency_ids"]):
                 ag = next((a for a in agencies if str(a["id"]) == ag_id), None)
                 if ag:
                     agency_names.append(ag["short_name"])
