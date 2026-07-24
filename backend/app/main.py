@@ -34,6 +34,7 @@ from app.mcp.server import mcp
 from app.auth.dependencies import enforce_role_allowlist
 from app.routers import agencies, audit_log, conversations, messages, dashboard, feedback, auth, seed, chat, connection_logs, api_key, executive_summary, insight, popular_questions, public_status, users, settings as settings_router
 from app.routers import llm as llm_router
+from app.routers import openai_conversations
 from app.routers import responses
 from app.routers.seed import _run_seed_admin, _run_seed_agencies
 from app.services.popular_questions import seed_popular_questions
@@ -129,6 +130,7 @@ app.include_router(conversations.router, prefix="/api/v1")
 app.include_router(messages.router, prefix="/api/v1")
 app.include_router(chat.router, prefix="/api/v1")
 app.include_router(responses.router, prefix="/api/v1")
+app.include_router(openai_conversations.router, prefix="/api/v1")
 app.include_router(dashboard.router, prefix="/api/v1")
 app.include_router(feedback.router, prefix="/api/v1")
 app.include_router(connection_logs.router, prefix="/api/v1")

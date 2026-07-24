@@ -18,5 +18,8 @@ async def test_history_prefix_serves_native_list_route():
 
 async def test_old_conversations_list_path_is_gone():
     async with await _client() as c:
-        r = await c.get("/api/v1/conversations")  # native list no longer here; OpenAI has no list
-    assert r.status_code == 404
+        r = await c.get("/api/v1/conversations")
+    # Native list is gone; POST /conversations (OpenAI create) now owns the
+    # path with no GET handler, so this is 405 Method Not Allowed rather than
+    # a served list (or a bare 404).
+    assert r.status_code == 405
