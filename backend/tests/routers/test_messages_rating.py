@@ -83,6 +83,25 @@ async def test_rating_increments_every_listed_agency(db):
 
 
 @pytest.mark.asyncio
+async def test_rating_handles_comma_joined_agency_ids(db):
+    """A legacy comma-joined agency_ids element must not crash the query and
+    must still credit both agencies (on Postgres the raw value is an invalid
+    UUID; here we assert the resolved behavior)."""
+    a1 = await _agency("A1")
+    a2 = await _agency("A2")
+    msg = await _message(agency_ids=[f"{a1.id},{a2.id}"])
+
+    await messages_router.update_rating(
+        message_id=msg.id, body=RatingUpdate(rating="up")
+    )
+
+    a1 = await Agency.get(id=a1.id)
+    a2 = await Agency.get(id=a2.id)
+    assert a1.rating_up == 1
+    assert a2.rating_up == 1
+
+
+@pytest.mark.asyncio
 async def test_rating_without_feedback_leaves_feedback_text_none(db):
     msg = await _message()
 
