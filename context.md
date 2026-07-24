@@ -212,6 +212,16 @@ Both entry points share it: `GET /api/v1/agencies/{id}/test` (admin-only; also r
   `POPULAR_QUESTIONS_WINDOW_DAYS` (30). No-ops below `POPULAR_QUESTIONS_MIN_TURNS` (20) so the
   dopa/dol/fda seed shows on a fresh deploy. Churn: replaces only unpinned/unhidden `auto` rows;
   seed/manual/pinned/hidden untouched; hidden `text_key`s act as tombstones (never regenerated).
+  Reads assistant `agency_ids` through `utils.clean_agency_ids` (splits comma-joined legacy
+  elements like `["id1,id2"]` into lone UUIDs) so the `Agency.id__in` query never receives a
+  malformed UUID — a raw joined value previously crashed the whole `regenerate` task on asyncpg.
+
+**`utils.clean_agency_ids`** normalizes a message's `agency_ids` at every Python read site
+(popular_questions regen, `messages` rating rollup, `feedback` low-rated + admin breakdown,
+`insight` hourly-by-agency). Guards against legacy comma-joined elements: on Postgres a raw
+`"id1,id2"` is an invalid UUID that crashes `Agency.get`/`id__in`; elsewhere it silently
+mis-matches. (The DB-side `agency_ids__contains` filter in `feedback.py` can't use it and still
+mis-counts such rows — accepted, no crash.)
 
 **External integrations (config.py):** OpenRouter (`CLASSIFICATION_MODEL`
 `google/gemini-2.5-flash-lite`), ThaiLLM parse-spec endpoint, OneChat (`ONECHAT_BASE_URL`, via
