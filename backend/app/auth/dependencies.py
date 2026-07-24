@@ -43,6 +43,9 @@ _HISTORY_PATH = re.compile(r"^/api/v1/history(?:/[^/]+)?$")
 # The History page reads this to expand a conversation. Safe to grant because the
 # handler applies the same own-or-admin ownership check as GET /history/{id}.
 _HISTORY_MESSAGES_GET_PATTERN = re.compile(r"^/api/v1/history/[^/]+/messages$")
+# Covers create, /{id}, and the /{id}/items* sub-resources. Safe for all verbs: every
+# OpenAI conversations endpoint applies its own owns() check (404s a non-owner).
+_OAI_CONVERSATION_PATH = re.compile(r"^/api/v1/conversations(?:/.*)?$")
 
 _PUBLIC_PREFIX = "/api/v1/public"
 # Agency logo images are already publicly exposed via GET /public/agencies;
@@ -98,7 +101,7 @@ def _is_shared_write(method: str, path: str) -> bool:
         return True
     if _HISTORY_PATH.match(path):  # all verbs: manage own history
         return True
-    if method == "POST" and path == "/api/v1/conversations":  # OpenAI create (own/temp)
+    if _OAI_CONVERSATION_PATH.match(path):  # OpenAI conversations + items; each endpoint owner-checks
         return True
     return False
 

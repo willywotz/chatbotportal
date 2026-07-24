@@ -76,6 +76,9 @@ async def test_user_surface_is_exactly_this(db):
         ("POST", "/api/v1/chat/stream"),
         ("POST", "/api/v1/responses"),
         ("POST", "/api/v1/conversations"),  # OpenAI create (own/temp)
+        ("GET", f"/api/v1/conversations/{_SAMPLE_ID}"),
+        ("POST", f"/api/v1/conversations/{_SAMPLE_ID}"),
+        ("DELETE", f"/api/v1/conversations/{_SAMPLE_ID}"),
         ("PATCH", f"/api/v1/messages/{_SAMPLE_ID}/rating"),
         ("GET", "/api/v1/history"),
         ("POST", "/api/v1/history"),
