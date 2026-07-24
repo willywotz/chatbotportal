@@ -3,6 +3,7 @@
 Owns payload assembly, HTTP/SSE, and error mapping. No persistence, tracing,
 or business logic lives here; callers keep that.
 """
+import json
 import logging
 
 import httpx
@@ -28,6 +29,22 @@ def _payload(query: str, mcp_endpoint_url: str, session_id: str | None) -> dict:
     if session_id is not None:
         body["session_id"] = session_id
     return body
+
+
+def parse_sse_block(block: str) -> SseEvent | None:
+    event_name = "message"
+    data_line = None
+    for line in block.strip().split("\n"):
+        if line.startswith("event:"):
+            event_name = line[6:].strip()
+        elif line.startswith("data:"):
+            data_line = line[5:].strip()
+    if not data_line:
+        return None
+    try:
+        return event_name, json.loads(data_line)
+    except json.JSONDecodeError:
+        return None
 
 
 class OneChatClient:
@@ -83,6 +100,49 @@ class OneChatClient:
         if resp.status_code != 200:
             raise OneChatError(resp.status_code, resp.text[:200])
         return resp.json()
+
+    async def stream_v4(self, query, mcp_endpoint_url, session_id=None):
+        async for ev in self._stream("/v4/chat", query, mcp_endpoint_url, session_id):
+            yield ev
+
+    async def stream_v5(self, query, mcp_endpoint_url, session_id=None):
+        async for ev in self._stream("/v5/chat", query, mcp_endpoint_url, session_id):
+            yield ev
+
+    def stream_by_version(self, version, query, mcp_endpoint_url, session_id=None):
+        v = (version or "").strip().lower()
+        if v == "v4":
+            return self.stream_v4(query, mcp_endpoint_url, session_id)
+        if v != "v5":
+            logger.warning("Unknown OneChat stream version %r — falling back to v5", version)
+        return self.stream_v5(query, mcp_endpoint_url, session_id)
+
+    async def _stream(self, path, query, mcp_endpoint_url, session_id):
+        url = f"{self._base_url}{path}"
+        try:
+            async with self._open(settings.V4_STREAM_TIMEOUT) as client:
+                async with client.stream(
+                    "POST", url,
+                    headers={"Content-Type": "application/json"},
+                    json=_payload(query, mcp_endpoint_url, session_id),
+                ) as resp:
+                    if resp.status_code != 200:
+                        body = ""
+                        try:
+                            body = (await resp.aread()).decode()[:200]
+                        except Exception:
+                            pass
+                        raise OneChatError(resp.status_code, body)
+                    buffer = ""
+                    async for chunk in resp.aiter_text():
+                        buffer += chunk
+                        while "\n\n" in buffer:
+                            block, buffer = buffer.split("\n\n", 1)
+                            parsed = parse_sse_block(block)
+                            if parsed is not None:
+                                yield parsed
+        except httpx.ReadTimeout as e:
+            raise OneChatError(504, f"onechat {path} timed out") from e
 
 
 def get_client() -> OneChatClient:
