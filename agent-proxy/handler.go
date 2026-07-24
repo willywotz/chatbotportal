@@ -41,10 +41,12 @@ func newHTTPClient() *http.Client {
 
 var httpClient = newHTTPClient()
 
+type agencyLoader func(ctx context.Context, id string) (agency, error)
+
 type handler struct {
 	pool   *pgxpool.Pool
 	tracer trace.Tracer
-	cache  *agencyCache
+	load   agencyLoader
 }
 
 func truncate(s string) string {
@@ -72,7 +74,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a, err := h.cache.get(ctx, agencyID)
+	a, err := h.load(ctx, agencyID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		span.SetStatus(codes.Error, "agent not found or inactive")
 		http.Error(w, "Not Found", http.StatusNotFound)

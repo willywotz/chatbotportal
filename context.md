@@ -29,7 +29,7 @@ All traffic enters through **nginx** on one port; services talk over the `chatbo
 |---|---|---|
 | **nginx** | nginx | Reverse proxy. HTTP on `EXTERNAL_HTTP_PORT`, TLS on `EXTERNAL_HTTPS_PORT`. Routing in `nginx/routes.conf`. |
 | **backend** | Python 3.12 · FastAPI · Tortoise ORM · FastMCP | REST API (`/api/v1`), MCP server (`/mcp`), scheduler, auth. Port 8080. |
-| **agent-proxy** | Go 1.26 · pgx · OTel | Caching reverse-proxy from backend → agency endpoints; logs connection attempts. Port 8080. |
+| **agent-proxy** | Go 1.26 · pgx · OTel | Reverse-proxy from backend → agency endpoints; logs connection attempts. Port 8080. |
 | **frontend** | React 18 · Vite 5 · TS · shadcn/ui | SPA admin + public portal. Port 8080. |
 | **postgres** | pgvector/pgvector:pg16 | Shared DB (backend + agent-proxy). Extensions: `pg_trgm`, `fuzzystrmatch`, `vector` (created by `postgres-init`). |
 | **redis** | redis:7-alpine | Shared LLM-provider throttle budget across workers (optional; empty `REDIS_URL` = in-process limiter). |
@@ -319,8 +319,8 @@ and the mandatory rules in `CLAUDE.md`.
 ## agent-proxy (`agent-proxy/`, Go)
 
 Reverse proxy between backend and agency endpoints. `POST /agent-proxy/{agencyID}` looks up the
-agency's `endpoint_url` + `api_headers` (cached in-memory, TTL `AGENCY_CACHE_TTL` default 60s;
-`store.go` reads shared postgres via `DATABASE_URL`), forwards the request (strips inbound
+agency's `endpoint_url` + `api_headers` (`store.go` reads shared postgres via `DATABASE_URL` on
+every request — no in-memory cache), forwards the request (strips inbound
 `X-Forwarded*`, injects `api_headers`, 180s upstream timeout), streams the response back, **always**
 writes a `connection_logs` row with `action="proxy"`, and increments `agencies.total_calls`
 **only on a 2xx** upstream; a transport failure returns 502. Hand-rolled UUIDv7 ids, Asia/Bangkok
