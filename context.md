@@ -121,12 +121,17 @@ pipeline (`routers/responses.py`), in three transports: HTTP non-streaming, HTTP
 WebSocket on the same path. It shares one turn implementation with `/chat/stream` via
 `services/chat/stream.py` (`prepare_turn` / `run_turn`), and translates to OpenAI's wire
 format in `services/responses/`. `store` is accepted but ignored, `usage` is always zero, and
-pipeline progress events are not surfaced. Only response **creation** is implemented; the
-upstream's other six response endpoints (retrieve/delete/cancel/compact/input_items/input_tokens)
-**and the entire OpenAI Conversations + items API** (`spec/openai-responses-api/2-conversations.md`,
-plus all four `3-conversations-items.md` endpoints — create/list/retrieve/delete items, none
-routed) are out of scope — see the "Endpoint scope" tables in
-`spec/openai-responses.md`. Streaming is likewise a subset: the upstream declares 53 event
+pipeline progress events are not surfaced. Response **creation, retrieval (`GET /responses/{id}`,
+reconstructed from the stored assistant `Message` in `services/responses/retrieve.py`), soft
+delete, and input-item listing** are implemented; `cancel`/`compact`/`input_tokens` are registered
+`501 not_implemented` stubs. **The entire OpenAI Conversations + items API is implemented** in
+`routers/openai_conversations.py` (create/get/update/delete + items create/list/retrieve/delete,
+backed by the `Conversation`/`Message` store, `conv_`/`msg_` ids, keyset item pagination). Both
+surfaces enforce **ephemeral temp-user ownership** (`services/openai/identity.py`: anonymous
+callers get a minted temp `User` + JWT returned via the `X-Portal-Session` header; every read/delete
+checks `owns()` → 404, never 403) and **soft delete** (`deleted_at`, filtered from all reads). Full
+contract: `spec/openai-responses-extended.md`; base tables in `spec/openai-responses.md`.
+Streaming is still a subset: the upstream declares 53 event
 types (`spec/openai-responses-api/4-streaming-events.md`) but the module emits only **9** (the
 8-event happy path plus `response.failed`); the other 44 — tools, reasoning, audio, image gen,
 MCP, code interpreter, refusals, background/queued lifecycle — are out of scope (§ 5.1 "Event
@@ -134,8 +139,10 @@ scope"). The WebSocket reference (`spec/openai-responses-api/5-websocket-events.
 1 client event + those same 53 server events; the WS transport implements the 1 client event
 (`response.create` only) and emits the same 9 server events, so § 8.1 states the 1/1 + 9/53 gap
 (the upstream `error` server event is out of scope — the portal's `error` frame is its own
-shape). The native `/api/v1/conversations` router is the portal's own SPA
-history API, a different contract — not a partial OpenAI Conversations implementation.
+shape). The native SPA history router (`routers/conversations.py`) moved from
+`/api/v1/conversations` to **`/api/v1/history`** to free the former path for the OpenAI
+Conversations surface; it is a different contract — not a partial OpenAI Conversations
+implementation.
 
 In-process agency dispatch (API/MCP/A2A) also exists in `services/chat/dispatch.py`
 (retry/backoff, per-agency timeouts) — used for the direct-orchestration path.
@@ -264,9 +271,9 @@ and the mandatory rules in `CLAUDE.md`.
   (`เข้าสู่ระบบ`) now serves both citizens and staff.
   On `/history` a non-admin sees and deletes **only their own** conversations: `list_conversations`
   filters `user_id` for non-admins, and the three detail handlers apply an own-or-admin check.
-  `GET /conversations/{id}/messages` is allowlisted **GET-only** via
-  `_CONVERSATION_MESSAGES_GET_PATTERN`, deliberately separate from the all-verbs
-  `_CONVERSATION_PATH`, so a future write verb on that sub-resource does not inherit access.
+  `GET /history/{id}/messages` is allowlisted **GET-only** via
+  `_HISTORY_MESSAGES_GET_PATTERN`, deliberately separate from the all-verbs
+  `_HISTORY_PATH`, so a future write verb on that sub-resource does not inherit access.
   `staff` is read-only on those six pages: the staff allowlist grants only their six backing GETs
   (`_STAFF_GET_EXACT`), so writes like `POST /executive-summary/regenerate` stay admin-only
   and the UI hides the control (`canRegenerate={isAdmin}`) rather than letting it 403. A plain
@@ -285,8 +292,12 @@ and the mandatory rules in `CLAUDE.md`.
   The `viewer`/`auditor`/`agency_owner` roles and the ReBAC/ABAC engine (`authz.py`,
   `relationships` table) were removed 2026-07 — see
   `docs/superpowers/specs/2026-07-23-rbac-simplification-design.md`.
-- **`POST /api/v1/responses` is a shared write** (`_is_shared_write`), allowed for every
+- **The OpenAI programmatic surface is a shared write** (`_is_shared_write`), allowed for every
   authenticated role exactly like `/chat` — it is a programmatic surface, not a privileged one.
+  Two subtree regexes grant it: `_RESPONSES_PATH` (`^/api/v1/responses(?:/.*)?$`) and
+  `_OAI_CONVERSATION_PATH` (`^/api/v1/conversations(?:/.*)?$`). These are coarse role gates only;
+  each endpoint under them enforces its own `owns()` ownership check (404, never 403), mirroring
+  the `_HISTORY_PATH` precedent.
   The **WebSocket on that same path is not covered by the HTTP chokepoint** (a WS route is a
   different ASGI protocol): it resolves auth itself in `routers/responses.py::_ws_user`, from
   the `Authorization` header only. A bad or invalid token there degrades to anonymous

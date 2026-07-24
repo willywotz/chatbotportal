@@ -20,58 +20,59 @@ event output cannot drift from one another.
 ### Endpoint scope
 
 The upstream OpenAI Responses reference (`spec/openai-responses-api/1-responses.md`) declares
-seven endpoints. The portal implements **only response creation** — the single endpoint OneChat
-can serve — and deliberately omits the rest. This is a scope decision, not an oversight: the
-omitted endpoints assume a general-purpose model store (arbitrary retrieval, cancellation,
-compaction, token accounting) that OneChat does not expose to the portal.
+seven endpoints. The portal now implements response **creation, retrieval, deletion, and
+input-item listing**, and registers the three OneChat-incompatible endpoints as explicit
+`501 Not Implemented` stubs. The full wire contract for everything beyond creation lives in
+**`spec/openai-responses-extended.md`** — read it for the retrieve/delete/input_items shapes, the
+Conversations + items family, ephemeral temp-user auth, and soft-delete semantics.
 
 | Upstream endpoint | Status | Note |
 |---|---|---|
 | `POST /responses` | ✅ Implemented | HTTP, SSE, and WebSocket transports (above) |
-| `GET /responses/{id}` | ❌ Out of scope | Responses are not re-served after completion; `resp_<id>` is resolved only for continuity (§ 3). A future retrieve is the cheapest addition. |
-| `DELETE /responses/{id}` | ❌ Out of scope | Turns are persisted for analytics/audit and are not client-deletable through this surface. |
-| `POST /responses/{id}/cancel` | ❌ Out of scope | A turn is one synchronous OneChat call; there is no `background` mode to cancel. |
-| `POST /responses/compact` | ❌ Out of scope | OneChat owns context/history server-side; the portal does not manage compaction. |
-| `GET /responses/{id}/input_items` | ❌ Out of scope | No input-item store is exposed; only the newest user message is forwarded (§ 2.1). |
-| `POST /responses/input_tokens` | ❌ Out of scope | OneChat does not report token counts to the portal (see `usage` deviation below). |
+| `GET /responses/{id}` | ✅ Implemented | Reconstructed from the stored assistant `Message` — extended spec § 1 (`cached`/`stream_version`/`model` are best-effort, not persisted per-turn) |
+| `DELETE /responses/{id}` | ✅ Implemented | **Soft** delete (`deleted_at`); the turn is retained for analytics/audit but 404s afterward — extended spec § 2 |
+| `POST /responses/{id}/cancel` | ⚠️ 501 stub | Registered, returns `501` `not_implemented`: a turn is one synchronous OneChat call, no `background` mode to cancel — extended spec § 4 |
+| `POST /responses/compact` | ⚠️ 501 stub | Registered, returns `501` `not_implemented`: OneChat owns context/history server-side — extended spec § 4 |
+| `GET /responses/{id}/input_items` | ✅ Implemented | Lists the single preceding user message (only the newest is ever forwarded, § 2.1) — extended spec § 3 |
+| `POST /responses/input_tokens` | ⚠️ 501 stub | Registered, returns `501` `not_implemented`: OneChat does not report token counts (see `usage` deviation below) — extended spec § 4 |
 
-Clients requiring any omitted endpoint must not treat the portal as a drop-in for the full
-OpenAI Responses API.
+Retrieve/delete/input_items and the Conversations family enforce **ephemeral temp-user ownership**
+(extended spec § 0.2). Clients needing the three `501` operations must not treat the portal as a
+drop-in for the full OpenAI Responses API.
 
-#### Conversations API — entirely out of scope
+#### Conversations API — implemented (see `spec/openai-responses-extended.md` §§ 5–6)
 
 The upstream reference also defines a **Conversations** family (`spec/openai-responses-api/2-conversations.md`)
 and its **items** subresource (`spec/openai-responses-api/3-conversations-items.md`). The portal
-implements **none** of these as OpenAI-compatible endpoints.
+now implements **all** of these as OpenAI-compatible endpoints, backed by the existing
+`Conversation`/`Message` store (`app/routers/openai_conversations.py`).
 
 Conversations resource (`2-conversations.md`):
 
 | Upstream endpoint | Status |
 |---|---|
-| `POST /conversations` | ❌ Out of scope |
-| `GET /conversations/{id}` | ❌ Out of scope |
-| `POST /conversations/{id}` (update) | ❌ Out of scope |
-| `DELETE /conversations/{id}` | ❌ Out of scope |
+| `POST /conversations` | ✅ Implemented (extended § 5.1) |
+| `GET /conversations/{id}` | ✅ Implemented (extended § 5.2) |
+| `POST /conversations/{id}` (update) | ✅ Implemented — replaces `metadata` (extended § 5.3) |
+| `DELETE /conversations/{id}` | ✅ Implemented — soft delete (extended § 5.4) |
 
 Items subresource (`3-conversations-items.md`) — all four endpoints it declares:
 
 | Upstream endpoint | Status |
 |---|---|
-| `POST /conversations/{id}/items` (create items) | ❌ Out of scope |
-| `GET /conversations/{id}/items` (list items) | ❌ Out of scope |
-| `GET /conversations/{id}/items/{item_id}` (retrieve an item) | ❌ Out of scope |
-| `DELETE /conversations/{id}/items/{item_id}` (delete an item) | ❌ Out of scope |
+| `POST /conversations/{id}/items` (create items) | ✅ Implemented — persisted as `Message` rows, no effect on generation (extended § 6.2) |
+| `GET /conversations/{id}/items` (list items) | ✅ Implemented — keyset pagination (extended § 6.3) |
+| `GET /conversations/{id}/items/{item_id}` (retrieve an item) | ✅ Implemented (extended § 6.4) |
+| `DELETE /conversations/{id}/items/{item_id}` (delete an item) | ✅ Implemented — soft delete (extended § 6.5) |
 
-There is no OpenAI item store, item pagination, or `conversation.item.*` type behind this
-surface — none of the four is served by any router. Conversations are managed entirely by
-OneChat server-side; the portal exposes no OpenAI conversation/item store. A caller's only
-handle on a conversation through this surface is the opaque `conversation` id (and the
-`resp_<id>` continuity chain) on `POST /responses` — see § 3.
+Ids are `conv_<uuid>`/`msg_<uuid>`; items map `Message` rows to the `conversation.item` message
+shape. Injected items are stored for retrieval but do **not** change what OneChat generates (only
+the newest user message is ever forwarded, § 2.1).
 
-⚠️ **Do not confuse this with the native `/api/v1/conversations` router**
-(`app/routers/conversations.py`). That is the portal's own SPA history API — a different contract
-(save-with-messages, list-with-search, get, delete) that is **not** OpenAI-shaped and is not a
-partial implementation of the OpenAI Conversations API above.
+⚠️ **The native SPA history router moved to `/api/v1/conversations` → `/api/v1/history`**
+(`app/routers/conversations.py`) to free `/api/v1/conversations` for the OpenAI-compatible surface
+above. The native contract (save-with-messages, list-with-search, get, delete) is unchanged except
+for the prefix and is **not** OpenAI-shaped.
 
 ---
 
