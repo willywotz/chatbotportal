@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"go.opentelemetry.io/otel/trace/noop"
 )
@@ -15,7 +14,7 @@ import (
 func newTestHandler(load func(ctx context.Context, id string) (agency, error)) *handler {
 	return &handler{
 		tracer: noop.NewTracerProvider().Tracer(""),
-		cache:  newAgencyCache(load, time.Minute),
+		load:   load,
 	}
 }
 
