@@ -62,6 +62,7 @@ async def resolve_conversation(
             resolved = str(message.conversation_id)
 
     if conversation:
+        conversation = conversation.removeprefix("conv_")
         if resolved is not None and not _same_conversation(resolved, conversation):
             raise ResponsesApiError(
                 "`conversation` does not match the conversation of "

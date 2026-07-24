@@ -102,3 +102,13 @@ async def test_agreeing_pair_with_different_case_is_accepted(db):
 def test_response_id_is_prefixed():
     message_id = uuid.uuid4()
     assert response_id_for(message_id) == f"resp_{message_id}"
+
+
+@pytest.mark.asyncio
+async def test_conversation_param_accepts_conv_prefix(db):
+    conv = await Conversation.create(status="success")
+    conversation_id, is_continuation = await resolve_conversation(
+        previous_response_id=None, conversation=f"conv_{conv.id}"
+    )
+    assert conversation_id == str(conv.id)
+    assert is_continuation is True

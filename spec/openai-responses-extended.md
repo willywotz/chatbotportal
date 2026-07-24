@@ -68,13 +68,22 @@ callers; its event output is otherwise unchanged.
 ### 0.3 Soft delete
 
 `DELETE` never destroys data — the base spec guarantees turns are retained for analytics/audit.
-Each delete sets `deleted_at = now()` and returns OpenAI's `{... "deleted": true}`. Every read
-path filters `deleted_at IS NULL`:
+Each delete sets `deleted_at = now()` and returns OpenAI's `{... "deleted": true}`. Every
+**addressable** read path (one that serves a row by its id) filters `deleted_at IS NULL`:
 
 - `Conversation.deleted_at` (new, nullable) — a deleted conversation 404s on retrieve, is omitted
   from native history lists, and its items 404.
-- `Message.deleted_at` (new, nullable) — a deleted item/turn 404s and is omitted from lists and
-  from `input_items`.
+- `Message.deleted_at` (new, nullable) — a deleted item/turn 404s and is omitted from lists,
+  from `input_items`, and from `previous_response_id`/`conversation` continuity resolution.
+
+**Known exception — the similarity cache.** The content-similarity answer cache
+(`app/services/similarity.py`), which reuses a recent assistant answer for a *semantically similar
+new question* within `SIMILARITY_WINDOW_SECONDS` (default 60s), does **not** filter `deleted_at`.
+A soft-deleted turn's answer may therefore resurface as a cached reply to a similar question inside
+that short window. This is consistent with the base-spec framing that turns are retained for
+analytics/audit (soft delete is not privacy erasure), and the cache reuses answer *content* (public
+agency information) by semantic match, never re-serving the deleted `resp_<id>` itself. Filtering the
+cache by `deleted_at` is a tracked follow-up, not part of this surface.
 
 ### 0.4 ID prefixes
 
