@@ -75,6 +75,12 @@ async def test_user_surface_is_exactly_this(db):
         ("POST", "/api/v1/chat"),
         ("POST", "/api/v1/chat/stream"),
         ("POST", "/api/v1/responses"),
+        ("GET", f"/api/v1/responses/{_SAMPLE_ID}"),
+        ("DELETE", f"/api/v1/responses/{_SAMPLE_ID}"),
+        ("GET", f"/api/v1/responses/{_SAMPLE_ID}/input_items"),
+        ("POST", f"/api/v1/responses/{_SAMPLE_ID}/cancel"),  # unsupported; 501 stub
+        ("POST", "/api/v1/responses/input_tokens"),  # unsupported; 501 stub
+        ("POST", "/api/v1/responses/compact"),  # unsupported; 501 stub
         ("POST", "/api/v1/conversations"),  # OpenAI create (own/temp)
         ("GET", f"/api/v1/conversations/{_SAMPLE_ID}"),
         ("POST", f"/api/v1/conversations/{_SAMPLE_ID}"),

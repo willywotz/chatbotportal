@@ -46,6 +46,10 @@ _HISTORY_MESSAGES_GET_PATTERN = re.compile(r"^/api/v1/history/[^/]+/messages$")
 # Covers create, /{id}, and the /{id}/items* sub-resources. Safe for all verbs: every
 # OpenAI conversations endpoint applies its own owns() check (404s a non-owner).
 _OAI_CONVERSATION_PATH = re.compile(r"^/api/v1/conversations(?:/.*)?$")
+# Covers create plus the retrieve/delete/input_items/cancel/input_tokens/compact
+# sub-resources. Safe for all verbs: every /responses/{id} endpoint owner-checks,
+# and the rest are create or unsupported (501) stubs.
+_RESPONSES_PATH = re.compile(r"^/api/v1/responses(?:/.*)?$")
 
 _PUBLIC_PREFIX = "/api/v1/public"
 # Agency logo images are already publicly exposed via GET /public/agencies;
@@ -93,15 +97,15 @@ def _is_shared_write(method: str, path: str) -> bool:
     """
     if path.startswith("/api/v1/auth/"):  # all auth endpoints — each guards itself internally
         return True
-    if method == "POST" and path in (
-        "/api/v1/chat", "/api/v1/chat/stream", "/api/v1/responses",
-    ):
+    if method == "POST" and path in ("/api/v1/chat", "/api/v1/chat/stream"):
         return True
     if method == "PATCH" and _MESSAGE_RATING_PATH.match(path):
         return True
     if _HISTORY_PATH.match(path):  # all verbs: manage own history
         return True
     if _OAI_CONVERSATION_PATH.match(path):  # OpenAI conversations + items; each endpoint owner-checks
+        return True
+    if _RESPONSES_PATH.match(path):  # OpenAI responses + sub-resources; each endpoint owner-checks
         return True
     return False
 
