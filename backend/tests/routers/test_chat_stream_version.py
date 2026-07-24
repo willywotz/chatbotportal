@@ -7,7 +7,7 @@ v5 rather than calling a bogus URL.
 import pytest
 
 from app.config import settings
-from app.routers.chat import _stream_upstream
+from app.routers.chat import _stream_version
 
 
 @pytest.fixture
@@ -19,22 +19,22 @@ def restore_version():
 
 def test_default_is_v5():
     assert settings.CHAT_STREAM_VERSION == "v5"
-    assert _stream_upstream() == ("v5", settings.ONECHAT_V5_URL)
+    assert _stream_version() == "v5"
 
 
-def test_v4_selects_v4_url(restore_version):
+def test_v4_selects_v4(restore_version):
     settings.CHAT_STREAM_VERSION = "v4"
-    assert _stream_upstream() == ("v4", settings.ONECHAT_V4_URL)
+    assert _stream_version() == "v4"
 
 
 def test_case_and_whitespace_tolerant(restore_version):
     settings.CHAT_STREAM_VERSION = " V4 "
-    assert _stream_upstream() == ("v4", settings.ONECHAT_V4_URL)
+    assert _stream_version() == "v4"
 
 
 def test_unknown_value_falls_back_to_v5(restore_version):
     settings.CHAT_STREAM_VERSION = "v9"
-    assert _stream_upstream() == ("v5", settings.ONECHAT_V5_URL)
+    assert _stream_version() == "v5"
 
 
 def test_v5_url_is_registered_in_settings_group():

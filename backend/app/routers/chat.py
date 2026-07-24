@@ -31,7 +31,7 @@ from app.schemas.chat import ChatRequest, ChatResponse
 from app.services.chat.llm import classify_message_category
 from app.services.chat.stream import (
     ConversationNotFound,
-    _stream_upstream,  # re-exported: tests/routers/test_chat_stream_version.py imports it from here
+    _stream_version,  # re-exported: tests/routers/test_chat_stream_version.py imports it from here
     prepare_turn,
     run_turn,
 )

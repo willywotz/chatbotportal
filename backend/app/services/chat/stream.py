@@ -15,7 +15,6 @@ import uuid
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, NamedTuple
 
-import httpx
 from fastapi import BackgroundTasks
 from opentelemetry import trace
 from opentelemetry.trace import StatusCode
@@ -28,6 +27,7 @@ from app.models.user import User
 from app.services.chat.llm import classify_message_category
 from app.services.chat.turn import save_turn
 from app.services.log_sanitize import sanitize_body
+from app.services.onechat import OneChatError, get_client
 from app.services.session import ensure_session_warmed
 from app.services.similarity import find_similar_question
 from app.utils import generate_uuid
@@ -57,24 +57,18 @@ class TurnPlan:
     conversation_id: str
     user: User | None
     stream_version: str
-    upstream_url: str
     assistant_message_id: uuid.UUID
     cached: tuple[Message, Message, Any] | None = None
 
 
-def _stream_upstream() -> tuple[str, str]:
-    """Resolve (version, url) for the streaming upstream from CHAT_STREAM_VERSION.
-
-    Unknown values fall back to v5 rather than calling a URL that does not exist,
-    so a typo in the /settings override degrades to the default instead of
-    breaking chat outright.
-    """
+def _stream_version() -> str:
+    """Resolve the streaming version from CHAT_STREAM_VERSION (unknown → v5)."""
     version = (settings.CHAT_STREAM_VERSION or "").strip().lower()
     if version == "v4":
-        return "v4", settings.ONECHAT_V4_URL
+        return "v4"
     if version != "v5":
         logger.warning("Unknown CHAT_STREAM_VERSION %r — falling back to v5", settings.CHAT_STREAM_VERSION)
-    return "v5", settings.ONECHAT_V5_URL
+    return "v5"
 
 
 async def prepare_turn(
@@ -84,13 +78,12 @@ async def prepare_turn(
 
     Raises ConversationNotFound when `is_continuation` names an unknown id.
     """
-    stream_version, upstream_url = _stream_upstream()
+    stream_version = _stream_version()
     plan = TurnPlan(
         query=query,
         conversation_id=conversation_id,
         user=user,
         stream_version=stream_version,
-        upstream_url=upstream_url,
         assistant_message_id=generate_uuid(),
     )
 
@@ -148,11 +141,6 @@ async def _replay_cached(
 async def _stream_live(
     plan: TurnPlan, background_tasks: BackgroundTasks | None
 ) -> AsyncIterator[ChatEvent]:
-    payload = {
-        "query": plan.query,
-        "mcp_endpoint_url": settings.MCP_ENDPOINT_URL,
-        "session_id": plan.conversation_id,
-    }
     answer_data = None
     session_id = None
     total_ms = None
@@ -163,47 +151,30 @@ async def _stream_live(
     version = plan.stream_version
 
     try:
-        async with httpx.AsyncClient(timeout=settings.V4_STREAM_TIMEOUT) as client:
-            async with client.stream(
-                "POST", plan.upstream_url,
-                headers={"Content-Type": "application/json"}, json=payload,
-            ) as resp:
-                if resp.status_code != 200:
-                    error_msg = f"OneChat {version} returned {resp.status_code}"
-                    try:
-                        error_body = await resp.aread()
-                        error_msg = f"{error_msg}: {error_body.decode()[:200]}"
-                    except Exception:
-                        pass
-                    yield ChatEvent("error", {"message": error_msg, "code": resp.status_code})
-                    yield ChatEvent("done", {"session_id": plan.conversation_id, "total_ms": 0})
-                    return
-
+        async for event_name, event_data in get_client().stream_by_version(
+            version, plan.query, settings.MCP_ENDPOINT_URL, plan.conversation_id
+        ):
+            if log_latency_ms == 0:
                 log_latency_ms = int((time.perf_counter_ns() - start_ns) // 1_000_000)
-                buffer = ""
-                async for chunk in resp.aiter_text():
-                    buffer += chunk
-                    while "\n\n" in buffer:
-                        event_block, buffer = buffer.split("\n\n", 1)
-                        parsed = _parse_sse_block(event_block)
-                        if not parsed:
-                            continue
-                        event_name, event_data = parsed
-                        if event_name == "answer":
-                            answer_data = event_data
-                        elif event_name == "done":
-                            session_id = event_data.get("session_id")
-                            total_ms = event_data.get("total_ms")
-                            thread_name = event_data.get("thread_name")
-                            done_event_data = event_data
-                        with tracer.start_as_current_span("event") as event_span:
-                            event_span.set_attribute("stream_event", event_name)
-                            event_span.set_attribute("event_data", json.dumps(event_data)[:500])
-                        if event_name != "done":
-                            yield ChatEvent(event_name, event_data)
-
-    except httpx.ReadTimeout:
-        yield ChatEvent("error", {"message": f"OneChat {version} connection timed out", "code": 504})
+            if event_name == "answer":
+                answer_data = event_data
+            elif event_name == "done":
+                session_id = event_data.get("session_id")
+                total_ms = event_data.get("total_ms")
+                thread_name = event_data.get("thread_name")
+                done_event_data = event_data
+            with tracer.start_as_current_span("event") as event_span:
+                event_span.set_attribute("stream_event", event_name)
+                event_span.set_attribute("event_data", json.dumps(event_data)[:500])
+            if event_name != "done":
+                yield ChatEvent(event_name, event_data)
+    except OneChatError as e:
+        msg = (
+            f"OneChat {version} connection timed out"
+            if e.status_code == 504
+            else f"OneChat {version} returned {e.status_code}: {e.message}"
+        )
+        yield ChatEvent("error", {"message": msg, "code": e.status_code})
         yield ChatEvent("done", {"session_id": plan.conversation_id, "total_ms": 0})
         return
     except Exception as e:
@@ -223,22 +194,6 @@ async def _stream_live(
         })
     elif done_event_data is not None:
         yield ChatEvent("done", {**done_event_data, "session_id": plan.conversation_id})
-
-
-def _parse_sse_block(block: str) -> tuple[str, Any] | None:
-    event_name = "message"
-    data_line = None
-    for line in block.strip().split("\n"):
-        if line.startswith("event:"):
-            event_name = line[6:].strip()
-        elif line.startswith("data:"):
-            data_line = line[5:].strip()
-    if not data_line:
-        return None
-    try:
-        return event_name, json.loads(data_line)
-    except json.JSONDecodeError:
-        return None
 
 
 def _schedule_classification(message_id: str, query: str, answer: str,

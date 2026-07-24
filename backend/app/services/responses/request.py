@@ -1,7 +1,7 @@
 """Translate an OpenAI Responses request into portal turn parameters."""
 from typing import Any
 
-from app.services.chat.stream import _stream_upstream
+from app.services.chat.stream import _stream_version
 from app.services.responses.errors import ResponsesApiError
 
 DEFAULT_MODEL_ID = "thai-citizen-guide"
@@ -24,7 +24,7 @@ def resolve_model(model: str) -> tuple[str, str]:
     pinned = MODEL_IDS[model]
     if pinned is not None:
         return model, pinned
-    version, _url = _stream_upstream()
+    version = _stream_version()
     return model, version
 
 
