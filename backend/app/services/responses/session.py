@@ -86,9 +86,7 @@ class WsSession:
                 param="conversation", code="conversation_not_found", status=404,
             )
         try:
-            await ensure_session_warmed(
-                conv, settings.ONECHAT_V3_URL, settings.MCP_ENDPOINT_URL
-            )
+            await ensure_session_warmed(conv, settings.MCP_ENDPOINT_URL)
         except Exception:
             logger.warning("Warm-up failed for conversation %s", conversation_id)
 

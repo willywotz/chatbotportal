@@ -103,7 +103,7 @@ async def prepare_turn(
     except DoesNotExist:
         raise ConversationNotFound(conversation_id)
     try:
-        await ensure_session_warmed(conv, settings.ONECHAT_V3_URL, settings.MCP_ENDPOINT_URL)
+        await ensure_session_warmed(conv, settings.MCP_ENDPOINT_URL)
     except Exception:
         logger.warning("Session warm-up failed for conversation %s", conversation_id)
     return plan
