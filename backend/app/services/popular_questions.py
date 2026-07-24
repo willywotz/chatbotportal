@@ -189,7 +189,7 @@ async def _build_samples(user_rows: list[dict]) -> list[dict]:
             all_ids.update(ids)
     name_by_id: dict[str, str] = {}
     if all_ids:
-        for ag in await Agency.filter(id__in=all_ids).values("id", "name"):
+        for ag in await Agency.filter(id__in=list(all_ids)).values("id", "name"):
             name_by_id[str(ag["id"])] = ag["name"]
     samples: list[dict] = []
     for r in user_rows:
