@@ -445,7 +445,11 @@ An `API` agency exposes an HTTP `POST` endpoint. The gateway builds the body fro
 `__conversation_id__`, `__user_id__`) and sends `api_headers` (lowercased) + `content-type: json`.
 **Return HTTP 200 for every valid question** (non-2xx = error contribution). Before `draft → active`,
 an agency must pass a **5-check conformance battery**: `responds`, `non_empty`, `thai_text`,
-`concurrency_3`, `garbage_input` (stored in `agency.conformance_report`). Editing any
+`concurrency_3`, `garbage_input` (stored in `agency.conformance_report`). The **setup wizard** is
+the only UI that runs it: `StepTest` calls `POST /agencies/{id}/conformance` (`useRunConformance`)
+and the review-step **เปิดใช้งาน** button stays disabled until the report passes. The detail-page
+status dropdown therefore omits the direct `draft → active` option (other transitions, incl.
+`maintenance/disabled → active`, are unaffected — the gate only blocks `draft → active`). Editing any
 connection-identity field (`connection_type`/`endpoint_url`/`api_headers`/`expected_payload`/
 `mcp_tool_name`) of an **active** or **maintenance** agency demotes it back to `draft` and clears
 `conformance_report` — done atomically in `PATCH /agencies/{id}` (a system reset that bypasses the

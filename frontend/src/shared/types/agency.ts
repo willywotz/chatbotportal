@@ -97,6 +97,7 @@ export interface Agency {
   responseSchema?: ResponseField[];
   apiSpecRaw?: string | null;
   expectedPayload?: Record<string, unknown> | null;
+  conformanceReport?: ConformanceReport | null;
   priority: number | null;
   routerHint: string;
   dispatchTimeoutS: number | null;
@@ -107,6 +108,18 @@ export interface Agency {
   createdAt?: string;
   updatedAt?: string;
   apiHeaders?: ApiHeader[];
+}
+
+export interface ConformanceCheck {
+  name: string;
+  passed: boolean;
+  detail: string;
+}
+
+export interface ConformanceReport {
+  ran_at: string;
+  passed: boolean;
+  checks: ConformanceCheck[];
 }
 
 // DB row shape (snake_case) → mapped to Agency (camelCase)
@@ -140,6 +153,7 @@ export interface AgencyRow {
   mcp_tool_name?: string | null;
   rating_up?: number;
   rating_down?: number;
+  conformance_report?: ConformanceReport | null;
   health?: {
     state: HealthState;
     uptime_24h: number | null;
@@ -176,6 +190,7 @@ export function mapRowToAgency(row: AgencyRow): Agency {
     mcpToolName: row.mcp_tool_name ?? null,
     ratingUp: row.rating_up ?? 0,
     ratingDown: row.rating_down ?? 0,
+    conformanceReport: row.conformance_report ?? null,
     health: row.health
       ? {
           state: row.health.state,
