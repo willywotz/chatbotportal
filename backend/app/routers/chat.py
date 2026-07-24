@@ -16,7 +16,6 @@ import logging
 import time
 from typing import Any
 
-import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from opentelemetry import trace
@@ -39,6 +38,7 @@ from app.services.chat.stream import (
 from app.services.chat.turn import save_turn
 from app.services.similarity import find_similar_question
 from app.services.log_sanitize import sanitize_body
+from app.services.onechat import OneChatError, get_client
 from app.services.session import ensure_session_warmed
 from app.utils import generate_uuid
 
@@ -98,19 +98,15 @@ async def chat_external(body: ChatRequest, background_tasks: BackgroundTasks, us
                 logger.warning("Session warm-up failed for conversation %s", conversation_id)
 
         payload = {"query": query, "mcp_endpoint_url": settings.MCP_ENDPOINT_URL, "session_id": conversation_id}
-
-        async with httpx.AsyncClient(timeout=settings.EXTERNAL_CHAT_TIMEOUT) as client:
-            start_time_ns = time.perf_counter_ns()
-            resp = await client.post(settings.ONECHAT_V3_URL, headers={"Content-Type": "application/json"}, json=payload)
-            end_time_ns = time.perf_counter_ns()
-
-        if resp.status_code != 200:
-            span.set_status(StatusCode.ERROR, f"External chat request failed with status {resp.status_code}")
+        start_time_ns = time.perf_counter_ns()
+        try:
+            raw_data = await get_client().chat_v3(query, settings.MCP_ENDPOINT_URL, conversation_id)
+        except OneChatError as e:
+            span.set_status(StatusCode.ERROR, f"External chat request failed with status {e.status_code}")
             raise HTTPException(status_code=502, detail="Failed to get response from external chat service")
-
+        end_time_ns = time.perf_counter_ns()
         response_time = int((end_time_ns - start_time_ns) // 1_000_000)
-        raw_data = resp.json()
-        span.set_attributes({"external_response": resp.text})
+        span.set_attribute("external_response", json.dumps(raw_data, ensure_ascii=False))
 
         data = raw_data.get("data", {})
         answer = data.get("answer", "").strip()
