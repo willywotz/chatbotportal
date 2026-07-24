@@ -73,9 +73,6 @@ async def run_response(
     # A model id that pins a version wins over CHAT_STREAM_VERSION.
     if plan.stream_version != stream_version:
         plan.stream_version = stream_version
-        plan.upstream_url = (
-            settings.ONECHAT_V4_URL if stream_version == "v4" else settings.ONECHAT_V5_URL
-        )
 
     accumulator = ResponseAccumulator(
         response_id=response_id_for(plan.assistant_message_id),

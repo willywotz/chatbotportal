@@ -74,7 +74,9 @@ describe("wizard full flow (API agency)", () => {
     const created = mockAgencies.find((a) => a.name === "กรมศุลกากร")!;
     expect(created.status).toBe("draft");
 
-    // Step 3 — test (optional, skip)
+    // Step 3 — test: run the conformance battery (required before activation)
+    await user.click(screen.getByRole("button", { name: /รันชุดทดสอบ Conformance/ }));
+    await waitFor(() => expect(screen.getByText(/ผ่านการทดสอบ Conformance/)).toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: /ถัดไป/ }));
 
     // Step 4 — routing
@@ -92,6 +94,25 @@ describe("wizard full flow (API agency)", () => {
     expect(final.status).toBe("active");
     expect(final.router_hint).toBe("คำถามภาษีนำเข้า");
     expect(final.priority).toBe(2);
+  });
+
+  it("keeps เปิดใช้งาน disabled on review until conformance passes", async () => {
+    const user = userEvent.setup();
+    renderWizard();
+
+    await user.type(screen.getByLabelText("ชื่อหน่วยงาน"), "กรมที่ดิน");
+    await user.type(screen.getByLabelText("ชื่อย่อ"), "ทด.");
+    await user.click(screen.getByRole("button", { name: /ถัดไป/ }));
+    await user.type(screen.getByLabelText("Endpoint URL"), "https://land.example/api");
+    await user.click(screen.getByRole("button", { name: /ถัดไป/ }));
+
+    // Skip the test step without running conformance
+    await user.click(screen.getByRole("button", { name: /ถัดไป/ }));
+    await user.click(screen.getByRole("button", { name: /ถัดไป/ }));
+
+    // Review: activation is blocked until the conformance battery passes
+    expect(screen.getByRole("button", { name: /เปิดใช้งาน/ })).toBeDisabled();
+    expect(screen.getByText(/ต้องรันชุดทดสอบ Conformance/)).toBeInTheDocument();
   });
 
   it("saves as draft from the review step", async () => {

@@ -192,8 +192,32 @@ export const handlers = [
         { status: 422 },
       );
     }
+    if (from === "draft" && body.status === "active" && !agency.conformance_report?.passed) {
+      return HttpResponse.json(
+        { error: { code: "invalid_request", message: "conformance test must pass before activation" } },
+        { status: 400 },
+      );
+    }
     agency.status = body.status;
     return HttpResponse.json(agency);
+  }),
+
+  http.post("*/api/v1/agencies/:id/conformance", ({ params }) => {
+    const agency = findAgency(params.id as string);
+    if (!agency) return HttpResponse.json({ detail: "Agency not found" }, { status: 404 });
+    const report = {
+      ran_at: new Date().toISOString(),
+      passed: true,
+      checks: [
+        { name: "responds", passed: true, detail: "120ms" },
+        { name: "non_empty", passed: true, detail: "" },
+        { name: "thai_text", passed: true, detail: "" },
+        { name: "concurrency_3", passed: true, detail: "" },
+        { name: "garbage_input", passed: true, detail: "did not crash" },
+      ],
+    };
+    agency.conformance_report = report;
+    return HttpResponse.json(report);
   }),
 
   http.post("*/api/v1/agencies/mcp/discover", async ({ request }) => {

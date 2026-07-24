@@ -12,9 +12,9 @@ interface SettingsTab {
 
 export const SETTINGS_TABS: SettingsTab[] = [
   { label: "ตั้งค่าระบบ", path: "/settings/system" },
+  { label: "จัดการผู้ใช้", path: "/settings/users" },
   { label: "LLM", path: "/settings/llm" },
   { label: "API Keys", path: "/settings/api-keys" },
-  { label: "จัดการผู้ใช้", path: "/settings/users" },
   { label: "การใช้งาน API Key", path: "/settings/usage" },
   { label: "ประวัติการเชื่อมต่อ", path: "/settings/connections" },
   { label: "บันทึกการตรวจสอบ", path: "/settings/audit" },

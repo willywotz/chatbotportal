@@ -105,11 +105,14 @@ export default function AgencyDetailPage() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {legalTransitions(agency.status).map((to) => (
-              <DropdownMenuItem key={to} onClick={() => changeStatus(to)}>
-                {TRANSITION_LABEL[to]}
-              </DropdownMenuItem>
-            ))}
+            {legalTransitions(agency.status)
+              // Draft → active requires the conformance battery, run only by the setup wizard.
+              .filter((to) => !(agency.status === "draft" && to === "active"))
+              .map((to) => (
+                <DropdownMenuItem key={to} onClick={() => changeStatus(to)}>
+                  {TRANSITION_LABEL[to]}
+                </DropdownMenuItem>
+              ))}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
