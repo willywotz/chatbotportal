@@ -117,7 +117,8 @@ async def _acquire(name: str, rps: int | None, rpm: int | None, max_queue_size: 
 
 
 async def chat(*, purpose: Purpose, messages: list[dict], tools: list | None = None,
-               tool_choice=None, user_id=None, agency_id=None, conversation_id=None) -> LlmResult:
+               tool_choice=None, max_tokens: int | None = None,
+               user_id=None, agency_id=None, conversation_id=None) -> LlmResult:
     r = await _resolve(purpose)
     await _acquire(r.provider_name, r.rate_limit_rps, r.rate_limit_rpm, r.max_queue_size)
 
@@ -126,6 +127,8 @@ async def chat(*, purpose: Purpose, messages: list[dict], tools: list | None = N
         body["tools"] = tools
     if tool_choice is not None:
         body["tool_choice"] = tool_choice
+    if max_tokens is not None:
+        body["max_tokens"] = max_tokens
     if r.request_usage:
         body["usage"] = {"include": True}
 
@@ -151,6 +154,33 @@ async def chat(*, purpose: Purpose, messages: list[dict], tools: list | None = N
     await _record_usage(purpose, info, user_id, agency_id, conversation_id)
     return LlmResult(content=(msg.get("content") or "").strip(),
                      tool_calls=msg.get("tool_calls"), usage=info, raw=data)
+
+
+@dataclass
+class LlmPingResult:
+    ok: bool
+    latency_ms: int
+    model: str | None
+    error: str | None
+
+
+async def ping(purpose: str) -> LlmPingResult:
+    """Fire a minimal completion through a purpose's route to prove it works end-to-end.
+
+    Uses the production `chat()` path, so it resolves an enabled route + provider,
+    applies auth and rate limits, and records usage. Caps output at one token to keep
+    cost negligible. Failures are returned, not raised.
+    """
+    start = time.monotonic()
+    try:
+        res = await chat(purpose=purpose, messages=[{"role": "user", "content": "ping"}], max_tokens=1)
+        return LlmPingResult(ok=True, latency_ms=_elapsed_ms(start), model=res.usage.model, error=None)
+    except LlmError as exc:
+        return LlmPingResult(ok=False, latency_ms=_elapsed_ms(start), model=None, error=str(exc))
+
+
+def _elapsed_ms(start: float) -> int:
+    return int((time.monotonic() - start) * 1000)
 
 
 async def _record_usage(purpose, info: LlmUsageInfo, user_id, agency_id, conversation_id) -> None:

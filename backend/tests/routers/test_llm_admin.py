@@ -4,7 +4,7 @@ SQLite-portable (db fixture). Auth is mocked via dependency_overrides, mirroring
 tests/test_connection_logs_filter.py and tests/test_conversations_history.py.
 """
 import uuid
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -32,6 +32,18 @@ def _plain_user():
 async def _client(user=None):
     app.dependency_overrides[get_current_user] = user or _admin
     return AsyncClient(transport=ASGITransport(app=app), base_url="http://t")
+
+
+def _mock_httpx(json_body, status_code=200):
+    resp = MagicMock()
+    resp.status_code = status_code
+    resp.json.return_value = json_body
+    client = MagicMock()
+    client.post = AsyncMock(return_value=resp)
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(return_value=client)
+    cm.__aexit__ = AsyncMock(return_value=False)
+    return MagicMock(return_value=cm), client
 
 
 @pytest.mark.usefixtures("db")
@@ -172,6 +184,56 @@ async def test_create_route_valid_purpose_succeeds():
     app.dependency_overrides.clear()
     assert r.status_code == 201
     assert r.json()["purpose"] == "popular_questions"
+
+
+@pytest.mark.usefixtures("db")
+async def test_test_route_success():
+    from app.services.llm import client as llm_client
+    llm_client.invalidate()
+    provider = await LlmProvider.create(name="pt", base_url="https://pt.example", api_key="k")
+    await LlmRoute.create(purpose="classification", provider=provider, model="m1")
+    body = {"model": "m1", "choices": [{"message": {"content": "pong"}}]}
+    factory, _ = _mock_httpx(body)
+    with patch.object(llm_client.httpx, "AsyncClient", factory):
+        async with await _client() as c:
+            r = await c.post(f"{_ROUTES}/classification/test")
+    app.dependency_overrides.clear()
+    assert r.status_code == 200
+    out = r.json()
+    assert out["ok"] is True
+    assert out["model"] == "m1"
+    assert out["latency_ms"] >= 0
+
+
+@pytest.mark.usefixtures("db")
+async def test_test_route_disabled_returns_ok_false():
+    from app.services.llm import client as llm_client
+    llm_client.invalidate()
+    provider = await LlmProvider.create(name="pt2", base_url="https://pt2.example", api_key="k")
+    await LlmRoute.create(purpose="brief", provider=provider, model="m", enabled=False)
+    async with await _client() as c:
+        r = await c.post(f"{_ROUTES}/brief/test")
+    app.dependency_overrides.clear()
+    assert r.status_code == 200
+    out = r.json()
+    assert out["ok"] is False
+    assert "no enabled route" in out["error"]
+
+
+@pytest.mark.usefixtures("db")
+async def test_test_route_unknown_purpose_404():
+    async with await _client() as c:
+        r = await c.post(f"{_ROUTES}/nope/test")
+    app.dependency_overrides.clear()
+    assert r.status_code == 404
+
+
+@pytest.mark.usefixtures("db")
+async def test_test_route_requires_admin():
+    async with await _client(_plain_user) as c:
+        r = await c.post(f"{_ROUTES}/classification/test")
+    app.dependency_overrides.clear()
+    assert r.status_code == 403
 
 
 @pytest.mark.usefixtures("db")

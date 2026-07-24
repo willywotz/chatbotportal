@@ -222,6 +222,15 @@ Routes panel is edit-only and shows `purpose` read-only** — a `listPurposes()`
 `llmRouteApi.ts` yet is currently unused (the UI offers no route create/delete). Route resolution
 is cached (~30s) and invalidated on any provider/route mutation.
 
+Each route can be **tested end-to-end** from the Routes panel: a per-card **ทดสอบ** button plus a
+**ทดสอบทั้งหมด** header button (fires all purposes in parallel) hit
+`POST /api/v1/llm/routes/{purpose}/test` (admin-only, 404 on unknown purpose). The endpoint calls
+`services/llm.ping(purpose)`, which reuses the production `chat()` path with a 1-token prompt
+(`max_tokens=1`, so cost is negligible and a usage row is recorded) and returns
+`{ok, latency_ms, model, error}` — failures ride in `ok:false` (single 200 happy path). It resolves
+the **enabled** route/provider only, so testing a disabled route returns `ok:false` "no enabled
+route". The panel shows ✓ latency / ✗ error inline.
+
 **Tests:** pytest (`asyncio_mode=auto`, `backend/tests/`), httpx AsyncClient transport.
 
 ## Data model (Tortoise ORM, `app/models/`)
