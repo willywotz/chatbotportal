@@ -16,7 +16,8 @@ agency responses into one LLM-written answer with citations. An admin dashboard
 manages agencies, health, analytics, users/roles, API keys, and LLM routing.
 
 The heavy orchestration (decompose → route → dispatch → synthesize, sync **v3** and
-streaming **v4**) runs in an **external OneChat service** (`ONECHAT_V3_URL` / `ONECHAT_V4_URL`).
+streaming **v4/v5**) runs in an **external OneChat service** (`ONECHAT_BASE_URL`, reached via the
+`services/onechat/` client).
 This backend is the **portal/gateway**: it wraps OneChat, exposes its own MCP server of
 agency data that OneChat calls back into, persists conversations, and provides all the
 admin/analytics/auth surface.
@@ -100,11 +101,14 @@ Vite 5.4.12+ rejects unknown Host headers; without it every tunnelled request re
    `pg_trgm` (migration `19_..._drop_embedding_add_pg_trgm`); the `vector` extension is installed
    but not currently used for chat similarity. Note: `Conversation.status="failed"` is a one-way
    ratchet, so failed turns never poison the cache.
-2. **Dispatch to OneChat**: sync `/chat` → `chat_external()` POSTs `ONECHAT_V3_URL`;
-   `/chat/stream` proxies the streaming upstream chosen by `CHAT_STREAM_VERSION`
-   (`v5` default → `ONECHAT_V5_URL`; `v4` → `ONECHAT_V4_URL`, the no-redeploy rollback —
-   resolved per request by `routers/chat.py::_stream_upstream()`, unknown values fall back to v5),
-   re-emitting `answer`/`error`/`done` events. **v5** (`spec/v5.md`) adds a `summarize` step event
+2. **Dispatch to OneChat** via the transport client `services/onechat/` (`get_client()` →
+   `OneChatClient`): sync `/chat` → `chat_external()` calls `chat_v3()`; `/chat/stream` proxies the
+   streaming upstream chosen by `CHAT_STREAM_VERSION` (`v5` default; `v4` = the no-redeploy
+   rollback — resolved per request by `services/chat/stream.py::_stream_version()`, unknown values
+   fall back to v5) through `client.stream_by_version()`, re-emitting `answer`/`error`/`done` events.
+   The client owns transport only (payload, HTTP/SSE, error mapping: non-200→status,
+   `ReadTimeout`→504, other→502); persistence/tracing stay in the callers. All paths derive from a
+   single `ONECHAT_BASE_URL` (the old per-endpoint `ONECHAT_V3/V4/V5_URL` settings are gone). **v5** (`spec/v5.md`) adds a `summarize` step event
    plus `summary`, `references[]` (citations scoped to the summary only — `sections[]` stay raw)
    and `thread_name`; when upstream summary generation fails it degrades silently to output
    identical to v4. Payload includes `mcp_endpoint_url` so OneChat can call back into agency MCP
@@ -210,7 +214,8 @@ Both entry points share it: `GET /api/v1/agencies/{id}/test` (admin-only; also r
   seed/manual/pinned/hidden untouched; hidden `text_key`s act as tombstones (never regenerated).
 
 **External integrations (config.py):** OpenRouter (`CLASSIFICATION_MODEL`
-`google/gemini-2.5-flash-lite`), ThaiLLM parse-spec endpoint, OneChat v3/v4, MCP endpoint.
+`google/gemini-2.5-flash-lite`), ThaiLLM parse-spec endpoint, OneChat (`ONECHAT_BASE_URL`, via
+`services/onechat/`), MCP endpoint.
 LLM providers/models are now also DB-configurable via `LlmProvider`/`LlmRoute` (admin pages):
 a `LlmRoute` maps a `purpose` to a provider + model. **Purposes are centralized as a single
 source of truth**: the `Purpose(StrEnum)` in `app/services/llm/purpose.py` (values
@@ -471,6 +476,11 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   **rebuild docker compose**.
 - **Multi-task work → create a branch first** (`feat/`, `fix/`, `chore/`, `refactor/`); never commit
   multi-step work to `main`. Do **not** use claude worktree.
+- **All OneChat calls go through `services/onechat/`** — never POST an upstream URL inline. The
+  client is transport-only (`chat_v1/v2/v3`, `stream_v4/v5`, `stream_by_version`, `health`;
+  `get_client()`); it maps errors uniformly (non-200→status, `ReadTimeout`→504, other→502) as
+  `OneChatError`, and callers keep persistence/tracing. Paths derive from `ONECHAT_BASE_URL`; inject
+  `httpx.MockTransport` via `OneChatClient(transport=...)` to test without a live upstream.
 - **TDD is mandatory** (red → green → refactor). Go changes: run `/use-modern-go`, then gofmt +
   `golangci-lint run --allow-parallel-runners` (repeat until clean).
 - Prefix all shell commands with **`rtk`** (token-optimizing proxy) — see `docs/rtk.md`.

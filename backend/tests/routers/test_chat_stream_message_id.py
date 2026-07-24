@@ -23,7 +23,7 @@ from app.utils import generate_uuid
 def _plan(conv_id: str, query: str = "q") -> TurnPlan:
     return TurnPlan(
         query=query, conversation_id=conv_id, user=None, stream_version="v5",
-        upstream_url="http://upstream/v5/chat", assistant_message_id=generate_uuid(),
+        assistant_message_id=generate_uuid(),
     )
 
 

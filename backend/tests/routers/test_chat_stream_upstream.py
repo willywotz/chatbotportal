@@ -1,11 +1,11 @@
-"""POST /api/v1/chat/stream against a stubbed httpx upstream.
+"""POST /api/v1/chat/stream against a stubbed OneChat upstream.
 
-Every other test in the suite patches `_stream_live` out entirely, so the ~70
-lines that talk to the real upstream — non-200 handling, SSE reassembly
-across chunk boundaries, `ReadTimeout`, and the generic-exception branch —
-are asserted by nothing. These tests drive the real ASGI stack with a fake
-`httpx.AsyncClient` so `_stream_live` runs for real while no network call
-happens.
+Every other test in the suite patches `_stream_live` out entirely, so the code
+that talks to the real upstream — non-200 handling, SSE reassembly across chunk
+boundaries, `ReadTimeout`, and the generic-exception branch — is asserted by
+nothing. These tests drive the real ASGI stack with an `OneChatClient` whose
+`httpx.MockTransport` serves canned SSE, so `_stream_live` runs for real while
+no network call happens.
 
 Characterization tests: they assert what the code does today, not what it
 should do. Behaviour preservation is the whole point of this file.
@@ -24,6 +24,7 @@ from app.errors import register_error_handlers
 from app.models.conversation import Message
 from app.routers import chat as chat_router
 from app.services.chat import stream as turn_stream
+from app.services.onechat import OneChatClient
 
 
 @asynccontextmanager
@@ -43,57 +44,30 @@ def _client_app() -> FastAPI:
     return app
 
 
-class _FakeResponse:
-    def __init__(self, status_code: int, chunks: tuple[str, ...]):
-        self.status_code = status_code
-        self._chunks = chunks
+def _mock_client(*, status: int = 200, chunks: tuple[str, ...] = (), exc: Exception | None = None):
+    """An OneChatClient whose MockTransport serves the given SSE chunks.
 
-    async def aiter_text(self):
-        for chunk in self._chunks:
-            yield chunk
+    `chunks` are delivered as distinct byte reads so `_stream_live`'s SSE
+    reassembly across chunk boundaries is exercised end to end.
+    """
 
-    async def aread(self) -> bytes:
-        return "".join(self._chunks).encode()
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if exc is not None:
+            raise exc
 
+        async def body():
+            for chunk in chunks:
+                yield chunk.encode()
 
-class _FakeStream:
-    """The object returned by `client.stream(...)`, an async context manager."""
+        return httpx.Response(status, content=body())
 
-    def __init__(self, response: _FakeResponse | None, exc: Exception | None):
-        self._response = response
-        self._exc = exc
-
-    async def __aenter__(self) -> _FakeResponse:
-        if self._exc is not None:
-            raise self._exc
-        return self._response
-
-    async def __aexit__(self, *exc_info) -> bool:
-        return False
-
-
-class _FakeAsyncClient:
-    """Stands in for `httpx.AsyncClient` so `_stream_live` makes no real call."""
-
-    def __init__(self, response: _FakeResponse | None = None, exc: Exception | None = None, **kwargs):
-        self._response = response
-        self._exc = exc
-
-    async def __aenter__(self) -> "_FakeAsyncClient":
-        return self
-
-    async def __aexit__(self, *exc_info) -> bool:
-        return False
-
-    def stream(self, method: str, url: str, **kwargs) -> _FakeStream:
-        return _FakeStream(self._response, self._exc)
+    return OneChatClient("http://oc:8000", transport=httpx.MockTransport(handler))
 
 
 def _stub_upstream(*, status: int = 200, chunks: tuple[str, ...] = (), exc: Exception | None = None):
-    """Patch `app.services.chat.stream.httpx.AsyncClient` for the duration of a `with`."""
-    response = None if exc is not None else _FakeResponse(status, chunks)
-    factory = lambda **kwargs: _FakeAsyncClient(response, exc, **kwargs)
-    return patch.object(turn_stream.httpx, "AsyncClient", factory)
+    """Patch `get_client` so `_stream_live` talks to a MockTransport-backed client."""
+    client = _mock_client(status=status, chunks=chunks, exc=exc)
+    return patch.object(turn_stream, "get_client", lambda: client)
 
 
 def _events(text: str) -> list[dict]:
@@ -166,3 +140,11 @@ def test_read_timeout_emits_error_then_done():
     events = _events(r.text)
     assert [e["event"] for e in events] == ["error", "done"]
     assert "timed out" in events[0]["data"]["message"]
+
+
+def test_stream_version_resolves_without_url(monkeypatch):
+    from app.services.chat import stream as turn_stream
+    monkeypatch.setattr(turn_stream.settings, "CHAT_STREAM_VERSION", "v4")
+    assert turn_stream._stream_version() == "v4"
+    monkeypatch.setattr(turn_stream.settings, "CHAT_STREAM_VERSION", "bogus")
+    assert turn_stream._stream_version() == "v5"
