@@ -67,7 +67,7 @@ def _mock_client(*, status: int = 200, chunks: tuple[str, ...] = (), exc: Except
 def _stub_upstream(*, status: int = 200, chunks: tuple[str, ...] = (), exc: Exception | None = None):
     """Patch `get_client` so `_stream_live` talks to a MockTransport-backed client."""
     client = _mock_client(status=status, chunks=chunks, exc=exc)
-    return patch.object(turn_stream, "get_client", lambda: client)
+    return patch.object(turn_stream, "get_client", lambda version=None: client)
 
 
 def _events(text: str) -> list[dict]:
@@ -142,9 +142,6 @@ def test_read_timeout_emits_error_then_done():
     assert "timed out" in events[0]["data"]["message"]
 
 
-def test_stream_version_resolves_without_url(monkeypatch):
+def test_stream_version_uses_resolver_default():
     from app.services.chat import stream as turn_stream
-    monkeypatch.setattr(turn_stream.settings, "CHAT_STREAM_VERSION", "v4")
-    assert turn_stream._stream_version() == "v4"
-    monkeypatch.setattr(turn_stream.settings, "CHAT_STREAM_VERSION", "bogus")
     assert turn_stream._stream_version() == "v5"

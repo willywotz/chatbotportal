@@ -15,7 +15,7 @@ dispatches them to matching agencies over **API / MCP / A2A** → synthesizes th
 agency responses into one LLM-written answer with citations. An admin dashboard
 manages agencies, health, analytics, users/roles, API keys, and LLM routing.
 
-The heavy orchestration (decompose → route → dispatch → synthesize, sync **v3** and
+The heavy orchestration (decompose → route → dispatch → synthesize, sync **v1–v3** and
 streaming **v4/v5**) runs in an **external OneChat service** (`ONECHAT_BASE_URL`, reached via the
 `services/onechat/` client).
 This backend is the **portal/gateway**: it wraps OneChat, exposes its own MCP server of
@@ -101,11 +101,15 @@ Vite 5.4.12+ rejects unknown Host headers; without it every tunnelled request re
    `pg_trgm` (migration `19_..._drop_embedding_add_pg_trgm`); the `vector` extension is installed
    but not currently used for chat similarity. Note: `Conversation.status="failed"` is a one-way
    ratchet, so failed turns never poison the cache.
-2. **Dispatch to OneChat** via the transport client `services/onechat/` (`get_client()` →
-   `OneChatClient`): sync `/chat` → `chat_external()` calls `chat_v3()`; `/chat/stream` proxies the
-   streaming upstream chosen by `CHAT_STREAM_VERSION` (`v5` default; `v4` = the no-redeploy
-   rollback — resolved per request by `services/chat/stream.py::_stream_version()`, unknown values
-   fall back to v5) through `client.stream_by_version()`, re-emitting `answer`/`error`/`done` events.
+2. **Dispatch to OneChat** via the transport client `services/onechat/` (`get_client(version)` →
+   `OneChatClient`): sync `/chat` → `chat_external()` calls `chat_v3()`; `/chat/stream` and the
+   Responses API drive `client.events()`, which serves any upstream version uniformly — v4/v5 stream
+   SSE, v1/v2/v3 POST one JSON envelope adapted into `answer`+`done` (spec/api/v3.md: v3 `data`
+   equals the streaming `answer` payload). The version comes from `resolve_version()`
+   (`services/onechat/client.py`): a per-request override wins, else the newest version (`v5`); the
+   `_STREAMS_SSE` table is the single source of truth for the version roster and each version's
+   transport. `CHAT_STREAM_VERSION` was removed — `/chat/stream` has no per-request channel, so it
+   always uses newest. Re-emits `answer`/`error`/`done` events.
    The client owns transport only (payload, HTTP/SSE, error mapping: non-200→status,
    `ReadTimeout`→504, other→502); persistence/tracing stay in the callers. All paths derive from a
    single `ONECHAT_BASE_URL` (the old per-endpoint `ONECHAT_V3/V4/V5_URL` settings are gone). **v5** (`spec/v5.md`) adds a `summarize` step event
@@ -124,7 +128,9 @@ Vite 5.4.12+ rejects unknown Host headers; without it every tunnelled request re
 pipeline (`routers/responses.py`), in three transports: HTTP non-streaming, HTTP SSE, and a
 WebSocket on the same path. It shares one turn implementation with `/chat/stream` via
 `services/chat/stream.py` (`prepare_turn` / `run_turn`), and translates to OpenAI's wire
-format in `services/responses/`. `store` is accepted but ignored, `usage` is always zero, and
+format in `services/responses/`. The only model id is `onechat` (anything else → 400); callers
+select the OneChat upstream per request with the `onechat_version` body field (`v1`–`v5`, else
+newest) — a body field, not a header, so it works over WebSocket, which cannot set headers. `store` is accepted but ignored, `usage` is always zero, and
 pipeline progress events are not surfaced. Response **creation, retrieval (`GET /responses/{id}`,
 reconstructed from the stored assistant `Message` in `services/responses/retrieve.py`), soft
 delete, and input-item listing** are implemented; `cancel`/`compact`/`input_tokens` are registered
@@ -500,8 +506,8 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
 - **Multi-task work → create a branch first** (`feat/`, `fix/`, `chore/`, `refactor/`); never commit
   multi-step work to `main`. Do **not** use claude worktree.
 - **All OneChat calls go through `services/onechat/`** — never POST an upstream URL inline. The
-  client is transport-only (`chat_v1/v2/v3`, `stream_v4/v5`, `stream_by_version`, `health`;
-  `get_client()`); it maps errors uniformly (non-200→status, `ReadTimeout`→504, other→502) as
+  client is transport-only (`chat_v1/v2/v3`, `stream_v4/v5`, the version-uniform `events()`,
+  `resolve_version()`, `health`; `get_client(version)`); it maps errors uniformly (non-200→status, `ReadTimeout`→504, other→502) as
   `OneChatError`, and callers keep persistence/tracing. Paths derive from `ONECHAT_BASE_URL`; inject
   `httpx.MockTransport` via `OneChatClient(transport=...)` to test without a live upstream.
 - **TDD is mandatory** (red → green → refactor). Go changes: run `/use-modern-go`, then gofmt +

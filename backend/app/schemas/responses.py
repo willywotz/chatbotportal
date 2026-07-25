@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict
 class ResponsesRequest(BaseModel):
     model_config = ConfigDict(extra="ignore", protected_namespaces=())
 
-    model: str = "thai-citizen-guide"
+    model: str = "onechat"
     input: str | list[dict[str, Any]] = ""
     previous_response_id: str | None = None
     conversation: str | None = None
@@ -21,3 +21,6 @@ class ResponsesRequest(BaseModel):
     store: bool = True
     # WebSocket warm-up: resolve and warm the session without generating.
     generate: bool = True
+    # OneChat upstream override (v1..v5); invalid/absent → newest. Body field so
+    # it works on WebSocket, which cannot set headers.
+    onechat_version: str | None = None

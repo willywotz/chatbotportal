@@ -51,7 +51,7 @@ async def run_response(
     Shared by every transport. `cache` is a WebSocket connection's local
     response-id → conversation-id map; None on HTTP.
     """
-    model, stream_version = resolve_model(request.model)
+    model = resolve_model(request.model)
     query = extract_query(request.input)
     conversation_id, is_continuation = await resolve_conversation(
         previous_response_id=request.previous_response_id,
@@ -62,17 +62,13 @@ async def run_response(
     try:
         plan = await prepare_turn(
             query=query, conversation_id=conversation_id, user=user,
-            is_continuation=is_continuation,
+            is_continuation=is_continuation, requested_version=request.onechat_version,
         )
     except ConversationNotFound:
         raise ResponsesApiError(
             f"Conversation '{conversation_id}' not found",
             param="conversation", code="conversation_not_found", status=404,
         )
-
-    # A model id that pins a version wins over CHAT_STREAM_VERSION.
-    if plan.stream_version != stream_version:
-        plan.stream_version = stream_version
 
     accumulator = ResponseAccumulator(
         response_id=response_id_for(plan.assistant_message_id),

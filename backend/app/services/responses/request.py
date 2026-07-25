@@ -1,31 +1,19 @@
 """Translate an OpenAI Responses request into portal turn parameters."""
 from typing import Any
 
-from app.services.chat.stream import _stream_version
 from app.services.responses.errors import ResponsesApiError
 
-DEFAULT_MODEL_ID = "thai-citizen-guide"
-
-# None → follow CHAT_STREAM_VERSION; otherwise pin that OneChat upstream.
-MODEL_IDS: dict[str, str | None] = {
-    DEFAULT_MODEL_ID: None,
-    "thai-citizen-guide-v5": "v5",
-    "thai-citizen-guide-v4": "v4",
-}
+DEFAULT_MODEL_ID = "onechat"
 
 
-def resolve_model(model: str) -> tuple[str, str]:
-    """Return (canonical model id, OneChat stream version) or raise a 400."""
-    if model not in MODEL_IDS:
+def resolve_model(model: str) -> str:
+    """Validate the public model id. Version is chosen elsewhere, per request."""
+    if model != DEFAULT_MODEL_ID:
         raise ResponsesApiError(
-            f"Unknown model '{model}'. Supported models: {', '.join(sorted(MODEL_IDS))}.",
+            f"Unknown model '{model}'. Supported model: {DEFAULT_MODEL_ID}.",
             param="model",
         )
-    pinned = MODEL_IDS[model]
-    if pinned is not None:
-        return model, pinned
-    version = _stream_version()
-    return model, version
+    return model
 
 
 def extract_query(value: str | list[dict[str, Any]]) -> str:

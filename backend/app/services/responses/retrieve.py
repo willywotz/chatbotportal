@@ -32,7 +32,7 @@ def response_object(msg) -> dict:
         "object": "response",
         "created_at": int(msg.created_at.timestamp()),
         "status": "completed",
-        "model": "thai-citizen-guide",  # not persisted per-turn; echo the default id
+        "model": "onechat",  # not persisted per-turn; echo the default id
         "output": [],
         "output_text": answer,
         "usage": dict(_ZERO_USAGE),
