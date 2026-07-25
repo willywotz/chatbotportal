@@ -557,3 +557,12 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   message text uses Tailwind rem/px classes (`text-base`, `prose-sm`, `text-[10px]`) that are
   relative to `:root`, so a parent `font-size` does not cascade — `zoom` scales the whole subtree
   and reflows. Factors: 0.875 / 1 / 1.25.
+- **MCP `endpoint_url` scheme behind Cloudflare.** `_fetch_agencies` rewrites every `API` agency's
+  `endpoint_url` to `<scheme>://<X-Forwarded-Host>/agent-proxy/<id>`. It used `request.url.scheme`,
+  which is `http` in this deployment: the whole chain (cloudflared → nginx → backend) speaks plain
+  HTTP, and nginx overwrites `X-Forwarded-Proto` with its own `$scheme` (= http). The only header
+  carrying the browser's real scheme is Cloudflare's `cf-visitor` (`{"scheme":"https"}`), so clients
+  were handed an `http://` proxy URL that a https origin rejects. `_external_scheme(request)`
+  (`app/mcp/server.py`) now resolves scheme as **cf-visitor → X-Forwarded-Proto → connection
+  scheme**. Covered by `tests/test_mcp_endpoint_scheme.py`. Also dropped the debug `print`s that were
+  dumping full request headers (incl. `Authorization`) to stdout on every call.
