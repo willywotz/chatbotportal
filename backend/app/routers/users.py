@@ -38,7 +38,7 @@ async def list_users(
     ),
     admin: User = Depends(require_admin),
 ) -> UserListResponse:
-    qs = User.all()
+    qs = User.filter(is_ephemeral=False)
     if search:
         qs = qs.filter(Q(email__icontains=search) | Q(display_name__icontains=search))
     if role:
