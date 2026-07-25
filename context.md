@@ -574,3 +574,10 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   (`app/mcp/server.py`) now resolves scheme as **cf-visitor → X-Forwarded-Proto → connection
   scheme**. Covered by `tests/test_mcp_endpoint_scheme.py`. Also dropped the debug `print`s that were
   dumping full request headers (incl. `Authorization`) to stdout on every call.
+- **Ephemeral users hidden from admin user list.** Anonymous public-portal visitors are persisted
+  as `User.is_ephemeral = True` accounts. `list_users` (`app/routers/users.py`, `GET /users`) now
+  bases its queryset on `User.filter(is_ephemeral=False)` so temp-users never appear in the admin
+  user-management screen and don't inflate `total`. Backend-level filter only — no frontend change,
+  no opt-in flag; the other by-ID endpoints are unchanged. Covered by
+  `test_list_excludes_ephemeral_users` in `tests/test_users_router.py`. Spec:
+  `docs/superpowers/specs/2026-07-26-hide-ephemeral-users-design.md`.
