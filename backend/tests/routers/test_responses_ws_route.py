@@ -3,6 +3,7 @@
 import json
 from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocket
@@ -11,6 +12,7 @@ from app.config import settings
 from app.routers import responses as responses_router
 from app.routers.responses import _ConnectionRegistry, _ws_user
 from app.services.chat import stream as turn_stream
+from app.services.onechat import OneChatClient
 from tests.routers.test_responses_http import _client_app, _default_events, _fake_live
 
 
@@ -89,7 +91,7 @@ def test_response_create_round_trip_over_a_real_socket():
          TestClient(_client_app()) as client, \
          client.websocket_connect("/api/v1/responses") as ws:
         ws.send_text(json.dumps({
-            "type": "response.create", "model": "thai-citizen-guide", "input": "บัตรหาย",
+            "type": "response.create", "model": "onechat", "input": "บัตรหาย",
         }))
         types = []
         while types[-1:] != ["response.completed"] and types[-1:] != ["response.failed"]:
@@ -102,6 +104,35 @@ def test_response_create_round_trip_over_a_real_socket():
     ]
 
 
+def test_response_create_onechat_version_routes_to_v3():
+    """`onechat_version` on a response.create frame overrides the resolved upstream."""
+    rec: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        rec["url"] = str(request.url)
+        return httpx.Response(200, json={"data": {"answer": "ok", "session_id": "s1"}})
+
+    def stub_client(version: str | None = None) -> OneChatClient:
+        return OneChatClient(
+            "http://oc:8000", transport=httpx.MockTransport(handler), version=version,
+        )
+
+    with patch.object(turn_stream, "find_similar_question", new=AsyncMock(return_value=None)), \
+         patch.object(turn_stream, "get_client", stub_client), \
+         TestClient(_client_app()) as client, \
+         client.websocket_connect("/api/v1/responses") as ws:
+        ws.send_text(json.dumps({
+            "type": "response.create", "model": "onechat", "onechat_version": "v3",
+            "input": "บัตรหาย",
+        }))
+        types = []
+        while types[-1:] != ["response.completed"] and types[-1:] != ["response.failed"]:
+            types.append(json.loads(ws.receive_text())["type"])
+
+    assert rec["url"] == "http://oc:8000/v3/chat"
+    assert types[-1] == "response.completed"
+
+
 def test_malformed_frame_does_not_kill_the_connection():
     with patch.object(turn_stream, "find_similar_question", new=AsyncMock(return_value=None)), \
          patch.object(turn_stream, "_stream_live", new=_fake_live(*_default_events("s"))), \
@@ -112,7 +143,7 @@ def test_malformed_frame_does_not_kill_the_connection():
         assert error["type"] == "error"
 
         ws.send_text(json.dumps({
-            "type": "response.create", "model": "thai-citizen-guide", "input": "บัตรหาย",
+            "type": "response.create", "model": "onechat", "input": "บัตรหาย",
         }))
         types = []
         while types[-1:] != ["response.completed"]:
@@ -130,7 +161,7 @@ def test_binary_frame_errors_without_closing():
         assert error["type"] == "error"
 
         ws.send_text(json.dumps({
-            "type": "response.create", "model": "thai-citizen-guide", "input": "บัตรหาย",
+            "type": "response.create", "model": "onechat", "input": "บัตรหาย",
         }))
         types = []
         while types[-1:] != ["response.completed"]:

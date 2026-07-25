@@ -5,6 +5,7 @@ import uuid
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
 from fastapi import BackgroundTasks, FastAPI
 from fastapi.testclient import TestClient
@@ -16,6 +17,7 @@ from app.schemas.responses import ResponsesRequest
 from app.routers import responses as responses_router
 from app.services.chat import stream as turn_stream
 from app.services.chat.stream import ChatEvent
+from app.services.onechat import OneChatClient
 from app.services.responses.errors import ResponsesApiError
 
 ANSWER_DATA = {
@@ -62,7 +64,7 @@ def _body(response) -> dict:
 
 @pytest.mark.asyncio
 async def test_non_streaming_returns_a_complete_response(db):
-    request = ResponsesRequest(model="thai-citizen-guide-v5", input="บัตรหาย")
+    request = ResponsesRequest(model="onechat", input="บัตรหาย")
     with patch.object(turn_stream, "find_similar_question", new=AsyncMock(return_value=None)), \
          patch.object(turn_stream, "_stream_live", new=_fake_live(*_default_events("s"))):
         response = await responses_router.create_response(
@@ -73,7 +75,7 @@ async def test_non_streaming_returns_a_complete_response(db):
     assert body["object"] == "response"
     assert body["status"] == "completed"
     assert body["output_text"] == "คำตอบเต็ม"
-    assert body["model"] == "thai-citizen-guide-v5"
+    assert body["model"] == "onechat"
     assert body["portal"]["summary"] == "สรุป"
     assert body["id"].startswith("resp_")
 
@@ -83,8 +85,34 @@ async def test_non_streaming_returns_a_complete_response(db):
 
 
 @pytest.mark.asyncio
+async def test_http_onechat_version_routes_to_v3(db):
+    """`onechat_version` on the request body overrides the resolved upstream."""
+    rec: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        rec["url"] = str(request.url)
+        return httpx.Response(200, json={"data": {"answer": "ok", "session_id": "s1"}})
+
+    def stub_client(version: str | None = None) -> OneChatClient:
+        return OneChatClient(
+            "http://oc:8000", transport=httpx.MockTransport(handler), version=version,
+        )
+
+    request = ResponsesRequest(model="onechat", input="บัตรหาย", onechat_version="v3")
+    with patch.object(turn_stream, "find_similar_question", new=AsyncMock(return_value=None)), \
+         patch.object(turn_stream, "get_client", stub_client):
+        response = await responses_router.create_response(
+            request, BackgroundTasks(), user=None,
+        )
+
+    assert rec["url"] == "http://oc:8000/v3/chat"
+    body = _body(response)
+    assert body["output_text"] == "ok"
+
+
+@pytest.mark.asyncio
 async def test_streaming_emits_the_openai_sequence(db):
-    request = ResponsesRequest(model="thai-citizen-guide", input="บัตรหาย", stream=True)
+    request = ResponsesRequest(model="onechat", input="บัตรหาย", stream=True)
     with patch.object(turn_stream, "find_similar_question", new=AsyncMock(return_value=None)), \
          patch.object(turn_stream, "_stream_live", new=_fake_live(*_default_events("s"))):
         response = await responses_router.create_response(
@@ -106,14 +134,14 @@ async def test_streaming_emits_the_openai_sequence(db):
 
 @pytest.mark.asyncio
 async def test_previous_response_id_continues_the_conversation(db):
-    first = ResponsesRequest(model="thai-citizen-guide", input="หนึ่ง")
+    first = ResponsesRequest(model="onechat", input="หนึ่ง")
     with patch.object(turn_stream, "find_similar_question", new=AsyncMock(return_value=None)), \
          patch.object(turn_stream, "_stream_live", new=_fake_live(*_default_events("s"))):
         body = _body(await responses_router.create_response(first, BackgroundTasks(), user=None))
 
     conversation_id = body["portal"]["conversation_id"]
     second = ResponsesRequest(
-        model="thai-citizen-guide", input="สอง", previous_response_id=body["id"],
+        model="onechat", input="สอง", previous_response_id=body["id"],
     )
     with patch.object(turn_stream, "ensure_session_warmed", new=AsyncMock(return_value=None)), \
          patch.object(turn_stream, "_stream_live", new=_fake_live(*_default_events("s"))):
@@ -138,7 +166,7 @@ async def test_unknown_model_raises_a_responses_error(db):
 @pytest.mark.asyncio
 async def test_unknown_previous_response_id_raises_404(db):
     request = ResponsesRequest(
-        model="thai-citizen-guide", input="hi", previous_response_id=f"resp_{uuid.uuid4()}",
+        model="onechat", input="hi", previous_response_id=f"resp_{uuid.uuid4()}",
     )
     with pytest.raises(ResponsesApiError) as exc:
         await responses_router.create_response(request, BackgroundTasks(), user=None)
@@ -149,7 +177,7 @@ async def test_unknown_previous_response_id_raises_404(db):
 async def test_empty_input_raises_400(db):
     with pytest.raises(ResponsesApiError):
         await responses_router.create_response(
-            ResponsesRequest(model="thai-citizen-guide", input="   "),
+            ResponsesRequest(model="onechat", input="   "),
             BackgroundTasks(), user=None,
         )
 
@@ -168,7 +196,7 @@ async def test_cache_hit_is_reported_in_portal(db):
     with patch.object(turn_stream, "find_similar_question",
                       new=AsyncMock(return_value=(user_msg, asst_msg, _Log()))):
         response = await responses_router.create_response(
-            ResponsesRequest(model="thai-citizen-guide", input="q"),
+            ResponsesRequest(model="onechat", input="q"),
             BackgroundTasks(), user=None,
         )
 
@@ -184,7 +212,7 @@ async def test_one_connection_log_per_turn(db):
     with patch.object(turn_stream, "find_similar_question", new=AsyncMock(return_value=None)), \
          patch.object(turn_stream, "_stream_live", new=_fake_live(*_default_events("s"))):
         await responses_router.create_response(
-            ResponsesRequest(model="thai-citizen-guide", input="hi"),
+            ResponsesRequest(model="onechat", input="hi"),
             BackgroundTasks(), user=None,
         )
     assert await ConnectionLog.filter(action="query").count() == 1
@@ -229,7 +257,7 @@ def test_streaming_unknown_previous_response_id_returns_404_over_http():
         r = client.post(
             "/api/v1/responses",
             json={
-                "model": "thai-citizen-guide", "input": "hi", "stream": True,
+                "model": "onechat", "input": "hi", "stream": True,
                 "previous_response_id": f"resp_{uuid.uuid4()}",
             },
         )
@@ -239,7 +267,7 @@ def test_streaming_unknown_previous_response_id_returns_404_over_http():
 
 @pytest.mark.asyncio
 async def test_upstream_error_becomes_response_failed(db):
-    request = ResponsesRequest(model="thai-citizen-guide", input="hi", stream=True)
+    request = ResponsesRequest(model="onechat", input="hi", stream=True)
     events = (
         ChatEvent("error", {"message": "OneChat v5 returned 502", "code": 502}),
         ChatEvent("done", {"session_id": "s", "total_ms": 0}),

@@ -57,7 +57,7 @@ class _Sink:
 
 
 def _create(**overrides) -> str:
-    payload = {"type": "response.create", "model": "thai-citizen-guide", "input": "q"}
+    payload = {"type": "response.create", "model": "onechat", "input": "q"}
     payload.update(overrides)
     return json.dumps(payload)
 
