@@ -1,10 +1,12 @@
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/shared/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { User } from "lucide-react";
 import { ThemeToggle } from "@/shared/components/ThemeToggle";
+import { TextScaleControl } from "@/shared/components/TextScaleControl";
 
 export function AppLayout() {
+  const isChat = useLocation().pathname === "/chat";
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
@@ -20,6 +22,7 @@ export function AppLayout() {
             </div>
             <div className="flex items-center gap-3">
               <span className="text-xs text-muted-foreground hidden sm:block">ระบบบูรณาการข้อมูลหน่วยงานภาครัฐ</span>
+              {isChat && <TextScaleControl />}
               <ThemeToggle />
               <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                 <User className="w-4 h-4 text-primary" />
