@@ -24,7 +24,7 @@ export function ChatConversation({
   const { factor } = useTextScale();
   return (
     <ScrollArea className="flex-1 p-4">
-      <div className="max-w-3xl mx-auto" style={{ zoom: factor }}>
+      <div className="max-w-3xl mx-auto" style={{ fontSize: `${factor}em` }}>
         {messages.map((msg) => (
           <MessageBubble key={msg.id} message={msg} onRate={onRate} />
         ))}

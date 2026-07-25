@@ -30,7 +30,7 @@ export const MessageBubble = memo(function MessageBubble({ message, onRate }: { 
         : <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-primary/10 text-primary"><Bot className="h-4 w-4" /></div>} */}
       <div className={cn("max-w-[80%] space-y-2", isUser && "text-right")}>
         <div className={cn(
-          "rounded-2xl px-4 py-3 text-base leading-relaxed",
+          "rounded-2xl px-4 py-3 text-[1em] leading-relaxed",
           isUser
             ? "bg-primary text-primary-foreground rounded-tr-sm"
             : "bg-card border border-border rounded-tl-sm"
@@ -57,7 +57,7 @@ export const MessageBubble = memo(function MessageBubble({ message, onRate }: { 
           ) : (
             <>
               <SummaryCard summary={message.summary} references={message.summaryReferences} />
-              <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-table:my-2 prose-hr:my-3">
+              <div className="prose prose-sm text-[0.875em] dark:prose-invert max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-table:my-2 prose-hr:my-3">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{stripSummaryPrefix(answer, message.summary)}</ReactMarkdown>
               </div>
             </>
