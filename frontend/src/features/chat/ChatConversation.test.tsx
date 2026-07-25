@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { TextScaleProvider } from "@/shared/hooks/useTextScale";
 import type { ChatMessage } from "@/shared/types";
 import { ChatConversation } from "./ChatConversation";
 
@@ -36,4 +37,19 @@ describe("ChatConversation", () => {
     const { container } = render(<ChatConversation {...baseProps} isTyping />);
     expect(container.querySelector(".animate-bounce")).toBeInTheDocument();
   });
+
+  it("scales the conversation with font-size, not zoom", () => {
+    window.localStorage.setItem("chat-text-scale", "large");
+    const { container } = render(
+      <TextScaleProvider>
+        <ChatConversation {...baseProps} />
+      </TextScaleProvider>,
+    );
+    const wrapper = container.querySelector<HTMLElement>(".max-w-3xl");
+    expect(wrapper).not.toBeNull();
+    expect(wrapper!.style.fontSize).toBe("1.25em");
+    expect(wrapper!.style.zoom).toBeFalsy();
+  });
 });
+
+afterEach(() => window.localStorage.clear());

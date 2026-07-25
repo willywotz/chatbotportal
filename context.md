@@ -551,12 +551,14 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
 - **Chat text-scale control (A / A / A).** `TextScaleProvider` + `useTextScale`
   (`frontend/src/shared/hooks/useTextScale.tsx`) hold a persisted `small|normal|large` preference
   (localStorage key `chat-text-scale`), wrapped once around the router in `App.tsx`. The
-  `TextScaleControl` buttons render in three headers — both `PublicPortal` headers and the shared
-  `AppLayout` header (only on `/chat`, since scaling targets chat content). `ChatConversation`
-  applies the factor to its content wrapper via **CSS `zoom`**, *not* a container `font-size`:
-  message text uses Tailwind rem/px classes (`text-base`, `prose-sm`, `text-[10px]`) that are
-  relative to `:root`, so a parent `font-size` does not cascade — `zoom` scales the whole subtree
-  and reflows. Factors: 0.875 / 1 / 1.25.
+  `TextScaleControl` buttons render only in the chat context — the `PublicPortal` chat-mode header
+  and the shared `AppLayout` header on `/chat`; the `PublicPortal` landing header no longer shows
+  them (scaling targets chat content, and there is nothing to scale on the landing page).
+  `ChatConversation` scales via a **container `font-size`** (`fontSize: ${factor}em`), *not* CSS
+  `zoom`, so only text reflows (padding/avatars/spacing stay fixed). For this to cascade, the
+  readable body text in `MessageBubble` was switched from fixed rem classes to `em`-relative ones —
+  the bubble uses `text-[1em]` and the markdown body `prose-sm text-[0.875em]`; chrome text
+  (timestamps, sources, thinking) stays fixed. Factors: 0.875 / 1 / 1.25.
 - **MCP `endpoint_url` scheme behind Cloudflare.** `_fetch_agencies` rewrites every `API` agency's
   `endpoint_url` to `<scheme>://<X-Forwarded-Host>/agent-proxy/<id>`. It used `request.url.scheme`,
   which is `http` in this deployment: the whole chain (cloudflared → nginx → backend) speaks plain

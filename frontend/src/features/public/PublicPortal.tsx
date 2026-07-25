@@ -78,7 +78,6 @@ export default function PublicPortal() {
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <header className="px-6 py-3 flex items-center justify-end gap-2 sticky top-0 z-10">
-        <TextScaleControl />
         {loginButton}
       </header>
 
