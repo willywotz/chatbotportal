@@ -36,13 +36,21 @@ route's *frontend* (it keeps working, see §6); `/v1/mcp/*`.
 One resolver owns the whole policy. It lives in the OneChat client module
 (`services/onechat/client.py`) — the "client level" home for version logic.
 
+A single declarative table is the source of truth for the version roster **and**
+each version's transport (see §5). The valid-version set derives from it, so
+adding a version is a one-line change:
+
 ```python
-NEWEST_VERSION = "v5"
-_VALID = {"v1", "v2", "v3", "v4", "v5"}
+# OneChat upstreams: version → does its /chat endpoint stream SSE?
+# v1-v3 return a single JSON envelope; v4-v5 stream. A fact about the service
+# (spec/api/), not something the version string implies.
+_STREAMS_SSE = {"v1": False, "v2": False, "v3": False, "v4": True, "v5": True}
+_VALID_VERSIONS = frozenset(_STREAMS_SSE)
+NEWEST_VERSION = "v5"                 # explicit: "newest" is editorial, not max()
 
 def resolve_version(requested: str | None = None) -> str:
     v = (requested or "").strip().lower()
-    return v if v in _VALID else NEWEST_VERSION
+    return v if v in _VALID_VERSIONS else NEWEST_VERSION
 ```
 
 **Precedence (two tiers):**
@@ -80,9 +88,12 @@ field. Absent/invalid → newest.
 
 ## 5. Serving v1/v2/v3 as events
 
-v4/v5 stream SSE; v1/v2/v3 return a single JSON envelope. `spec/api/v3.md` §9
-states v3's `data.sections` / `data.debug` equals v4/v5's `answer` event
-payload. So the adapter unwraps `data` and emits two synthetic events:
+v4/v5 stream SSE; v1/v2/v3 return a single JSON envelope. Which is which is a
+property of the upstream, not the version string, so it is declared once in the
+`_STREAMS_SSE` table (§2) — `events()` consults that table rather than
+hardcoding a `("v4", "v5")` literal. `spec/api/v3.md` §9 states v3's
+`data.sections` / `data.debug` equals v4/v5's `answer` event payload. So for the
+sync versions the adapter unwraps `data` and emits two synthetic events:
 
 ```python
 class OneChatClient:
@@ -91,7 +102,7 @@ class OneChatClient:
 
     async def events(self, query, mcp_endpoint_url, session_id=None):
         v = self.version
-        if v in ("v4", "v5"):
+        if _STREAMS_SSE[v]:
             async for ev in self._stream(f"/{v}/chat", query, mcp_endpoint_url, session_id):
                 yield ev
             return

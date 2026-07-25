@@ -13,7 +13,7 @@
 - **TDD, mandatory:** failing test → confirm red → minimal code → confirm green → refactor. One assertion of behavior per test.
 - **Run tests from `backend/`:** `cd backend && rtk pytest <path> -v`.
 - **Style:** Google Python style; American English; organized imports; minimal comments (only non-obvious rationale).
-- **Version vocabulary:** valid versions are exactly `{"v1","v2","v3","v4","v5"}`; `NEWEST_VERSION = "v5"`.
+- **Version vocabulary:** one declarative table `_STREAMS_SSE = {"v1": False, "v2": False, "v3": False, "v4": True, "v5": True}` is the single source of truth for the roster and each version's transport; `_VALID_VERSIONS = frozenset(_STREAMS_SSE)`; `NEWEST_VERSION = "v5"`. Never inline a `("v4","v5")` literal — consult the table.
 - **Model id:** the only accepted public model id is `"onechat"` (hard rename — old `thai-citizen-guide*` ids are gone).
 - **Per-request override channel:** request-body field `onechat_version` only (never a header — WebSocket can't set them).
 - **Commit prefix:** conventional commits; end commit messages with the `Co-Authored-By` trailer per repo policy.
@@ -114,8 +114,12 @@ Expected: FAIL — `resolve_version` / `events` / `get_client(version=...)` not 
 Add near the top (after `logger`):
 
 ```python
-NEWEST_VERSION = "v5"
-_VALID_VERSIONS = frozenset({"v1", "v2", "v3", "v4", "v5"})
+# OneChat upstreams: version → does its /chat endpoint stream SSE?
+# v1-v3 return a single JSON envelope; v4-v5 stream. A fact about the service
+# (spec/api/), not something the version string implies.
+_STREAMS_SSE = {"v1": False, "v2": False, "v3": False, "v4": True, "v5": True}
+_VALID_VERSIONS = frozenset(_STREAMS_SSE)
+NEWEST_VERSION = "v5"                 # explicit: "newest" is editorial, not max()
 
 
 def resolve_version(requested: str | None = None) -> str:
@@ -152,7 +156,7 @@ Add `events()` (keep `stream_by_version` for now; removed in Task 2):
         equals the streaming `answer` payload).
         """
         v = self.version
-        if v in ("v4", "v5"):
+        if _STREAMS_SSE[v]:
             async for ev in self._stream(f"/{v}/chat", query, mcp_endpoint_url, session_id):
                 yield ev
             return
