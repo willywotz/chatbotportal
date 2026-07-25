@@ -548,3 +548,12 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   24. A regression test for `allowedHosts` was dropped for this reason (covered by the tunnel smoke
   check instead); fixing `setup.ts` to tolerate a missing `window` is deferred to its own `chore/`
   branch.
+- **Chat text-scale control (A / A / A).** `TextScaleProvider` + `useTextScale`
+  (`frontend/src/shared/hooks/useTextScale.tsx`) hold a persisted `small|normal|large` preference
+  (localStorage key `chat-text-scale`), wrapped once around the router in `App.tsx`. The
+  `TextScaleControl` buttons render in three headers — both `PublicPortal` headers and the shared
+  `AppLayout` header (only on `/chat`, since scaling targets chat content). `ChatConversation`
+  applies the factor to its content wrapper via **CSS `zoom`**, *not* a container `font-size`:
+  message text uses Tailwind rem/px classes (`text-base`, `prose-sm`, `text-[10px]`) that are
+  relative to `:root`, so a parent `font-size` does not cascade — `zoom` scales the whole subtree
+  and reflows. Factors: 0.875 / 1 / 1.25.
