@@ -78,18 +78,22 @@ for the prefix and is **not** OpenAI-shaped.
 
 ## 1. Models
 
-`model` selects the OneChat upstream. Unknown model → `400 invalid_request_error`, `param: "model"`.
+There is one model id: **`onechat`**. Any other value → `400 invalid_request_error`, `param: "model"`.
 
 | `model` | Upstream |
 |---|---|
-| `thai-citizen-guide` | Follows `CHAT_STREAM_VERSION` (default `v5`) |
-| `thai-citizen-guide-v5` | Pinned to OneChat v5 |
-| `thai-citizen-guide-v4` | Pinned to OneChat v4 |
+| `onechat` | OneChat version chosen per-request by `onechat_version` (v1–v5); absent/invalid → newest (v5) |
 
-Source: `MODEL_IDS` and `resolve_model()` in `app/services/responses/request.py`.
+The upstream version is **not** encoded in the model id. Select it per request with
+the `onechat_version` body field (see §2) — a body field, not a header, so it works
+over WebSocket, which cannot set headers. An absent or unrecognized value falls back
+to the newest version.
+
+Source: `resolve_model()` in `app/services/responses/request.py`; `resolve_version()`
+and the `_STREAMS_SSE` table in `app/services/onechat/client.py`.
 
 ```json
-{ "error": { "message": "Unknown model 'gpt-5'. Supported models: thai-citizen-guide, thai-citizen-guide-v4, thai-citizen-guide-v5.", "type": "invalid_request_error", "param": "model", "code": null } }
+{ "error": { "message": "Unknown model 'gpt-5'. Supported model: onechat.", "type": "invalid_request_error", "param": "model", "code": null } }
 ```
 
 ---
@@ -98,25 +102,27 @@ Source: `MODEL_IDS` and `resolve_model()` in `app/services/responses/request.py`
 
 ```json
 {
-  "model": "thai-citizen-guide",
+  "model": "onechat",
   "input": "",
   "previous_response_id": null,
   "conversation": null,
   "stream": false,
   "store": true,
-  "generate": true
+  "generate": true,
+  "onechat_version": null
 }
 ```
 
 | Field | Type | Default | Notes |
 |---|---|---|---|
-| `model` | `string` | `"thai-citizen-guide"` | See § 1 |
+| `model` | `string` | `"onechat"` | See § 1 |
 | `input` | `string \| array` | `""` | See § 2.1 |
 | `previous_response_id` | `string \| null` | `null` | See § 3 |
 | `conversation` | `string \| null` | `null` | See § 3 |
 | `stream` | `boolean` | `false` | HTTP only — the WebSocket transport always streams |
 | `store` | `boolean` | `true` | Accepted, ignored — see § 6 |
 | `generate` | `boolean` | `true` | WebSocket only — `false` warms a conversation without generating; see § 8 |
+| `onechat_version` | `string \| null` | `null` | OneChat upstream override (`v1`–`v5`); absent/invalid → newest. See § 1 |
 
 Any other field the OpenAI SDK sends (`temperature`, `tools`, `max_output_tokens`,
 `instructions`, `metadata`, `top_p`, …) is accepted and silently ignored — the schema is
@@ -249,7 +255,7 @@ transport deliver the same object as the `response` field of the terminal
   "object": "response",
   "created_at": 1753142400,
   "status": "completed",
-  "model": "thai-citizen-guide-v5",
+  "model": "onechat",
   "output": [
     {
       "id": "msg_11111111-1111-1111-1111-111111111111",
@@ -275,7 +281,7 @@ transport deliver the same object as the `response` field of the terminal
 | Field | Notes |
 |---|---|
 | `id` | `resp_<assistant message uuid>` |
-| `model` | Echoes the requested `model` **verbatim** — the default id stays `"thai-citizen-guide"`, not the resolved `"…-v5"` (§ 1) |
+| `model` | Always `"onechat"` (the only valid id). The upstream version actually used is reported in `portal.stream_version`, not in `model` (§ 1) |
 | `status` | `"in_progress"` (on `response.created`), `"completed"`, or `"failed"` |
 | `output` / `output_text` | `output` is empty and `output_text` is `""` until the answer arrives — and `output` stays `[]` even in a `completed` response whose answer is empty (the degrade case); `output_text` is the composed `answer`, including any v5 summary prefix — no summary-side stripping, though leading/trailing whitespace is trimmed |
 | `usage` | Always the zero object — see § 6 |
@@ -501,7 +507,7 @@ transport).
 rest of the body is the same `ResponsesRequest` fields as the HTTP body (§ 2):
 
 ```json
-{ "type": "response.create", "model": "thai-citizen-guide", "input": "บัตรหาย" }
+{ "type": "response.create", "model": "onechat", "input": "บัตรหาย", "onechat_version": "v3" }
 ```
 
 **Outbound frames** — the identical event objects from § 5, one JSON object per text frame, no
