@@ -15,6 +15,19 @@ logger = logging.getLogger(__name__)
 
 SseEvent = tuple[str, dict]
 
+# OneChat upstreams: version → does its /chat endpoint stream SSE?
+# v1-v3 return a single JSON envelope; v4-v5 stream. A fact about the service
+# (spec/api/), not something the version string implies.
+_STREAMS_SSE = {"v1": False, "v2": False, "v3": False, "v4": True, "v5": True}
+_VALID_VERSIONS = frozenset(_STREAMS_SSE)
+NEWEST_VERSION = "v5"                 # explicit: "newest" is editorial, not max()
+
+
+def resolve_version(requested: str | None = None) -> str:
+    """Per-request override wins; anything invalid/absent → newest."""
+    v = (requested or "").strip().lower()
+    return v if v in _VALID_VERSIONS else NEWEST_VERSION
+
 
 class OneChatError(Exception):
     """A non-2xx response or transport failure from onechat."""
@@ -54,9 +67,11 @@ class OneChatClient:
         base_url: str | None = None,
         *,
         transport: httpx.AsyncBaseTransport | None = None,
+        version: str | None = None,
     ):
         self._base_url = (base_url or settings.ONECHAT_BASE_URL).rstrip("/")
         self._transport = transport
+        self.version = version or NEWEST_VERSION
 
     def _open(self, timeout: float) -> httpx.AsyncClient:
         return httpx.AsyncClient(timeout=timeout, transport=self._transport)
@@ -114,6 +129,28 @@ class OneChatClient:
         async for ev in self._stream("/v5/chat", query, mcp_endpoint_url, session_id):
             yield ev
 
+    async def events(
+        self, query: str, mcp_endpoint_url: str, session_id: str | None = None
+    ) -> AsyncIterator[SseEvent]:
+        """Uniform event stream for this client's pinned version.
+
+        v4/v5 stream SSE; v1/v2/v3 return one JSON envelope, adapted into a
+        single `answer` event plus a terminal `done` (spec/api/v3.md: v3 `data`
+        equals the streaming `answer` payload).
+        """
+        v = self.version
+        if _STREAMS_SSE[v]:
+            async for ev in self._stream(f"/{v}/chat", query, mcp_endpoint_url, session_id):
+                yield ev
+            return
+        envelope = await self._post_json(f"/{v}/chat", query, mcp_endpoint_url, session_id)
+        data = envelope.get("data", envelope)
+        yield ("answer", data)
+        yield ("done", {
+            "session_id": data.get("session_id"),
+            "total_ms": (data.get("debug") or {}).get("responseTimeMs"),
+        })
+
     def stream_by_version(
         self, version: str, query: str, mcp_endpoint_url: str, session_id: str | None = None
     ) -> AsyncIterator[SseEvent]:
@@ -154,5 +191,5 @@ class OneChatClient:
             raise OneChatError(504, f"onechat {path} timed out") from e
 
 
-def get_client() -> OneChatClient:
-    return OneChatClient()
+def get_client(version: str | None = None) -> OneChatClient:
+    return OneChatClient(version=version or resolve_version())
