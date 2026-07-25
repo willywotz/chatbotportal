@@ -8,6 +8,7 @@ import { PublicSidebar } from '@/features/public/PublicSidebar';
 import { SuggestedQuestions } from '@/features/public/SuggestedQuestions';
 import { AgencyCards } from '@/features/public/AgencyCards';
 import { InfoLinks } from '@/features/public/InfoLinks';
+import { TextScaleControl } from '@/shared/components/TextScaleControl';
 import { useChat } from '@/features/chat/useChat';
 import { usePublicPopularQuestions } from '@/features/popular-questions/popularQuestionsApi';
 import { usePublicAgencies } from '@/features/public/publicAgenciesApi';
@@ -55,7 +56,10 @@ export default function PublicPortal() {
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             </div>
-            {loginButton}
+            <div className="flex items-center gap-2">
+              <TextScaleControl />
+              {loginButton}
+            </div>
           </header>
 
           <ChatConversation
@@ -73,7 +77,8 @@ export default function PublicPortal() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="px-6 py-3 flex items-center justify-end sticky top-0 z-10">
+      <header className="px-6 py-3 flex items-center justify-end gap-2 sticky top-0 z-10">
+        <TextScaleControl />
         {loginButton}
       </header>
 

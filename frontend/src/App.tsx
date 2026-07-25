@@ -9,6 +9,7 @@ import { ThemeProvider } from "@/shared/components/ThemeProvider";
 import { AuthProvider } from "@/features/auth/useAuth";
 import { ProtectedRoute } from "@/features/auth/ProtectedRoute";
 import { AppLayout } from "@/shared/components/layout/AppLayout";
+import { TextScaleProvider } from "@/shared/hooks/useTextScale";
 import { SettingsIndexRedirect } from "@/features/settings/SettingsLayout";
 
 // Lazy-loaded page routes — each becomes its own chunk
@@ -62,6 +63,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            <TextScaleProvider>
             <Suspense fallback={<RouteFallback />}>
             <Routes>
               <Route path="/" element={<PublicPortal />} />
@@ -125,6 +127,7 @@ const App = () => (
               <Route path="*" element={<NotFound />} />
             </Routes>
             </Suspense>
+            </TextScaleProvider>
           </BrowserRouter>
         </TooltipProvider>
       </AuthProvider>

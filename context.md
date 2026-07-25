@@ -548,3 +548,21 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   24. A regression test for `allowedHosts` was dropped for this reason (covered by the tunnel smoke
   check instead); fixing `setup.ts` to tolerate a missing `window` is deferred to its own `chore/`
   branch.
+- **Chat text-scale control (A / A / A).** `TextScaleProvider` + `useTextScale`
+  (`frontend/src/shared/hooks/useTextScale.tsx`) hold a persisted `small|normal|large` preference
+  (localStorage key `chat-text-scale`), wrapped once around the router in `App.tsx`. The
+  `TextScaleControl` buttons render in three headers — both `PublicPortal` headers and the shared
+  `AppLayout` header (only on `/chat`, since scaling targets chat content). `ChatConversation`
+  applies the factor to its content wrapper via **CSS `zoom`**, *not* a container `font-size`:
+  message text uses Tailwind rem/px classes (`text-base`, `prose-sm`, `text-[10px]`) that are
+  relative to `:root`, so a parent `font-size` does not cascade — `zoom` scales the whole subtree
+  and reflows. Factors: 0.875 / 1 / 1.25.
+- **MCP `endpoint_url` scheme behind Cloudflare.** `_fetch_agencies` rewrites every `API` agency's
+  `endpoint_url` to `<scheme>://<X-Forwarded-Host>/agent-proxy/<id>`. It used `request.url.scheme`,
+  which is `http` in this deployment: the whole chain (cloudflared → nginx → backend) speaks plain
+  HTTP, and nginx overwrites `X-Forwarded-Proto` with its own `$scheme` (= http). The only header
+  carrying the browser's real scheme is Cloudflare's `cf-visitor` (`{"scheme":"https"}`), so clients
+  were handed an `http://` proxy URL that a https origin rejects. `_external_scheme(request)`
+  (`app/mcp/server.py`) now resolves scheme as **cf-visitor → X-Forwarded-Proto → connection
+  scheme**. Covered by `tests/test_mcp_endpoint_scheme.py`. Also dropped the debug `print`s that were
+  dumping full request headers (incl. `Authorization`) to stdout on every call.

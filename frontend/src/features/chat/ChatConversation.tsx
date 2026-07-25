@@ -4,6 +4,7 @@ import type { StreamingState } from '@/shared/types/chat';
 import { ScrollArea } from '@/shared/components/ui/scroll-area';
 import { MessageBubble } from '@/features/chat/MessageBubble';
 import { AgentStepDisplay, StreamingProgress } from '@/features/chat/AgentStepDisplay';
+import { useTextScale } from '@/shared/hooks/useTextScale';
 
 interface ChatConversationProps {
   messages: ChatMessage[];
@@ -20,9 +21,10 @@ export function ChatConversation({
   messages, isTyping, isStreaming, activeStepCount, currentSteps,
   streamingState, scrollRef, onRate,
 }: ChatConversationProps) {
+  const { factor } = useTextScale();
   return (
     <ScrollArea className="flex-1 p-4">
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-3xl mx-auto" style={{ zoom: factor }}>
         {messages.map((msg) => (
           <MessageBubble key={msg.id} message={msg} onRate={onRate} />
         ))}

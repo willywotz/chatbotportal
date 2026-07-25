@@ -71,6 +71,24 @@ def _serialize(value):
         return value.isoformat()
     return str(value)
 
+def _external_scheme(request) -> str:
+    """Resolve the browser-facing scheme.
+
+    Behind a Cloudflare tunnel the whole chain speaks HTTP, so request.url.scheme
+    and X-Forwarded-Proto are both "http". Cloudflare preserves the real scheme in
+    `cf-visitor` (`{"scheme":"https"}`); prefer it, then X-Forwarded-Proto, then the
+    raw connection scheme.
+    """
+    cf_visitor = request.headers.get("cf-visitor")
+    if cf_visitor:
+        try:
+            scheme = json.loads(cf_visitor).get("scheme")
+        except (json.JSONDecodeError, AttributeError):
+            scheme = None
+        if scheme:
+            return scheme
+    return request.headers.get("X-Forwarded-Proto") or request.url.scheme
+
 @mcp.resource("agencies://list")
 async def list_agency_resource(ctx: Context = CurrentContext()) -> str:
     """
@@ -133,7 +151,7 @@ async def _fetch_agencies(ctx: Context) -> dict:
                 del agencies[index]["api_headers"][j]
 
         if agency["connection_type"] == "API":
-            agency["endpoint_url"] = f"{request.url.scheme}://{http_host}/agent-proxy/{agency['id']}"
+            agency["endpoint_url"] = f"{_external_scheme(request)}://{http_host}/agent-proxy/{agency['id']}"
 
         for k, v in agency["expected_payload"].items():
             if isinstance(v, str) and "__user_id__" in v:
