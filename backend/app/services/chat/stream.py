@@ -27,7 +27,7 @@ from app.models.user import User
 from app.services.chat.llm import classify_message_category
 from app.services.chat.turn import save_turn
 from app.services.log_sanitize import sanitize_body
-from app.services.onechat import OneChatError, get_client
+from app.services.onechat import OneChatError, get_client, resolve_version
 from app.services.session import ensure_session_warmed
 from app.services.similarity import find_similar_question
 from app.utils import generate_uuid
@@ -62,23 +62,19 @@ class TurnPlan:
 
 
 def _stream_version() -> str:
-    """Resolve the streaming version from CHAT_STREAM_VERSION (unknown → v5)."""
-    version = (settings.CHAT_STREAM_VERSION or "").strip().lower()
-    if version == "v4":
-        return "v4"
-    if version != "v5":
-        logger.warning("Unknown CHAT_STREAM_VERSION %r — falling back to v5", settings.CHAT_STREAM_VERSION)
-    return "v5"
+    """Streaming version resolver (kept for the chat.py re-export)."""
+    return resolve_version()
 
 
 async def prepare_turn(
-    *, query: str, conversation_id: str, user: User | None, is_continuation: bool
+    *, query: str, conversation_id: str, user: User | None, is_continuation: bool,
+    requested_version: str | None = None,
 ) -> TurnPlan:
     """Resolve everything needed to run a turn, failing loudly if it cannot.
 
     Raises ConversationNotFound when `is_continuation` names an unknown id.
     """
-    stream_version = _stream_version()
+    stream_version = resolve_version(requested_version)
     plan = TurnPlan(
         query=query,
         conversation_id=conversation_id,
@@ -151,8 +147,8 @@ async def _stream_live(
     version = plan.stream_version
 
     try:
-        async for event_name, event_data in get_client().stream_by_version(
-            version, plan.query, settings.MCP_ENDPOINT_URL, plan.conversation_id
+        async for event_name, event_data in get_client(version).events(
+            plan.query, settings.MCP_ENDPOINT_URL, plan.conversation_id
         ):
             if log_latency_ms == 0:
                 log_latency_ms = int((time.perf_counter_ns() - start_ns) // 1_000_000)

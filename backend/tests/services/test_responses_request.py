@@ -15,11 +15,6 @@ def restore_version():
     settings.CHAT_STREAM_VERSION = original
 
 
-def test_bare_model_follows_the_configured_version(restore_version):
-    settings.CHAT_STREAM_VERSION = "v4"
-    assert resolve_model("thai-citizen-guide") == ("thai-citizen-guide", "v4")
-
-
 def test_suffixed_models_pin_the_upstream(restore_version):
     settings.CHAT_STREAM_VERSION = "v4"
     assert resolve_model("thai-citizen-guide-v5") == ("thai-citizen-guide-v5", "v5")

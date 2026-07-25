@@ -4,14 +4,11 @@ Owns payload assembly, HTTP/SSE, and error mapping. No persistence, tracing,
 or business logic lives here; callers keep that.
 """
 import json
-import logging
 from typing import AsyncIterator
 
 import httpx
 
 from app.config import settings
-
-logger = logging.getLogger(__name__)
 
 SseEvent = tuple[str, dict]
 
@@ -150,16 +147,6 @@ class OneChatClient:
             "session_id": data.get("session_id"),
             "total_ms": (data.get("debug") or {}).get("responseTimeMs"),
         })
-
-    def stream_by_version(
-        self, version: str, query: str, mcp_endpoint_url: str, session_id: str | None = None
-    ) -> AsyncIterator[SseEvent]:
-        v = (version or "").strip().lower()
-        if v == "v4":
-            return self.stream_v4(query, mcp_endpoint_url, session_id)
-        if v != "v5":
-            logger.warning("Unknown OneChat stream version %r — falling back to v5", version)
-        return self.stream_v5(query, mcp_endpoint_url, session_id)
 
     async def _stream(
         self, path: str, query: str, mcp_endpoint_url: str, session_id: str | None
