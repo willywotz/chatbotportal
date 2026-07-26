@@ -41,7 +41,6 @@ describe("ChatConversation", () => {
 
   it("swaps the dots for the AgentStepsCard once pipeline steps arrive", () => {
     const streamingState = {
-      ...emptyStreaming,
       pipelineSteps: [{ name: "discover", status: "done", ms: 1200 }],
       agencyStatuses: {
         land: {
@@ -49,6 +48,7 @@ describe("ChatConversation", () => {
           sectionLabel: null, status: "passed",
         },
       },
+      errors: [],
     } as never;
     const { container } = render(
       <ChatConversation {...baseProps} isTyping isStreaming streamingState={streamingState} />,
