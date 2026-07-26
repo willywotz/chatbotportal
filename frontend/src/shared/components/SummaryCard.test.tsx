@@ -1,15 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { SummaryCard } from './SummaryCard';
 
+const REFS = [{ number: 1, agency_id: 'land', agency_name: 'กรมที่ดิน', url: null }];
+
 describe('SummaryCard', () => {
-  it('renders the summary text and numbered references', () => {
-    render(
-      <SummaryCard
-        summary="ค่าธรรมเนียมอยู่ที่ 2% [1]"
-        references={[{ number: 1, agency_id: 'land', agency_name: 'กรมที่ดิน', url: null }]}
-      />,
-    );
+  it('is collapsed by default, showing the header but not the summary', () => {
+    render(<SummaryCard summary="ค่าธรรมเนียมอยู่ที่ 2% [1]" references={REFS} />);
+    expect(screen.getByRole('button', { name: /สรุป/ })).toBeInTheDocument();
+    expect(screen.queryByText(/ค่าธรรมเนียมอยู่ที่ 2%/)).not.toBeInTheDocument();
+  });
+
+  it('expands to show the summary and references on click', () => {
+    render(<SummaryCard summary="ค่าธรรมเนียมอยู่ที่ 2% [1]" references={REFS} />);
+    fireEvent.click(screen.getByRole('button', { name: /สรุป/ }));
     expect(screen.getByText(/ค่าธรรมเนียมอยู่ที่ 2%/)).toBeInTheDocument();
     expect(screen.getByText(/\[1\] กรมที่ดิน/)).toBeInTheDocument();
   });
@@ -24,8 +28,9 @@ describe('SummaryCard', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('renders the summary without a reference list when there are no references', () => {
+  it('shows no reference list when expanded without references', () => {
     render(<SummaryCard summary="สรุปสั้นๆ" />);
+    fireEvent.click(screen.getByRole('button', { name: /สรุป/ }));
     expect(screen.getByText('สรุปสั้นๆ')).toBeInTheDocument();
     expect(screen.queryByRole('list')).not.toBeInTheDocument();
   });

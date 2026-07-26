@@ -575,6 +575,10 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   (each keeps its own chrome: `MessageBubble` = user bubble + sources + rating + timestamp;
   `MessageItem` = Bot/User avatars inside the history dialog), so `/history` and `/chat` stay
   visually identical and can't drift again. Covered by `AssistantMessageContent.test.tsx`. The
+  `SummaryCard` (`shared/components/`) is collapsible, **collapsed by default** (a `สรุป` toggle with
+  a chevron, matching the Thinking/Agent-steps panels) — the executive summary and its `[n]`
+  references are hidden until expanded. Consumer tests click the toggle before asserting summary
+  content. The
   answer-bubble styling is exported as `ASSISTANT_BUBBLE_CLASS` from the same module and reused by
   the `ChatConversation` typing placeholder (lines 31–47) so the "assistant is working" bubble and
   the real answer bubble share one source of truth. Covered by a class-match assertion in

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { AssistantMessageContent } from './AssistantMessageContent';
 
 const SUMMARY = 'ค่าธรรมเนียมอยู่ที่ 2% [1]';
@@ -13,8 +13,9 @@ describe('AssistantMessageContent', () => {
         references={[{ number: 1, agency_id: 'land', agency_name: 'กรมที่ดิน', url: null }]}
       />,
     );
-    expect(screen.getAllByText(/ค่าธรรมเนียมอยู่ที่ 2%/)).toHaveLength(1);
     expect(screen.getByText('เนื้อหาดิบ')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /สรุป/ }));
+    expect(screen.getAllByText(/ค่าธรรมเนียมอยู่ที่ 2%/)).toHaveLength(1);
     expect(screen.getByText(/\[1\] กรมที่ดิน/)).toBeInTheDocument();
   });
 
