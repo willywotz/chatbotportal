@@ -50,13 +50,13 @@ export function AssistantMessageContent({
           )}
         </div>
       )}
+      <AgentStepsCard steps={steps ?? null} />
       <div className={ASSISTANT_BUBBLE_CLASS}>
         <div className="prose prose-sm text-[0.875em] dark:prose-invert max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-table:my-2 prose-hr:my-3">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{stripSummaryPrefix(answer, summary)}</ReactMarkdown>
         </div>
       </div>
       <SummaryCard summary={summary} references={references} />
-      <AgentStepsCard steps={steps ?? null} />
     </>
   );
 }

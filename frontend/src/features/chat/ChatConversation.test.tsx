@@ -39,6 +39,26 @@ describe("ChatConversation", () => {
     expect(container.querySelector(".animate-bounce")).toBeInTheDocument();
   });
 
+  it("swaps the dots for the AgentStepsCard once pipeline steps arrive", () => {
+    const streamingState = {
+      ...emptyStreaming,
+      pipelineSteps: [{ name: "discover", status: "done", ms: 1200 }],
+      agencyStatuses: {
+        land: {
+          agencyId: "land", agencyName: "กรมที่ดิน", query: "",
+          sectionLabel: null, status: "passed",
+        },
+      },
+    } as never;
+    const { container } = render(
+      <ChatConversation {...baseProps} isTyping isStreaming streamingState={streamingState} />,
+    );
+    expect(screen.getByText("กระบวนการทำงานของ AI Agent")).toBeInTheDocument();
+    expect(screen.getByText("กรมที่ดิน")).toBeInTheDocument();
+    expect(screen.getByText(/กำลังทำงาน/)).toBeInTheDocument();
+    expect(container.querySelector(".animate-bounce")).not.toBeInTheDocument();
+  });
+
   it("styles the typing bubble with the shared assistant bubble class", () => {
     const { container } = render(<ChatConversation {...baseProps} isTyping />);
     const bubble = container.querySelector(".animate-bounce")!.parentElement!.parentElement!;

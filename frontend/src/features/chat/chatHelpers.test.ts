@@ -406,6 +406,10 @@ describe('buildAgentStepsSnapshot', () => {
     expect(buildAgentStepsSnapshot(INITIAL_STREAMING_STATE)).toBeNull();
   });
 
+  it('tolerates a partial state missing agencyStatuses and errors', () => {
+    expect(buildAgentStepsSnapshot({ pipelineSteps: [] } as never)).toBeNull();
+  });
+
   it('captures done steps, agency statuses, and errors', () => {
     const state = {
       ...INITIAL_STREAMING_STATE,

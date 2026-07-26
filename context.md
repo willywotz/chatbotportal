@@ -598,7 +598,21 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   (`shared/components/`, collapsible, collapsed by default) renders it **after** the summary in
   `AssistantMessageContent`, so both `MessageBubble` and `MessageItem` show it. The legacy
   `ChatMessage.agentSteps: AgentStep[]` field is untouched. `/chat/stream` only — the OpenAI
-  Responses API still drops pipeline events. Spec:
+  Responses API still drops pipeline events. The `AgentStepsCard` expanded body is styled after the
+  OneChat debug console's `FlowPanel` (`185-84-160-55/xver/one-chat/.../FlowPanel.tsx`, a reference
+  copy in-repo): a summary-chip row (ผ่าน/ไม่ผ่าน/error counts), a vertical step timeline with
+  lucide icon nodes + Thai `STEP_META` descriptions + `เสร็จ · Ns` badges, and a separate
+  `หน่วยงาน` block of per-agency verdicts below it (model/detail lines from FlowPanel are omitted —
+  not persisted). In `AssistantMessageContent` the card renders **before the answer** (order:
+  Thinking → Agent steps → Answer → Summary). The live typing indicator in `ChatConversation` reuses
+  the same `AgentStepsCard` (`defaultOpen` + `loading`, fed by
+  `buildAgentStepsSnapshot(streamingState)`) instead of the old
+  `StreamingProgress`/`AgentStepDisplay` — so live and persisted pipeline views are one component.
+  The `loading` prop appends an amber spinner node (`กำลังทำงาน…`) after the last completed step
+  while streaming (persisted cards omit it); the bouncing dots remain for the initial moment before
+  the first step completes. The card's text uses **`em`-relative sizes** (`text-[0.75em]` etc.) so it
+  scales with the chat text-scale control alongside the message body; in history (no scaling
+  container) it renders at its default size. Spec:
   `docs/superpowers/specs/2026-07-26-persist-agent-steps-design.md`; plan:
   `docs/superpowers/plans/2026-07-26-persist-agent-steps.md`.
 - **MCP `endpoint_url` scheme behind Cloudflare.** `_fetch_agencies` rewrites every `API` agency's
