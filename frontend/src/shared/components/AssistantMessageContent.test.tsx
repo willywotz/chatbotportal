@@ -31,3 +31,20 @@ describe('AssistantMessageContent', () => {
     expect(screen.getByText('คำตอบธรรมดา')).toBeInTheDocument();
   });
 });
+
+describe('AssistantMessageContent agent steps', () => {
+  it('renders the agent-steps card when steps are present', () => {
+    render(
+      <AssistantMessageContent
+        content="คำตอบ"
+        steps={{ steps: [{ name: 'discover', ms: 1000 }], agencies: [], errors: [] }}
+      />,
+    );
+    expect(screen.getByText('กระบวนการทำงานของ AI Agent')).toBeInTheDocument();
+  });
+
+  it('renders no agent-steps card when steps is null', () => {
+    render(<AssistantMessageContent content="คำตอบ" steps={null} />);
+    expect(screen.queryByText('กระบวนการทำงานของ AI Agent')).not.toBeInTheDocument();
+  });
+});
