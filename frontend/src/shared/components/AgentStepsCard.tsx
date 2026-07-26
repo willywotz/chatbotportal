@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  Brain, Check, ChevronDown, ChevronUp, GitBranch, Quote, Search, Send,
+  Brain, Check, ChevronDown, ChevronUp, GitBranch, Loader2, Quote, Search, Send,
   ShieldCheck, Sparkles, X, type LucideIcon,
 } from 'lucide-react';
 import { Badge } from '@/shared/components/ui/badge';
@@ -35,9 +35,11 @@ const AGENCY_STYLE: Record<string, { icon: string; className: string }> = {
 export function AgentStepsCard({
   steps,
   defaultOpen = false,
+  loading = false,
 }: {
   steps: AgentStepsSnapshot | null;
   defaultOpen?: boolean;
+  loading?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   if (!steps) return null;
@@ -83,7 +85,7 @@ export function AgentStepsCard({
             {steps.steps.map((s, i) => {
               const meta = STEP_META[s.name] ?? { icon: Sparkles, label: s.name, description: '' };
               const Icon = meta.icon;
-              const isLast = i === steps.steps.length - 1;
+              const isLast = i === steps.steps.length - 1 && !loading;
               return (
                 <div key={`${s.name}-${i}`} className="flex gap-2.5">
                   <div className="flex flex-col items-center">
@@ -106,6 +108,14 @@ export function AgentStepsCard({
                 </div>
               );
             })}
+            {loading && (
+              <div className="flex gap-2.5">
+                <div className="flex size-6 shrink-0 items-center justify-center rounded-full border-2 border-amber-400 bg-amber-50 text-amber-600 dark:bg-amber-950/40">
+                  <Loader2 className="size-3 animate-spin" />
+                </div>
+                <span className="pt-0.5 text-xs font-medium text-muted-foreground">กำลังทำงาน…</span>
+              </div>
+            )}
           </div>
 
           {steps.agencies.length > 0 && (

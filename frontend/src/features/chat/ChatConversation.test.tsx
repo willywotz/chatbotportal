@@ -55,6 +55,7 @@ describe("ChatConversation", () => {
     );
     expect(screen.getByText("กระบวนการทำงานของ AI Agent")).toBeInTheDocument();
     expect(screen.getByText("กรมที่ดิน")).toBeInTheDocument();
+    expect(screen.getByText(/กำลังทำงาน/)).toBeInTheDocument();
     expect(container.querySelector(".animate-bounce")).not.toBeInTheDocument();
   });
 

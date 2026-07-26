@@ -34,7 +34,7 @@ export function ChatConversation({
         {isTyping && (
           liveSteps ? (
             <div className="mb-4 max-w-[80%]">
-              <AgentStepsCard steps={liveSteps} defaultOpen />
+              <AgentStepsCard steps={liveSteps} defaultOpen loading />
             </div>
           ) : (
             <div className="flex items-start gap-3 mb-4">

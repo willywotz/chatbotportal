@@ -51,4 +51,14 @@ describe('AgentStepsCard', () => {
     render(<AgentStepsCard steps={snap} defaultOpen />);
     expect(screen.getByText('กรมที่ดิน')).toBeInTheDocument();
   });
+
+  it('shows a loading node while the pipeline is still running', () => {
+    render(<AgentStepsCard steps={snap} loading defaultOpen />);
+    expect(screen.getByText(/กำลังทำงาน/)).toBeInTheDocument();
+  });
+
+  it('shows no loading node by default', () => {
+    render(<AgentStepsCard steps={snap} defaultOpen />);
+    expect(screen.queryByText(/กำลังทำงาน/)).not.toBeInTheDocument();
+  });
 });
