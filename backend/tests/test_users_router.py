@@ -19,6 +19,10 @@ async def _user(email="u@example.com", role="user", active=True):
     return await User.create(email=email, hashed_password="x", role=role, is_active=active)
 
 
+async def _ephemeral(email="anon@example.com"):
+    return await User.create(email=email, hashed_password="x", role="user", is_active=True, is_ephemeral=True)
+
+
 @pytest.mark.asyncio
 async def test_list_returns_all(db):
     admin = await _admin()
@@ -27,6 +31,18 @@ async def test_list_returns_all(db):
     res = await users_router.list_users(search=None, role=None, status_filter="all", admin=admin)
     assert res.total == 3
     assert len(res.data) == 3
+
+
+@pytest.mark.asyncio
+async def test_list_excludes_ephemeral_users(db):
+    admin = await _admin()
+    await _user(email="real@example.com")
+    await _ephemeral(email="anon@example.com")
+    res = await users_router.list_users(search=None, role=None, status_filter="all", admin=admin)
+    emails = {u.email for u in res.data}
+    assert "anon@example.com" not in emails
+    assert emails == {"admin@example.com", "real@example.com"}
+    assert res.total == 2
 
 
 @pytest.mark.asyncio

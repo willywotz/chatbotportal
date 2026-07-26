@@ -49,7 +49,7 @@ Severity: **BLOCKER** = a blind spec-only build is wire-wrong here until it read
 |---|---|---|---|
 | 1 | §5 (translate) | The spec documents the 9 **output** events exhaustively but **never names the upstream `ChatEvent` inputs** that trigger them. §5.1 lists only the *ignored* inputs (`step`/`intent`/`routing`/`agency_*`). You cannot write `consume()` at all without knowing the trigger names. | `answer` → the 6 output-item events; `done` → `response.completed`; `error` → `response.failed`. |
 | 2 | §5 (router) | SSE/WS JSON serialization must use `ensure_ascii=False`. Only *derivable* from the spec printing raw Thai (`คำตอบเต็ม`) in its examples; never stated. A default `json.dumps` emits `\uXXXX` and every Thai-carrying frame diffs. | `json.dumps(event, ensure_ascii=False)` in both the SSE renderer and the WS `send`. |
-| 3 | §1/§4 (request) | The response `model` **echoes the requested id verbatim** — for the default id the response `model` is `"thai-citizen-guide"`, not the resolved `"…-v5"`. §4's example only ever shows a *pinned* request, so a reader can plausibly emit the resolved version. | `resolve_model` returns the requested string unchanged. |
+| 3 | §1/§4 (request) | The response `model` is always `"onechat"` (the only valid id); the version isn't in the id. The upstream version actually used is reported in `portal.stream_version`. | `resolve_model` returns `"onechat"`; version is chosen per-request via `onechat_version`. |
 | 4 | §6 (translate) | `portal.agency_ids` source shape. §6 says only "gathered from every section's agencies" — not that the data is `answer.sections[].agencies[]["id"]` (upstream OneChat shape, undocumented here). | `[a["id"] for s in data["sections"] for a in s["agencies"]]`. |
 | 5 | §2.1 (request) | The **error `message` strings** for input validation are not given (§2.1 states only `400`, `param:"input"`). A blind build invents different text → the `message` field diffs. | `"\`input\` must not be empty."` / `"The last item of \`input\` must be a message with role 'user'."` |
 | 6 | §3 (continuity) | The **mismatch `message`** for `conversation` vs `previous_response_id` is not given (§3 states only `param:"conversation"`, `400`). | `"\`conversation\` does not match the conversation of \`previous_response_id\`; supply only one."` |
@@ -68,9 +68,8 @@ right now it's half-in.
 | §5 (router) | Prelude validation **order** (model → input → continuity) on a multi-error request. | Wire-visible only when a request violates several at once; not in the corpus. |
 | §3 (continuity) | `_same_conversation` compares as **UUID values** (case-insensitive), and the prev-id lookup filters `role="assistant"`. | Inferable; wire-visible only on case-variant ids / id collisions. |
 | §4 (translate) | `item_id` = `"msg_" + response_id.removeprefix("resp_")`. | Shown by matching example uuids — inferable. |
-| §1 (request) | Unknown `CHAT_STREAM_VERSION` falls back to `v5`. | Wire-invisible unless misconfigured. |
+| §1 (request) | Absent or unrecognized `onechat_version` falls back to newest (`v5`). | Wire-invisible unless a bad version is sent. |
 | §8 (session) | `generate:false` with no continuation ids is a silent no-op; `RecursionError` is also caught as invalid JSON. | Inferable / not in corpus. |
-| §1/§6 (router) | A pinned model overrides `CHAT_STREAM_VERSION` by mutating the plan after `prepare_turn`. | Effect (portal.stream_version) is stated in §1; the mechanism is code. |
 | §5 (router) | The generator is primed inside the handler so a prelude raise precedes `StreamingResponse`. | §5 states the *requirement*; the mechanism is wire-invisible. |
 | §7 (errors) | `ResponsesApiError` constructor defaults and the code→status pairing. | Derivable from the §7 table. |
 | §2 (schema) | `model` field needs `protected_namespaces=()` or pydantic warns. | Internal; no wire impact. |

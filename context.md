@@ -15,7 +15,7 @@ dispatches them to matching agencies over **API / MCP / A2A** → synthesizes th
 agency responses into one LLM-written answer with citations. An admin dashboard
 manages agencies, health, analytics, users/roles, API keys, and LLM routing.
 
-The heavy orchestration (decompose → route → dispatch → synthesize, sync **v3** and
+The heavy orchestration (decompose → route → dispatch → synthesize, sync **v1–v3** and
 streaming **v4/v5**) runs in an **external OneChat service** (`ONECHAT_BASE_URL`, reached via the
 `services/onechat/` client).
 This backend is the **portal/gateway**: it wraps OneChat, exposes its own MCP server of
@@ -101,11 +101,15 @@ Vite 5.4.12+ rejects unknown Host headers; without it every tunnelled request re
    `pg_trgm` (migration `19_..._drop_embedding_add_pg_trgm`); the `vector` extension is installed
    but not currently used for chat similarity. Note: `Conversation.status="failed"` is a one-way
    ratchet, so failed turns never poison the cache.
-2. **Dispatch to OneChat** via the transport client `services/onechat/` (`get_client()` →
-   `OneChatClient`): sync `/chat` → `chat_external()` calls `chat_v3()`; `/chat/stream` proxies the
-   streaming upstream chosen by `CHAT_STREAM_VERSION` (`v5` default; `v4` = the no-redeploy
-   rollback — resolved per request by `services/chat/stream.py::_stream_version()`, unknown values
-   fall back to v5) through `client.stream_by_version()`, re-emitting `answer`/`error`/`done` events.
+2. **Dispatch to OneChat** via the transport client `services/onechat/` (`get_client(version)` →
+   `OneChatClient`): sync `/chat` → `chat_external()` calls `chat_v3()`; `/chat/stream` and the
+   Responses API drive `client.events()`, which serves any upstream version uniformly — v4/v5 stream
+   SSE, v1/v2/v3 POST one JSON envelope adapted into `answer`+`done` (spec/api/v3.md: v3 `data`
+   equals the streaming `answer` payload). The version comes from `resolve_version()`
+   (`services/onechat/client.py`): a per-request override wins, else the newest version (`v5`); the
+   `_STREAMS_SSE` table is the single source of truth for the version roster and each version's
+   transport. `CHAT_STREAM_VERSION` was removed — `/chat/stream` has no per-request channel, so it
+   always uses newest. Re-emits `answer`/`error`/`done` events.
    The client owns transport only (payload, HTTP/SSE, error mapping: non-200→status,
    `ReadTimeout`→504, other→502); persistence/tracing stay in the callers. All paths derive from a
    single `ONECHAT_BASE_URL` (the old per-endpoint `ONECHAT_V3/V4/V5_URL` settings are gone). **v5** (`spec/v5.md`) adds a `summarize` step event
@@ -124,7 +128,9 @@ Vite 5.4.12+ rejects unknown Host headers; without it every tunnelled request re
 pipeline (`routers/responses.py`), in three transports: HTTP non-streaming, HTTP SSE, and a
 WebSocket on the same path. It shares one turn implementation with `/chat/stream` via
 `services/chat/stream.py` (`prepare_turn` / `run_turn`), and translates to OpenAI's wire
-format in `services/responses/`. `store` is accepted but ignored, `usage` is always zero, and
+format in `services/responses/`. The only model id is `onechat` (anything else → 400); callers
+select the OneChat upstream per request with the `onechat_version` body field (`v1`–`v5`, else
+newest) — a body field, not a header, so it works over WebSocket, which cannot set headers. `store` is accepted but ignored, `usage` is always zero, and
 pipeline progress events are not surfaced. Response **creation, retrieval (`GET /responses/{id}`,
 reconstructed from the stored assistant `Message` in `services/responses/retrieve.py`), soft
 delete, and input-item listing** are implemented; `cancel`/`compact`/`input_tokens` are registered
@@ -500,8 +506,8 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
 - **Multi-task work → create a branch first** (`feat/`, `fix/`, `chore/`, `refactor/`); never commit
   multi-step work to `main`. Do **not** use claude worktree.
 - **All OneChat calls go through `services/onechat/`** — never POST an upstream URL inline. The
-  client is transport-only (`chat_v1/v2/v3`, `stream_v4/v5`, `stream_by_version`, `health`;
-  `get_client()`); it maps errors uniformly (non-200→status, `ReadTimeout`→504, other→502) as
+  client is transport-only (`chat_v1/v2/v3`, `stream_v4/v5`, the version-uniform `events()`,
+  `resolve_version()`, `health`; `get_client(version)`); it maps errors uniformly (non-200→status, `ReadTimeout`→504, other→502) as
   `OneChatError`, and callers keep persistence/tracing. Paths derive from `ONECHAT_BASE_URL`; inject
   `httpx.MockTransport` via `OneChatClient(transport=...)` to test without a live upstream.
 - **TDD is mandatory** (red → green → refactor). Go changes: run `/use-modern-go`, then gofmt +
@@ -559,6 +565,56 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   readable body text in `MessageBubble` was switched from fixed rem classes to `em`-relative ones —
   the bubble uses `text-[1em]` and the markdown body `prose-sm text-[0.875em]`; chrome text
   (timestamps, sources, thinking) stays fixed. Factors: 0.875 / 1 / 1.25.
+- **Shared assistant reply rendering (`AssistantMessageContent`).** The thinking panel + markdown
+  answer + summary card were duplicated across live chat (`MessageBubble`) and history
+  (`MessageItem`), which had drifted (history rendered without `remark-gfm`, thinking collapsed,
+  summary nested in the bubble). Extracted `frontend/src/shared/components/AssistantMessageContent.tsx`
+  — takes normalized `{ content, summary?, references? }`, owns `parseThinkContent` +
+  `stripSummaryPrefix`, and renders the three as separate stacked cards in order **thinking →
+  answer bubble → summary**, with the thinking panel open by default. Both call sites now consume it
+  (each keeps its own chrome: `MessageBubble` = user bubble + sources + rating + timestamp;
+  `MessageItem` = Bot/User avatars inside the history dialog), so `/history` and `/chat` stay
+  visually identical and can't drift again. Covered by `AssistantMessageContent.test.tsx`. The
+  `SummaryCard` (`shared/components/`) is collapsible, **collapsed by default** (a `สรุป` toggle with
+  a chevron, matching the Thinking/Agent-steps panels) — the executive summary and its `[n]`
+  references are hidden until expanded. Consumer tests click the toggle before asserting summary
+  content. The
+  answer-bubble styling is exported as `ASSISTANT_BUBBLE_CLASS` from the same module and reused by
+  the `ChatConversation` typing placeholder (lines 31–47) so the "assistant is working" bubble and
+  the real answer bubble share one source of truth. Covered by a class-match assertion in
+  `ChatConversation.test.tsx`.
+- **Persisted agent-step pipeline snapshot.** The AI-agent pipeline progress (steps + timings,
+  per-agency statuses, errors) used to be live-only via `StreamingProgress` and was dropped before
+  the assistant message was saved — the `Message.agent_steps` JSON column existed but was never
+  populated. Now `/chat/stream` captures the streamed `step`/`agency_start`/`agency_responded`/
+  `agency_verified` events and folds them into a snapshot via the pure
+  `build_pipeline_snapshot(events, errors)` (`backend/app/services/chat/pipeline_snapshot.py`),
+  which `_stream_live` → `_persist` → `save_turn(agent_steps=...)` writes to `agent_steps` (snake_case
+  object, or `[]` when empty; cached replays store `[]`). No migration — the column was reused.
+  History already returns the field. Frontend: `AgentStepsSnapshot` (camelCase) in
+  `shared/types/chat.ts`; a new `ChatMessage.pipeline` carries the live snapshot (built in
+  `buildAiMessageFromState`), while history normalizes the persisted shape via
+  `toAgentStepsSnapshot` (`shared/lib/agentSteps.ts`). The shared `AgentStepsCard`
+  (`shared/components/`, collapsible, collapsed by default) renders it **after** the summary in
+  `AssistantMessageContent`, so both `MessageBubble` and `MessageItem` show it. The legacy
+  `ChatMessage.agentSteps: AgentStep[]` field is untouched. `/chat/stream` only — the OpenAI
+  Responses API still drops pipeline events. The `AgentStepsCard` expanded body is styled after the
+  OneChat debug console's `FlowPanel` (`185-84-160-55/xver/one-chat/.../FlowPanel.tsx`, a reference
+  copy in-repo): a summary-chip row (ผ่าน/ไม่ผ่าน/error counts), a vertical step timeline with
+  lucide icon nodes + Thai `STEP_META` descriptions + `เสร็จ · Ns` badges, and a separate
+  `หน่วยงาน` block of per-agency verdicts below it (model/detail lines from FlowPanel are omitted —
+  not persisted). In `AssistantMessageContent` the card renders **before the answer** (order:
+  Thinking → Agent steps → Answer → Summary). The live typing indicator in `ChatConversation` reuses
+  the same `AgentStepsCard` (`defaultOpen` + `loading`, fed by
+  `buildAgentStepsSnapshot(streamingState)`) instead of the old
+  `StreamingProgress`/`AgentStepDisplay` — so live and persisted pipeline views are one component.
+  The `loading` prop appends an amber spinner node (`กำลังทำงาน…`) after the last completed step
+  while streaming (persisted cards omit it); the bouncing dots remain for the initial moment before
+  the first step completes. The card's text uses **`em`-relative sizes** (`text-[0.75em]` etc.) so it
+  scales with the chat text-scale control alongside the message body; in history (no scaling
+  container) it renders at its default size. Spec:
+  `docs/superpowers/specs/2026-07-26-persist-agent-steps-design.md`; plan:
+  `docs/superpowers/plans/2026-07-26-persist-agent-steps.md`.
 - **MCP `endpoint_url` scheme behind Cloudflare.** `_fetch_agencies` rewrites every `API` agency's
   `endpoint_url` to `<scheme>://<X-Forwarded-Host>/agent-proxy/<id>`. It used `request.url.scheme`,
   which is `http` in this deployment: the whole chain (cloudflared → nginx → backend) speaks plain
@@ -568,3 +624,10 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   (`app/mcp/server.py`) now resolves scheme as **cf-visitor → X-Forwarded-Proto → connection
   scheme**. Covered by `tests/test_mcp_endpoint_scheme.py`. Also dropped the debug `print`s that were
   dumping full request headers (incl. `Authorization`) to stdout on every call.
+- **Ephemeral users hidden from admin user list.** Anonymous public-portal visitors are persisted
+  as `User.is_ephemeral = True` accounts. `list_users` (`app/routers/users.py`, `GET /users`) now
+  bases its queryset on `User.filter(is_ephemeral=False)` so temp-users never appear in the admin
+  user-management screen and don't inflate `total`. Backend-level filter only — no frontend change,
+  no opt-in flag; the other by-ID endpoints are unchanged. Covered by
+  `test_list_excludes_ephemeral_users` in `tests/test_users_router.py`. Spec:
+  `docs/superpowers/specs/2026-07-26-hide-ephemeral-users-design.md`.

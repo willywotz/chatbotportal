@@ -39,18 +39,11 @@ async def test_stream_v5_yields_events_in_order():
     ]
 
 
-async def test_stream_by_version_selects_v4():
+async def test_events_selects_v4_stream():
     rec: dict = {}
-    client = OneChatClient("http://oc:8000", transport=_sse_transport(rec))
-    _ = [ev async for ev in client.stream_by_version("v4", "q", "http://mcp", "c")]
+    client = OneChatClient("http://oc:8000", transport=_sse_transport(rec), version="v4")
+    _ = [ev async for ev in client.events("q", "http://mcp", "c")]
     assert rec["url"] == "http://oc:8000/v4/chat"
-
-
-async def test_stream_by_version_unknown_falls_back_to_v5():
-    rec: dict = {}
-    client = OneChatClient("http://oc:8000", transport=_sse_transport(rec))
-    _ = [ev async for ev in client.stream_by_version("bogus", "q", "http://mcp", "c")]
-    assert rec["url"] == "http://oc:8000/v5/chat"
 
 
 async def test_stream_non_200_raises_onechat_error():

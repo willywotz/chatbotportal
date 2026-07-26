@@ -32,6 +32,7 @@ async def save_turn(
     errors: list | None = None,
     summary: str | None = None,
     summary_references: list | None = None,
+    agent_steps: dict | list | None = None,
     title: str | None = None,
     assistant_message_id: uuid.UUID | None = None,
 ) -> SavedTurn:
@@ -84,5 +85,6 @@ async def save_turn(
             errors=errors or [],
             summary=summary,
             summary_references=summary_references or [],
+            agent_steps=agent_steps if agent_steps is not None else [],
         )
     return SavedTurn(str(user_msg.id), str(asst_msg.id), conversation_id)

@@ -44,7 +44,7 @@ DONE = ChatEvent("done", {"session_id": "s-1", "total_ms": 1200})
 def _acc() -> ResponseAccumulator:
     return ResponseAccumulator(
         response_id="resp_11111111-1111-1111-1111-111111111111",
-        model="thai-citizen-guide-v5",
+        model="onechat",
         conversation_id="c-1",
     )
 
@@ -93,7 +93,7 @@ def test_completed_carries_the_final_response():
     assert response["id"] == "resp_11111111-1111-1111-1111-111111111111"
     assert response["object"] == "response"
     assert response["status"] == "completed"
-    assert response["model"] == "thai-citizen-guide-v5"
+    assert response["model"] == "onechat"
     assert response["output_text"] == "คำตอบเต็ม"
     assert response["output"][0]["content"][0]["text"] == "คำตอบเต็ม"
     assert response["usage"] == {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
@@ -111,7 +111,7 @@ def test_portal_block_carries_the_v5_extras():
 
 def test_cached_flag_is_reported():
     acc = ResponseAccumulator(
-        response_id="resp_x", model="thai-citizen-guide", conversation_id="c-1", cached=True,
+        response_id="resp_x", model="onechat", conversation_id="c-1", cached=True,
     )
     acc.created_event()
     acc.consume(ANSWER)

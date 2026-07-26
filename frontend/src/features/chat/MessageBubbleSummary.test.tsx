@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { MessageBubble } from './MessageBubble';
 import type { ChatMessage } from '@/shared/types';
 
@@ -26,8 +26,9 @@ describe('MessageBubble v5 summary', () => {
         })}
       />,
     );
-    expect(screen.getAllByText(/ค่าธรรมเนียมอยู่ที่ 2%/)).toHaveLength(1);
     expect(screen.getByText('เนื้อหาดิบจากหน่วยงาน')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /สรุป/ }));
+    expect(screen.getAllByText(/ค่าธรรมเนียมอยู่ที่ 2%/)).toHaveLength(1);
     expect(screen.getByText(/\[1\] กรมที่ดิน/)).toBeInTheDocument();
   });
 

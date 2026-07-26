@@ -1,8 +1,7 @@
 import type { AgentStep, ChatMessage, StreamingState } from '@/shared/types';
 import type {
-  StepEvent, AgenciesEvent, IntentEvent, RoutingEvent,
-  AgencyStartEvent, AgencyRespondedEvent, AgencyVerifiedEvent,
-  AnswerEvent, DoneEvent, ErrorEvent,
+  AgenciesEvent, AgencyRespondedEvent, AgencyStartEvent, AgencyVerifiedEvent,
+  AgentStepsSnapshot, AnswerEvent, DoneEvent, ErrorEvent, IntentEvent, RoutingEvent, StepEvent,
 } from '@/shared/types/chat';
 import { generateUniqueId } from '@/shared/lib/utils';
 
@@ -66,6 +65,26 @@ export function buildAgentStepsFromStreaming(state: StreamingState): AgentStep[]
   return steps;
 }
 
+/** Builds the persisted-shape pipeline snapshot from a completed StreamingState. */
+export function buildAgentStepsSnapshot(state: StreamingState): AgentStepsSnapshot | null {
+  const steps = (state.pipelineSteps ?? [])
+    .filter((s) => s.status === 'done')
+    .map((s) => ({ name: s.name, ms: s.ms }));
+  const agencies = Object.values(state.agencyStatuses ?? {}).map((a) => ({
+    id: a.agencyId,
+    name: a.agencyName,
+    status: a.status,
+    errorType: a.errorType ?? null,
+    relevanceScore: a.relevanceScore ?? null,
+    sectionLabel: a.sectionLabel ?? null,
+  }));
+  const errors = (state.errors ?? []).map((e) => ({
+    agency: e.agency, name: e.name, errorType: e.errorType, message: e.message,
+  }));
+  if (!steps.length && !agencies.length && !errors.length) return null;
+  return { steps, agencies, errors };
+}
+
 /** Formats a timestamp for display using Thai locale (HH:MM). */
 export function formatTimestamp(): string {
   return new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
@@ -84,6 +103,7 @@ export function buildAiMessageFromState(state: StreamingState): ChatMessage | nu
     content: state.answer,
     timestamp: formatTimestamp(),
     agentSteps: buildAgentStepsFromStreaming(state),
+    pipeline: buildAgentStepsSnapshot(state),
     sources: state.sections?.flatMap((s) =>
       s.agencies.map((a) => ({ agency: a.name, url: '', title: s.title }))
     ),

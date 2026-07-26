@@ -2,36 +2,38 @@
 
 import pytest
 
-from app.config import settings
 from app.schemas.responses import ResponsesRequest
 from app.services.responses.errors import ResponsesApiError
 from app.services.responses.request import extract_query, resolve_model
 
 
-@pytest.fixture
-def restore_version():
-    original = settings.CHAT_STREAM_VERSION
-    yield
-    settings.CHAT_STREAM_VERSION = original
+def test_resolve_model_accepts_onechat():
+    assert resolve_model("onechat") == "onechat"
 
 
-def test_bare_model_follows_the_configured_version(restore_version):
-    settings.CHAT_STREAM_VERSION = "v4"
-    assert resolve_model("thai-citizen-guide") == ("thai-citizen-guide", "v4")
+def test_resolve_model_rejects_old_thai_citizen_guide_ids():
+    for old in ("thai-citizen-guide", "thai-citizen-guide-v5", "thai-citizen-guide-v4"):
+        with pytest.raises(ResponsesApiError) as exc:
+            resolve_model(old)
+        assert exc.value.status == 400
+        assert exc.value.param == "model"
 
 
-def test_suffixed_models_pin_the_upstream(restore_version):
-    settings.CHAT_STREAM_VERSION = "v4"
-    assert resolve_model("thai-citizen-guide-v5") == ("thai-citizen-guide-v5", "v5")
-    assert resolve_model("thai-citizen-guide-v4") == ("thai-citizen-guide-v4", "v4")
-
-
-def test_unknown_model_is_a_400_on_the_model_param():
+def test_resolve_model_rejects_unknown_model():
     with pytest.raises(ResponsesApiError) as exc:
         resolve_model("gpt-5")
-    assert exc.value.status == 400
     assert exc.value.param == "model"
-    assert "gpt-5" in exc.value.message
+
+
+def test_onechat_version_defaults_to_none():
+    req = ResponsesRequest.model_validate({"model": "onechat", "input": "hi"})
+    assert req.onechat_version is None
+
+
+def test_onechat_version_is_accepted():
+    req = ResponsesRequest.model_validate(
+        {"model": "onechat", "input": "hi", "onechat_version": "v3"})
+    assert req.onechat_version == "v3"
 
 
 def test_string_input_is_the_query():
@@ -94,7 +96,7 @@ def test_empty_input_is_rejected():
 
 def test_unsupported_fields_are_accepted_and_ignored():
     req = ResponsesRequest.model_validate({
-        "model": "thai-citizen-guide",
+        "model": "onechat",
         "input": "hi",
         "temperature": 0.7,
         "tools": [{"type": "function", "name": "x"}],
@@ -105,7 +107,7 @@ def test_unsupported_fields_are_accepted_and_ignored():
 
 
 def test_store_and_generate_default_true():
-    req = ResponsesRequest.model_validate({"model": "thai-citizen-guide", "input": "hi"})
+    req = ResponsesRequest.model_validate({"model": "onechat", "input": "hi"})
     assert req.store is True
     assert req.generate is True
     assert req.stream is False

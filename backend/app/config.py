@@ -66,7 +66,6 @@ class Settings(BaseSettings):
 
     # ── OneChat endpoints ────────────────────────────────────────────────────
     ONECHAT_BASE_URL: str = "http://185.84.160.55:8000"
-    CHAT_STREAM_VERSION: str = "v5"        # "v4" | "v5" — upstream for POST /chat/stream
     MCP_ENDPOINT_URL: str = "http://185.84.161.145/mcp/"
 
     # ── Chat ─────────────────────────────────────────────────────────────────
@@ -149,9 +148,9 @@ def assert_production_secrets(s: "Settings") -> None:
 
 
 SETTINGS_GROUPS: dict[str, list[str]] = {
-    "Similarity": ["SIMILARITY_THRESHOLD", "SIMILARITY_WINDOW_SECONDS", "SIMILARITY_CACHE_ENABLED"],
+    "Similarity": ["SIMILARITY_CACHE_ENABLED", "SIMILARITY_THRESHOLD", "SIMILARITY_WINDOW_SECONDS"],
     # "App": ["APP_NAME", "APP_VERSION", "TIMEZONE", "USER_AGENT_PREFIX", "ENV"],
-    "OneChat": ["CHAT_STREAM_VERSION", "MCP_ENDPOINT_URL", "ONECHAT_BASE_URL"],
+    "OneChat": ["MCP_ENDPOINT_URL", "ONECHAT_BASE_URL"],
     # "Chat": ["A2A_DISPATCH_TIMEOUT", "V4_STREAM_TIMEOUT", "EXTERNAL_CHAT_TIMEOUT", "TITLE_MAX_LENGTH", "PREVIEW_MAX_LENGTH", "SPEC_TEXT_MAX_CHARS", "RESPONSES_WS_MAX_CONNECTIONS", "RESPONSES_WS_MAX_DURATION_SECONDS"],
     # "Agency health": ["AGENCY_CHAT_TIMEOUT", "AGENCY_CHAT_CONCURRENCY", "HEALTH_CHECK_INTERVAL_MINUTES", "CONNECTION_TEST_TIMEOUT", "HEALTH_DEGRADED_UPTIME_PCT", "CONNECTION_LOG_BODY_MAX_CHARS", "CONNECTION_LOG_RETENTION_DAYS", "EVAL_INTERVAL_HOURS"],
 }
