@@ -32,8 +32,14 @@ const AGENCY_STYLE: Record<string, { icon: string; className: string }> = {
  * a summary-chip row, a vertical step timeline with icon nodes, and the
  * per-agency verdicts below it. Terminal state only — no live/running spinner.
  */
-export function AgentStepsCard({ steps }: { steps: AgentStepsSnapshot | null }) {
-  const [open, setOpen] = useState(false);
+export function AgentStepsCard({
+  steps,
+  defaultOpen = false,
+}: {
+  steps: AgentStepsSnapshot | null;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
   if (!steps) return null;
 
   const passed = steps.agencies.filter((a) => a.status === 'passed').length;

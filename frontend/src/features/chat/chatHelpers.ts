@@ -67,10 +67,10 @@ export function buildAgentStepsFromStreaming(state: StreamingState): AgentStep[]
 
 /** Builds the persisted-shape pipeline snapshot from a completed StreamingState. */
 export function buildAgentStepsSnapshot(state: StreamingState): AgentStepsSnapshot | null {
-  const steps = state.pipelineSteps
+  const steps = (state.pipelineSteps ?? [])
     .filter((s) => s.status === 'done')
     .map((s) => ({ name: s.name, ms: s.ms }));
-  const agencies = Object.values(state.agencyStatuses).map((a) => ({
+  const agencies = Object.values(state.agencyStatuses ?? {}).map((a) => ({
     id: a.agencyId,
     name: a.agencyName,
     status: a.status,
@@ -78,7 +78,7 @@ export function buildAgentStepsSnapshot(state: StreamingState): AgentStepsSnapsh
     relevanceScore: a.relevanceScore ?? null,
     sectionLabel: a.sectionLabel ?? null,
   }));
-  const errors = state.errors.map((e) => ({
+  const errors = (state.errors ?? []).map((e) => ({
     agency: e.agency, name: e.name, errorType: e.errorType, message: e.message,
   }));
   if (!steps.length && !agencies.length && !errors.length) return null;

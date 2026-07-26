@@ -603,7 +603,10 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   copy in-repo): a summary-chip row (ผ่าน/ไม่ผ่าน/error counts), a vertical step timeline with
   lucide icon nodes + Thai `STEP_META` descriptions + `เสร็จ · Ns` badges, and a separate
   `หน่วยงาน` block of per-agency verdicts below it (model/detail lines from FlowPanel are omitted —
-  not persisted). Spec:
+  not persisted). The live typing indicator in `ChatConversation` reuses the same `AgentStepsCard`
+  (`defaultOpen`, fed by `buildAgentStepsSnapshot(streamingState)`) instead of the old
+  `StreamingProgress`/`AgentStepDisplay` — so live and persisted pipeline views are one component;
+  the bouncing dots remain for the initial moment before the first step completes. Spec:
   `docs/superpowers/specs/2026-07-26-persist-agent-steps-design.md`; plan:
   `docs/superpowers/plans/2026-07-26-persist-agent-steps.md`.
 - **MCP `endpoint_url` scheme behind Cloudflare.** `_fetch_agencies` rewrites every `API` agency's

@@ -46,4 +46,9 @@ describe('AgentStepsCard', () => {
     fireEvent.click(screen.getByRole('button'));
     expect(screen.getByText('[ค่าธรรมเนียม]')).toBeInTheDocument();
   });
+
+  it('renders expanded when defaultOpen is set', () => {
+    render(<AgentStepsCard steps={snap} defaultOpen />);
+    expect(screen.getByText('กรมที่ดิน')).toBeInTheDocument();
+  });
 });
