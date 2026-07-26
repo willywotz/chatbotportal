@@ -7,6 +7,10 @@ import { stripSummaryPrefix } from "@/shared/lib/summary";
 import { parseThinkContent } from "@/shared/lib/utils";
 import type { SummaryReference } from "@/shared/types/chat";
 
+/** Card-bubble styling for an assistant answer, shared with the typing placeholder. */
+export const ASSISTANT_BUBBLE_CLASS =
+  "rounded-2xl rounded-tl-sm border border-border bg-card px-4 py-3 text-[1em] leading-relaxed";
+
 /**
  * Shared presentation for an assistant reply: a collapsible thinking panel, the
  * markdown answer, and the executive summary card. Used by both live chat
@@ -43,7 +47,7 @@ export function AssistantMessageContent({
           )}
         </div>
       )}
-      <div className="rounded-2xl rounded-tl-sm border border-border bg-card px-4 py-3 text-[1em] leading-relaxed">
+      <div className={ASSISTANT_BUBBLE_CLASS}>
         <div className="prose prose-sm text-[0.875em] dark:prose-invert max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-table:my-2 prose-hr:my-3">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{stripSummaryPrefix(answer, summary)}</ReactMarkdown>
         </div>

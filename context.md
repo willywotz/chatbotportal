@@ -574,7 +574,11 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   answer bubble → summary**, with the thinking panel open by default. Both call sites now consume it
   (each keeps its own chrome: `MessageBubble` = user bubble + sources + rating + timestamp;
   `MessageItem` = Bot/User avatars inside the history dialog), so `/history` and `/chat` stay
-  visually identical and can't drift again. Covered by `AssistantMessageContent.test.tsx`.
+  visually identical and can't drift again. Covered by `AssistantMessageContent.test.tsx`. The
+  answer-bubble styling is exported as `ASSISTANT_BUBBLE_CLASS` from the same module and reused by
+  the `ChatConversation` typing placeholder (lines 31–47) so the "assistant is working" bubble and
+  the real answer bubble share one source of truth. Covered by a class-match assertion in
+  `ChatConversation.test.tsx`.
 - **MCP `endpoint_url` scheme behind Cloudflare.** `_fetch_agencies` rewrites every `API` agency's
   `endpoint_url` to `<scheme>://<X-Forwarded-Host>/agent-proxy/<id>`. It used `request.url.scheme`,
   which is `http` in this deployment: the whole chain (cloudflared → nginx → backend) speaks plain
