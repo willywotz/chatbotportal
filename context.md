@@ -565,6 +565,16 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   readable body text in `MessageBubble` was switched from fixed rem classes to `em`-relative ones —
   the bubble uses `text-[1em]` and the markdown body `prose-sm text-[0.875em]`; chrome text
   (timestamps, sources, thinking) stays fixed. Factors: 0.875 / 1 / 1.25.
+- **Shared assistant reply rendering (`AssistantMessageContent`).** The thinking panel + markdown
+  answer + summary card were duplicated across live chat (`MessageBubble`) and history
+  (`MessageItem`), which had drifted (history rendered without `remark-gfm`, thinking collapsed,
+  summary nested in the bubble). Extracted `frontend/src/shared/components/AssistantMessageContent.tsx`
+  — takes normalized `{ content, summary?, references? }`, owns `parseThinkContent` +
+  `stripSummaryPrefix`, and renders the three as separate stacked cards in order **thinking →
+  answer bubble → summary**, with the thinking panel open by default. Both call sites now consume it
+  (each keeps its own chrome: `MessageBubble` = user bubble + sources + rating + timestamp;
+  `MessageItem` = Bot/User avatars inside the history dialog), so `/history` and `/chat` stay
+  visually identical and can't drift again. Covered by `AssistantMessageContent.test.tsx`.
 - **MCP `endpoint_url` scheme behind Cloudflare.** `_fetch_agencies` rewrites every `API` agency's
   `endpoint_url` to `<scheme>://<X-Forwarded-Host>/agent-proxy/<id>`. It used `request.url.scheme`,
   which is `http` in this deployment: the whole chain (cloudflared → nginx → backend) speaks plain
