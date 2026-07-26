@@ -3,6 +3,7 @@ import {
   INITIAL_STREAMING_STATE,
   STEP_LABELS,
   buildAgentStepsFromStreaming,
+  buildAgentStepsSnapshot,
   applyStepEvent,
   applyAgenciesEvent,
   applyIntentEvent,
@@ -393,6 +394,35 @@ describe('buildAiMessageFromState', () => {
     );
     const msg = buildAiMessageFromState(state);
     expect(msg!.id).toBe('db-msg-1');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildAgentStepsSnapshot
+// ---------------------------------------------------------------------------
+
+describe('buildAgentStepsSnapshot', () => {
+  it('returns null when nothing was captured', () => {
+    expect(buildAgentStepsSnapshot(INITIAL_STREAMING_STATE)).toBeNull();
+  });
+
+  it('captures done steps, agency statuses, and errors', () => {
+    const state = {
+      ...INITIAL_STREAMING_STATE,
+      pipelineSteps: [
+        { name: 'discover', status: 'done', ms: 1200 },
+        { name: 'invoke', status: 'running', ms: null },
+      ],
+      agencyStatuses: {
+        land: { agencyId: 'land', agencyName: 'กรมที่ดิน', query: 'q',
+                sectionLabel: 'fees', status: 'passed', relevanceScore: 0.9 },
+      },
+      errors: [{ agency: 'x', name: 'X', errorType: 'timeout', message: 'm' }],
+    } as never;
+    const snap = buildAgentStepsSnapshot(state)!;
+    expect(snap.steps).toEqual([{ name: 'discover', ms: 1200 }]);
+    expect(snap.agencies[0]).toMatchObject({ id: 'land', status: 'passed', relevanceScore: 0.9 });
+    expect(snap.errors[0]).toMatchObject({ errorType: 'timeout' });
   });
 });
 

@@ -10,6 +10,7 @@ export interface ChatMessage {
   rating?: 'up' | 'down' | null;
   summary?: string | null;
   summaryReferences?: SummaryReference[];
+  pipeline?: AgentStepsSnapshot | null;
 }
 
 export interface ConversationHistory {
@@ -31,6 +32,19 @@ export interface SummaryReference {
   agency_id: string;
   agency_name: string;
   url: string | null;
+}
+
+export interface AgentStepsSnapshot {
+  steps: { name: string; ms: number | null }[];
+  agencies: {
+    id: string;
+    name: string | null;
+    status: AgencyStatus;
+    errorType?: string | null;
+    relevanceScore?: number | null;
+    sectionLabel?: string | null;
+  }[];
+  errors: { agency: string; name: string; errorType: string; message: string }[];
 }
 
 export interface StepEvent {
