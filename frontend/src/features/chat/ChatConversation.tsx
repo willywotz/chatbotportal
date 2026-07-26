@@ -2,6 +2,8 @@ import type { RefObject } from 'react';
 import type { AgentStep, ChatMessage } from '@/shared/types';
 import type { StreamingState } from '@/shared/types/chat';
 import { ScrollArea } from '@/shared/components/ui/scroll-area';
+import { ASSISTANT_BUBBLE_CLASS } from '@/shared/components/AssistantMessageContent';
+import { cn } from '@/shared/lib/utils';
 import { MessageBubble } from '@/features/chat/MessageBubble';
 import { AgentStepDisplay, StreamingProgress } from '@/features/chat/AgentStepDisplay';
 import { useTextScale } from '@/shared/hooks/useTextScale';
@@ -30,7 +32,7 @@ export function ChatConversation({
         ))}
         {isTyping && (
           <div className="flex items-start gap-3 mb-4">
-            <div className="bg-card border border-border rounded-2xl rounded-tl-sm px-4 py-3 max-w-[75%]">
+            <div className={cn(ASSISTANT_BUBBLE_CLASS, "max-w-[75%]")}>
               {isStreaming ? (
                 <StreamingProgress state={streamingState} />
               ) : activeStepCount > 0 ? (

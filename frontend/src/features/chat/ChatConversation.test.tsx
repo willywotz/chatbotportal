@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { ASSISTANT_BUBBLE_CLASS } from "@/shared/components/AssistantMessageContent";
 import { TextScaleProvider } from "@/shared/hooks/useTextScale";
 import type { ChatMessage } from "@/shared/types";
 import { ChatConversation } from "./ChatConversation";
@@ -36,6 +37,14 @@ describe("ChatConversation", () => {
   it("shows the typing indicator when isTyping is true", () => {
     const { container } = render(<ChatConversation {...baseProps} isTyping />);
     expect(container.querySelector(".animate-bounce")).toBeInTheDocument();
+  });
+
+  it("styles the typing bubble with the shared assistant bubble class", () => {
+    const { container } = render(<ChatConversation {...baseProps} isTyping />);
+    const bubble = container.querySelector(".animate-bounce")!.parentElement!.parentElement!;
+    for (const cls of ASSISTANT_BUBBLE_CLASS.split(" ")) {
+      expect(bubble.classList.contains(cls)).toBe(true);
+    }
   });
 
   it("scales the conversation with font-size, not zoom", () => {
