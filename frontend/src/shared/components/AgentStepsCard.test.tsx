@@ -61,4 +61,11 @@ describe('AgentStepsCard', () => {
     render(<AgentStepsCard steps={snap} defaultOpen />);
     expect(screen.queryByText(/กำลังทำงาน/)).not.toBeInTheDocument();
   });
+
+  it('uses em-relative text sizing so it scales with the chat text-scale', () => {
+    render(<AgentStepsCard steps={snap} defaultOpen />);
+    const header = screen.getByText('กระบวนการทำงานของ AI Agent').closest('button')!;
+    expect(header.className).toMatch(/text-\[0\.75em\]/);
+    expect(screen.getByText('ค้นหาหน่วยงาน').className).toMatch(/text-\[0\.75em\]/);
+  });
 });

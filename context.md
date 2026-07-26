@@ -610,7 +610,9 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   `StreamingProgress`/`AgentStepDisplay` — so live and persisted pipeline views are one component.
   The `loading` prop appends an amber spinner node (`กำลังทำงาน…`) after the last completed step
   while streaming (persisted cards omit it); the bouncing dots remain for the initial moment before
-  the first step completes. Spec:
+  the first step completes. The card's text uses **`em`-relative sizes** (`text-[0.75em]` etc.) so it
+  scales with the chat text-scale control alongside the message body; in history (no scaling
+  container) it renders at its default size. Spec:
   `docs/superpowers/specs/2026-07-26-persist-agent-steps-design.md`; plan:
   `docs/superpowers/plans/2026-07-26-persist-agent-steps.md`.
 - **MCP `endpoint_url` scheme behind Cloudflare.** `_fetch_agencies` rewrites every `API` agency's
