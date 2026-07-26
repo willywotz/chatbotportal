@@ -1,0 +1,23 @@
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
+import { AgentStepsCard } from './AgentStepsCard';
+
+const snap = {
+  steps: [{ name: 'discover', ms: 1200 }],
+  agencies: [{ id: 'land', name: 'กรมที่ดิน', status: 'passed' as const }],
+  errors: [],
+};
+
+describe('AgentStepsCard', () => {
+  it('renders nothing when steps is null', () => {
+    const { container } = render(<AgentStepsCard steps={null} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('is collapsed by default and expands on click', () => {
+    render(<AgentStepsCard steps={snap} />);
+    expect(screen.queryByText('กรมที่ดิน')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button'));
+    expect(screen.getByText('กรมที่ดิน')).toBeInTheDocument();
+  });
+});
