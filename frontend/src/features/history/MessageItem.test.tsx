@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MessageItem } from './MessageItem';
 import type { ConversationMessage } from '@/shared/types';
 
@@ -28,8 +28,9 @@ describe('MessageItem v5 summary', () => {
         })}
       />,
     );
-    expect(screen.getAllByText(/ค่าธรรมเนียมอยู่ที่ 2%/)).toHaveLength(1);
     expect(screen.getByText('เนื้อหาดิบจากหน่วยงาน')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /สรุป/ }));
+    expect(screen.getAllByText(/ค่าธรรมเนียมอยู่ที่ 2%/)).toHaveLength(1);
   });
 
   it('renders pre-v5 messages unchanged', () => {
