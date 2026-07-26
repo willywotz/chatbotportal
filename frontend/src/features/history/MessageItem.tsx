@@ -1,5 +1,6 @@
 import type { ConversationMessage } from "@/shared/types";
 import { AssistantMessageContent } from "@/shared/components/AssistantMessageContent";
+import { toAgentStepsSnapshot } from "@/shared/lib/agentSteps";
 
 export function MessageItem({ msg }: { msg: ConversationMessage }) {
   const isUser = msg.role === 'user';
@@ -22,6 +23,7 @@ export function MessageItem({ msg }: { msg: ConversationMessage }) {
             content={msg.content}
             summary={msg.summary}
             references={msg.summary_references}
+            steps={toAgentStepsSnapshot(msg.agent_steps)}
           />
         </div>
       )}

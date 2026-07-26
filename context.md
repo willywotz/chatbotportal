@@ -579,6 +579,24 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   the `ChatConversation` typing placeholder (lines 31–47) so the "assistant is working" bubble and
   the real answer bubble share one source of truth. Covered by a class-match assertion in
   `ChatConversation.test.tsx`.
+- **Persisted agent-step pipeline snapshot.** The AI-agent pipeline progress (steps + timings,
+  per-agency statuses, errors) used to be live-only via `StreamingProgress` and was dropped before
+  the assistant message was saved — the `Message.agent_steps` JSON column existed but was never
+  populated. Now `/chat/stream` captures the streamed `step`/`agency_start`/`agency_responded`/
+  `agency_verified` events and folds them into a snapshot via the pure
+  `build_pipeline_snapshot(events, errors)` (`backend/app/services/chat/pipeline_snapshot.py`),
+  which `_stream_live` → `_persist` → `save_turn(agent_steps=...)` writes to `agent_steps` (snake_case
+  object, or `[]` when empty; cached replays store `[]`). No migration — the column was reused.
+  History already returns the field. Frontend: `AgentStepsSnapshot` (camelCase) in
+  `shared/types/chat.ts`; a new `ChatMessage.pipeline` carries the live snapshot (built in
+  `buildAiMessageFromState`), while history normalizes the persisted shape via
+  `toAgentStepsSnapshot` (`shared/lib/agentSteps.ts`). The shared `AgentStepsCard`
+  (`shared/components/`, collapsible, collapsed by default) renders it **after** the summary in
+  `AssistantMessageContent`, so both `MessageBubble` and `MessageItem` show it. The legacy
+  `ChatMessage.agentSteps: AgentStep[]` field is untouched. `/chat/stream` only — the OpenAI
+  Responses API still drops pipeline events. Spec:
+  `docs/superpowers/specs/2026-07-26-persist-agent-steps-design.md`; plan:
+  `docs/superpowers/plans/2026-07-26-persist-agent-steps.md`.
 - **MCP `endpoint_url` scheme behind Cloudflare.** `_fetch_agencies` rewrites every `API` agency's
   `endpoint_url` to `<scheme>://<X-Forwarded-Host>/agent-proxy/<id>`. It used `request.url.scheme`,
   which is `http` in this deployment: the whole chain (cloudflared → nginx → backend) speaks plain

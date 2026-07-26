@@ -2,10 +2,11 @@ import { useState } from "react";
 import { Brain, ChevronDown, ChevronUp } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { AgentStepsCard } from "@/shared/components/AgentStepsCard";
 import { SummaryCard } from "@/shared/components/SummaryCard";
 import { stripSummaryPrefix } from "@/shared/lib/summary";
 import { parseThinkContent } from "@/shared/lib/utils";
-import type { SummaryReference } from "@/shared/types/chat";
+import type { AgentStepsSnapshot, SummaryReference } from "@/shared/types/chat";
 
 /** Card-bubble styling for an assistant answer, shared with the typing placeholder. */
 export const ASSISTANT_BUBBLE_CLASS =
@@ -20,10 +21,12 @@ export function AssistantMessageContent({
   content,
   summary,
   references,
+  steps,
 }: {
   content: string;
   summary?: string | null;
   references?: SummaryReference[];
+  steps?: AgentStepsSnapshot | null;
 }) {
   const [thinkOpen, setThinkOpen] = useState(true);
   const { thinking, answer } = parseThinkContent(content);
@@ -53,6 +56,7 @@ export function AssistantMessageContent({
         </div>
       </div>
       <SummaryCard summary={summary} references={references} />
+      <AgentStepsCard steps={steps ?? null} />
     </>
   );
 }

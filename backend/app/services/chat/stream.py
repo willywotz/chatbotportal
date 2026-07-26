@@ -25,6 +25,7 @@ from app.models.connection_log import ConnectionLog
 from app.models.conversation import Conversation, Message
 from app.models.user import User
 from app.services.chat.llm import classify_message_category
+from app.services.chat.pipeline_snapshot import build_pipeline_snapshot
 from app.services.chat.turn import save_turn
 from app.services.log_sanitize import sanitize_body
 from app.services.onechat import OneChatError, get_client, resolve_version
@@ -122,7 +123,8 @@ async def _replay_cached(
 
     assistant_id = await _persist(
         plan, answer_data=answer_data, session_id=None,
-        total_ms=0, latency_ms=0, thread_name=None, background_tasks=background_tasks,
+        total_ms=0, latency_ms=0, thread_name=None,
+        background_tasks=background_tasks, pipeline_events=[],
     )
     yield ChatEvent("answer", {
         "answer": asst_msg.content,
@@ -145,6 +147,7 @@ async def _stream_live(
     start_ns = time.perf_counter_ns()
     log_latency_ms = 0
     version = plan.stream_version
+    pipeline_events: list[tuple[str, dict]] = []
 
     try:
         async for event_name, event_data in get_client(version).events(
@@ -159,6 +162,8 @@ async def _stream_live(
                 total_ms = event_data.get("total_ms")
                 thread_name = event_data.get("thread_name")
                 done_event_data = event_data
+            elif event_name in ("step", "agency_start", "agency_responded", "agency_verified"):
+                pipeline_events.append((event_name, event_data))
             with tracer.start_as_current_span("event") as event_span:
                 event_span.set_attribute("stream_event", event_name)
                 event_span.set_attribute("event_data", json.dumps(event_data)[:500])
@@ -181,7 +186,8 @@ async def _stream_live(
     if answer_data:
         assistant_id = await _persist(
             plan, answer_data=answer_data, session_id=session_id, total_ms=total_ms,
-            latency_ms=log_latency_ms, thread_name=thread_name, background_tasks=background_tasks,
+            latency_ms=log_latency_ms, thread_name=thread_name,
+            background_tasks=background_tasks, pipeline_events=pipeline_events,
         )
         yield ChatEvent("done", {
             **(done_event_data or {}),
@@ -210,6 +216,7 @@ def _schedule_classification(message_id: str, query: str, answer: str,
 async def _persist(
     plan: TurnPlan, *, answer_data: dict, session_id: str | None, total_ms: int | None,
     latency_ms: int, thread_name: str | None, background_tasks: BackgroundTasks | None,
+    pipeline_events: list[tuple[str, dict]] | None = None,
 ) -> Any:
     """Save the turn via save_turn and write its ConnectionLog."""
     answer = answer_data.get("answer", "").strip()
@@ -226,6 +233,7 @@ async def _persist(
             agency_ids.extend([ag["id"] for ag in sec["agencies"]])
 
     response_time = total_ms if total_ms else latency_ms
+    agent_steps = build_pipeline_snapshot(pipeline_events or [], errors)
 
     saved = await save_turn(
         query=plan.query, conversation_id=plan.conversation_id, answer=answer,
@@ -233,7 +241,7 @@ async def _persist(
         response_time=response_time, user=plan.user, succeeded=bool(answer),
         external_session_id=session_id, errors=errors, summary=summary,
         summary_references=summary_references, title=thread_name,
-        assistant_message_id=plan.assistant_message_id,
+        assistant_message_id=plan.assistant_message_id, agent_steps=agent_steps,
     )
     await ConnectionLog.create(
         id=str(generate_uuid()),

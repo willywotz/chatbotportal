@@ -30,6 +30,7 @@ export const MessageBubble = memo(function MessageBubble({ message, onRate }: { 
             content={message.content}
             summary={message.summary}
             references={message.summaryReferences}
+            steps={message.pipeline}
           />
         )}
         {!isUser && message.sources && (
