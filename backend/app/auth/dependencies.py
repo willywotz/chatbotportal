@@ -19,6 +19,7 @@ from __future__ import annotations
 import re
 
 from fastapi import Depends, HTTPException, Request, status
+from starlette.requests import HTTPConnection
 
 from app.auth.security import API_KEY_PREFIX, hash_api_key
 from app.config import settings
@@ -125,8 +126,8 @@ def _is_allowed_for_staff(method: str, path: str) -> bool:
     return method == "GET" and path in _STAFF_GET_EXACT
 
 
-def _header_api_key(request: Request) -> str | None:
-    auth = request.headers.get("authorization", "")
+def _header_api_key(conn: HTTPConnection) -> str | None:
+    auth = conn.headers.get("authorization", "")
     return auth[7:] if auth.lower().startswith("bearer ") else None
 
 
@@ -212,9 +213,9 @@ async def require_admin(user: User = Depends(get_current_user)) -> User:
     return user
 
 
-async def _resolve_role(request: Request) -> str | None:
+async def _resolve_role(conn: HTTPConnection) -> str | None:
     """Role only, no side effects (no last_used stamp / rate charge)."""
-    key = _header_api_key(request)
+    key = _header_api_key(conn)
     if key is not None:
         if not key.startswith(API_KEY_PREFIX):
             return None
@@ -223,7 +224,7 @@ async def _resolve_role(request: Request) -> str | None:
             return None
         user = await User.filter(id=api_key.user_id, is_active=True).first()
         return user.role if user else None
-    sid = request.cookies.get(settings.SESSION_COOKIE_NAME)
+    sid = conn.cookies.get(settings.SESSION_COOKIE_NAME)
     if sid:
         user_id = await resolve_session(sid)
         if user_id:
@@ -238,16 +239,20 @@ _ROLE_ALLOWLIST = {
 }
 
 
-async def enforce_role_allowlist(request: Request) -> None:
+async def enforce_role_allowlist(conn: HTTPConnection) -> None:
     """Deny-by-default chokepoint for every role except ``admin``.
 
     Anonymous callers pass straight through; their access is governed by each
     endpoint's own auth. Wired as a global dependency in ``app.main`` so it
     runs once per request.
     """
-    if _is_public_get(request.method, request.url.path):
+    if conn.scope["type"] != "http":
+        return  # WebSocket routes enforce their own auth (see app/auth/ws.py)
+    method = conn.scope["method"]
+    path = conn.scope["path"]
+    if _is_public_get(method, path):
         return
-    role = await _resolve_role(request)
+    role = await _resolve_role(conn)
     # An unresolvable credential (missing/invalid/expired/inactive) passes
     # through so the endpoint's own auth returns 401 rather than a misleading
     # 403. `admin` is governed per-endpoint. Every other role — including rows
@@ -255,7 +260,7 @@ async def enforce_role_allowlist(request: Request) -> None:
     if role is None or role == "admin":
         return
     check = _ROLE_ALLOWLIST.get(role, _is_allowed_for_basic_user)
-    if not check(request.method, request.url.path):
+    if not check(method, path):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This role does not have access to this resource",
