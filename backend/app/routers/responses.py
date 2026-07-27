@@ -18,7 +18,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Query, WebSocket, WebSo
 from fastapi.responses import JSONResponse, StreamingResponse
 from opentelemetry import trace
 
-from app.auth.dependencies import _resolve_token, get_current_user
+from app.auth.dependencies import _resolve_token, get_current_user_non_ephemeral
 from app.models.user import User
 from app.schemas.responses import ResponsesRequest
 from app.services.chat.stream import ConversationNotFound, prepare_turn, run_turn
@@ -90,7 +90,7 @@ async def run_response(
 async def create_response(
     body: ResponsesRequest,
     background_tasks: BackgroundTasks,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user_non_ephemeral),
 ) -> Any:
     with tracer.start_as_current_span("responses_endpoint") as span:
         span.set_attribute("stream", body.stream)
@@ -149,12 +149,12 @@ async def compact_stub(body: dict | None = None):
 
 
 @router.get("/{response_id}", summary="Retrieve a response")
-async def get_response(response_id: str, user: User = Depends(get_current_user)):
+async def get_response(response_id: str, user: User = Depends(get_current_user_non_ephemeral)):
     return response_object(await load_assistant_message(response_id, user))
 
 
 @router.delete("/{response_id}", summary="Delete a response")
-async def delete_response(response_id: str, user: User = Depends(get_current_user)):
+async def delete_response(response_id: str, user: User = Depends(get_current_user_non_ephemeral)):
     msg = await load_assistant_message(response_id, user)
     msg.deleted_at = now()
     await msg.save(update_fields=["deleted_at"])
@@ -171,7 +171,7 @@ async def cancel_stub(response_id: str):
 async def response_input_items(response_id: str, limit: int = Query(20, ge=1, le=100),
                                order: str = Query("desc"),
                                after: str | None = Query(None),
-                               user: User = Depends(get_current_user)):
+                               user: User = Depends(get_current_user_non_ephemeral)):
     msg = await load_assistant_message(response_id, user)
     return await build_input_items(msg, order=order, limit=limit)
 

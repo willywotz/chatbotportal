@@ -191,6 +191,18 @@ async def get_current_user(request: Request) -> User:
     raise _invalid_credentials
 
 
+async def get_current_user_non_ephemeral(
+    user: User = Depends(get_current_user),
+) -> User:
+    """Real accounts / API keys only — anonymous (ephemeral) sessions are refused.
+
+    The OpenAI-compatible surfaces are not for auto-created anonymous identities.
+    """
+    if user.is_ephemeral:
+        raise _invalid_credentials
+    return user
+
+
 async def require_admin(user: User = Depends(get_current_user)) -> User:
     if user.role != "admin":
         raise HTTPException(

@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 from tortoise.expressions import Q
 
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user_non_ephemeral
 from app.models.conversation import Conversation, Message
 from app.models.user import User
 from app.schemas.openai_conversations import (
@@ -46,7 +46,7 @@ async def _persist_items(items, conversation_id, owner_id) -> list[Message]:
 @router.post("", summary="Create a conversation")
 async def create_conversation(
     body: ConversationCreateRequest,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user_non_ephemeral),
 ):
     metadata = validate_metadata(body.metadata)
     items = body.items or []
@@ -74,7 +74,7 @@ async def _load_conversation(conversation_id: str, user: User | None) -> Convers
 
 @router.get("/{conversation_id}", summary="Retrieve a conversation")
 async def get_conversation(
-    conversation_id: str, user: User = Depends(get_current_user)
+    conversation_id: str, user: User = Depends(get_current_user_non_ephemeral)
 ):
     return _conversation_object(await _load_conversation(conversation_id, user))
 
@@ -82,7 +82,7 @@ async def get_conversation(
 @router.post("/{conversation_id}", summary="Update a conversation")
 async def update_conversation(
     conversation_id: str, body: ConversationUpdateRequest,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user_non_ephemeral),
 ):
     conv = await _load_conversation(conversation_id, user)
     conv.metadata = validate_metadata(body.metadata)
@@ -92,7 +92,7 @@ async def update_conversation(
 
 @router.delete("/{conversation_id}", summary="Delete a conversation")
 async def delete_conversation(
-    conversation_id: str, user: User = Depends(get_current_user)
+    conversation_id: str, user: User = Depends(get_current_user_non_ephemeral)
 ):
     conv = await _load_conversation(conversation_id, user)
     stamp = now()
@@ -115,7 +115,7 @@ async def _load_item(conv: Conversation, item_id: str) -> Message:
 async def create_items(
     conversation_id: str, body: ItemsCreateRequest,
     include: list[str] | None = Query(None),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user_non_ephemeral),
 ):
     conv = await _load_conversation(conversation_id, user)
     if len(body.items) > _MAX_ITEMS:
@@ -132,7 +132,7 @@ async def list_items(
     order: str = Query("desc"),
     after: str | None = Query(None),
     include: list[str] | None = Query(None),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user_non_ephemeral),
 ):
     conv = await _load_conversation(conversation_id, user)
     asc = order == "asc"
@@ -158,7 +158,7 @@ async def list_items(
 @router.get("/{conversation_id}/items/{item_id}", summary="Retrieve an item")
 async def get_item(
     conversation_id: str, item_id: str,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user_non_ephemeral),
 ):
     conv = await _load_conversation(conversation_id, user)
     return item_from_message(await _load_item(conv, item_id))
@@ -167,7 +167,7 @@ async def get_item(
 @router.delete("/{conversation_id}/items/{item_id}", summary="Delete an item")
 async def delete_item(
     conversation_id: str, item_id: str,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user_non_ephemeral),
 ):
     conv = await _load_conversation(conversation_id, user)
     msg = await _load_item(conv, item_id)
