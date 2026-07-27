@@ -19,6 +19,7 @@ export interface AuthUser {
   displayName: string;
   role: Role;
   avatarUrl: string | null;
+  isEphemeral: boolean;
 }
 
 interface AuthContextType {
@@ -28,6 +29,8 @@ interface AuthContextType {
   signOut: () => void;
   /** Call after a successful login to set the authenticated user */
   setAuth: (user: AuthUser) => void;
+  /** Bootstraps an anonymous session when no user is signed in; no-op otherwise */
+  ensureSession: () => Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -40,6 +43,7 @@ const AuthContext = createContext<AuthContextType>({
   isLoading: true,
   signOut: () => {},
   setAuth: () => {},
+  ensureSession: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -69,6 +73,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const ensureSession = useCallback(async () => {
+    if (user) return;
+    try {
+      const res = await api.post<{ user: AuthUser }>("/api/v1/auth/anon", {});
+      setUser(res.user);
+    } catch {
+      // Proceed anyway; the chat request may 401 and surface an error.
+    }
+  }, [user]);
+
   return (
     <AuthContext.Provider
       value={{
@@ -77,6 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         signOut,
         setAuth,
+        ensureSession,
       }}
     >
       {children}

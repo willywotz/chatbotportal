@@ -1,5 +1,5 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "@/shared/lib/apiClient";
 import { AuthProvider, useAuth, type AuthUser } from "./useAuth";
@@ -8,22 +8,26 @@ vi.mock("@/shared/lib/apiClient", () => ({
   api: { get: vi.fn(), post: vi.fn() },
 }));
 
+beforeEach(() => vi.clearAllMocks());
+
 const authUser: AuthUser = {
   id: "1",
   email: "a@b.co",
   displayName: "A",
   role: "admin",
   avatarUrl: null,
+  isEphemeral: false,
 };
 
 function Consumer() {
-  const { user, isLoading, signOut, setAuth } = useAuth();
+  const { user, isLoading, signOut, setAuth, ensureSession } = useAuth();
   return (
     <div>
       <span>loading:{String(isLoading)}</span>
       <span>user:{user?.email ?? "none"}</span>
       <button onClick={() => setAuth(authUser)}>set</button>
       <button onClick={() => signOut()}>signout</button>
+      <button onClick={() => ensureSession()}>ensure</button>
     </div>
   );
 }
@@ -76,5 +80,31 @@ describe("AuthProvider", () => {
     await act(async () => screen.getByText("signout").click());
     expect(api.post).toHaveBeenCalledWith("/api/v1/auth/logout", {});
     expect(screen.getByText("user:none")).toBeInTheDocument();
+  });
+
+  it("ensureSession posts /auth/anon and sets the user when none is set", async () => {
+    vi.mocked(api.get).mockResolvedValueOnce({ user: null });
+    vi.mocked(api.post).mockResolvedValueOnce({ user: authUser });
+    render(
+      <AuthProvider>
+        <Consumer />
+      </AuthProvider>,
+    );
+    await waitFor(() => expect(screen.getByText("user:none")).toBeInTheDocument());
+    await act(async () => screen.getByText("ensure").click());
+    expect(api.post).toHaveBeenCalledWith("/api/v1/auth/anon", {});
+    expect(screen.getByText("user:a@b.co")).toBeInTheDocument();
+  });
+
+  it("ensureSession is a no-op when a user is already set", async () => {
+    vi.mocked(api.get).mockResolvedValueOnce({ user: authUser });
+    render(
+      <AuthProvider>
+        <Consumer />
+      </AuthProvider>,
+    );
+    await waitFor(() => expect(screen.getByText("user:a@b.co")).toBeInTheDocument());
+    await act(async () => screen.getByText("ensure").click());
+    expect(api.post).not.toHaveBeenCalled();
   });
 });

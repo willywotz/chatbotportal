@@ -14,6 +14,7 @@ import {
 // ---------------------------------------------------------------------------
 
 vi.mock('@/features/chat/chatApi', () => ({
+  sendChatQueryWS: vi.fn(),
   sendChatQuerySSE: vi.fn(),
   sendChatQuery: vi.fn(),
 }));
@@ -27,15 +28,17 @@ vi.mock('@/shared/data/mockData', () => ({
 }));
 
 import { updateMessageRating } from '@/features/chat/feedbackApi';
-import { sendChatQuery, sendChatQuerySSE } from '@/features/chat/chatApi';
+import { sendChatQuery, sendChatQuerySSE, sendChatQueryWS } from '@/features/chat/chatApi';
 
 const mockUpdateRating = updateMessageRating as ReturnType<typeof vi.fn>;
+const mockSendWS = sendChatQueryWS as ReturnType<typeof vi.fn>;
 const mockSendSSE = sendChatQuerySSE as ReturnType<typeof vi.fn>;
 const mockSendChatQuery = sendChatQuery as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // Default: SSE not used (fallback path not needed for most tests)
+  // Default: neither WS nor SSE used (fallback path not needed for most tests)
+  mockSendWS.mockResolvedValue(false);
   mockSendSSE.mockResolvedValue(false);
 });
 
@@ -102,9 +105,12 @@ describe('unmount cleanup', () => {
 
     const { result, unmount } = renderHook(() => useChat());
 
-    // Kick off a send so an AbortController is created and stored in abortRef
-    act(() => {
+    // Kick off a send so an AbortController is created and stored in abortRef.
+    // handleSend awaits ensureSession() before startStream(), so flush one
+    // microtask turn to let it reach the point where abortRef.current is set.
+    await act(async () => {
       result.current.handleSend('test question');
+      await Promise.resolve();
     });
 
     // Unmount — the cleanup effect should call abort()

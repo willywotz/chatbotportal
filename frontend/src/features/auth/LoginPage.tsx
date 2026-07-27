@@ -19,7 +19,7 @@ export default function LoginPage() {
 
   // Redirect if already logged in
   useEffect(() => {
-    if (!isLoading && user) {
+    if (!isLoading && user && !user.isEphemeral) {
       navigate("/chat", { replace: true });
     }
   }, [user, isLoading, navigate]);
@@ -42,7 +42,7 @@ export default function LoginPage() {
     }
   };
 
-  if (!isLoading && user) return null;
+  if (!isLoading && user && !user.isEphemeral) return null;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
