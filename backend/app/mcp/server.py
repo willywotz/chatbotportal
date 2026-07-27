@@ -20,6 +20,7 @@ from fastmcp.dependencies import CurrentContext
 from fastmcp.server.context import Context
 from fastmcp.server.dependencies import get_http_request
 from fastmcp.server.middleware import Middleware, MiddlewareContext
+from opentelemetry import trace
 from starlette.datastructures import URLPath
 
 from app.auth.security import hash_api_key
@@ -60,6 +61,8 @@ class AuthMiddleware(Middleware):
         if not conversation_id:
             conversation_id = str(generate_uuid())
             await ctx.fastmcp_context.set_state("conversation_id", conversation_id)
+
+        trace.get_current_span().set_attribute("conversation_id", conversation_id)
 
         return await call_next(ctx)
 

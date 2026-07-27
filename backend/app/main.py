@@ -48,6 +48,7 @@ from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.asgi import OpenTelemetryMiddleware
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
@@ -156,7 +157,7 @@ app.include_router(llm_router.router, prefix="/api/v1")
 # ---------------------------------------------------------------------------
 
 # MCP server — stateless streamable-HTTP sub-app
-app.mount("/mcp", mcp_app)
+app.mount("/mcp", OpenTelemetryMiddleware(mcp_app))
 
 # ---------------------------------------------------------------------------
 # Health check
