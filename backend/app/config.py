@@ -52,6 +52,12 @@ class Settings(BaseSettings):
     JWT_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     MIN_PASSWORD_LENGTH: int = 6
 
+    # ── Session cookie auth ──────────────────────────────────────────────────
+    SESSION_COOKIE_NAME: str = "session_id"
+    AUTH_COOKIE_SECURE: bool = True
+    SESSION_TTL_MINUTES: int = 60 * 24 * 7          # 7 days
+    SESSION_REFRESH_BELOW_MINUTES: int = 60 * 24 * 3  # re-rotate below ~half TTL
+
     # ── LLM / OpenRouter ────────────────────────────────────────────────────
     OPENROUTER_API_KEY: str = ""
     OPENROUTER_API_URL: str = "https://openrouter.ai/api/v1/chat/completions"
