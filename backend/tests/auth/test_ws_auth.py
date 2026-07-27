@@ -25,6 +25,18 @@ def test_origin_wildcard_allows_all(monkeypatch):
     assert ws_origin_allowed(_WS(headers={"origin": "https://anything"})) is True
 
 
+def test_origin_same_origin_allowed_even_if_not_in_cors(monkeypatch):
+    monkeypatch.setattr(settings, "CORS_ORIGINS", ["http://localhost:5173"])
+    ws = _WS(headers={"origin": "http://localhost:8081", "host": "localhost:8081"})
+    assert ws_origin_allowed(ws) is True
+
+
+def test_origin_cross_origin_still_refused(monkeypatch):
+    monkeypatch.setattr(settings, "CORS_ORIGINS", ["http://localhost:5173"])
+    ws = _WS(headers={"origin": "http://evil.example", "host": "localhost:8081"})
+    assert ws_origin_allowed(ws) is False
+
+
 @pytest.mark.asyncio
 async def test_resolve_ws_user_from_cookie(db):
     u = await User.create(email="a@b.co", hashed_password="x", role="user", is_active=True)

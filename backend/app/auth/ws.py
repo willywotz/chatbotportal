@@ -6,6 +6,8 @@ now authenticate sockets, so a browser page from another origin must not be able
 to open an authenticated socket (SameSite=Lax already blocks the cookie; this is
 defense-in-depth).
 """
+from urllib.parse import urlparse
+
 from app.auth.dependencies import _resolve_api_key
 from app.config import settings
 from app.models.user import User
@@ -25,7 +27,15 @@ async def resolve_ws_user(websocket) -> User | None:
 
 
 def ws_origin_allowed(websocket) -> bool:
+    origin = websocket.headers.get("origin")
+    if origin is None:
+        return False
     allowed = settings.CORS_ORIGINS
     if "*" in allowed:
         return True
-    return websocket.headers.get("origin") in allowed
+    if origin in allowed:
+        return True
+    # Same-origin: the Origin's host:port equals the Host the browser addressed.
+    # Always legitimate; a cross-site page would send Origin != Host.
+    host = websocket.headers.get("host")
+    return bool(host) and urlparse(origin).netloc == host
