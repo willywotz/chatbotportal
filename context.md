@@ -347,6 +347,28 @@ writes a `connection_logs` row with `action="proxy"`, and increments `agencies.t
 **only on a 2xx** upstream; a transport failure returns 502. Hand-rolled UUIDv7 ids, Asia/Bangkok
 tz. Exports spans to Jaeger. `GET /health`.
 
+## Tracing (cross-service, W3C)
+
+Trace context propagates across the services we own so a chat round-trip shares one trace
+(if OneChat forwards `traceparent`) and, regardless, correlates by a `conversation_id` span tag.
+Frontend is out of scope (root span = `POST /api/v1/chat/stream`).
+
+- **Backend outbound** — `HTTPXClientInstrumentor().instrument()` in `app/main.py` injects
+  `traceparent` on every outbound httpx call (OneChat, agency dispatch, LLM). `services/onechat/client.py`
+  stays tracing-free by design.
+- **OneChat call span** — `_stream_live` (`services/chat/stream.py`) wraps the event loop in an
+  `onechat_call` span tagged with `conversation_id`.
+- **MCP inbound** — the `/mcp` mount is wrapped in `OpenTelemetryMiddleware` (mounts are never
+  covered by `FastAPIInstrumentor`) so an inbound `traceparent` continues the trace;
+  `AuthMiddleware.on_request` tags the span with `conversation_id`. `excluded_urls` still lists `/mcp`
+  to avoid double-instrumenting.
+- **agent-proxy** — `initTracer` sets a composite `TraceContext`+`Baggage` propagator (default was
+  no-op); `ServeHTTP` extracts inbound context before `Start` and injects the child span into the
+  upstream request. `conversation_id` is resolved from the agency's `expected_payload` template
+  (the key mapped to `__conversation_id__`), since the body field name varies per agency.
+- **Verify** — `docs/tracing-verification.md` (inject a known `traceparent`, inspect Jaeger; the
+  single-vs-multiple-trace result reveals whether OneChat forwards the header).
+
 ## Frontend (`frontend/`, React SPA)
 
 React 18 + Vite 5 + TypeScript, **shadcn/ui** (Radix + Tailwind), **TanStack Query**, **axios**,
