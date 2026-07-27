@@ -172,4 +172,10 @@ async def health_check():
     return "ok\n"
 
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-FastAPIInstrumentor.instrument_app(app, excluded_urls="/health,^/health$,/mcp,^/mcp$")
+
+FastAPIInstrumentor.instrument_app(
+    app,
+    excluded_urls="/health,^/health$,/mcp,^/mcp$",
+    http_capture_headers_server_request=[".*"],
+    http_capture_headers_server_response=[".*"],
+)
