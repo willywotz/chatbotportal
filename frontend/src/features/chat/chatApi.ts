@@ -1,4 +1,4 @@
-import { api, tokenStorage } from '@/shared/lib/apiClient';
+import { api } from '@/shared/lib/apiClient';
 import { STREAM_IDLE_TIMEOUT_MS } from '@/shared/constants/query';
 import type { AgentStep } from '@/shared/types';
 import type {
@@ -97,7 +97,6 @@ export async function sendChatQuerySSE(
 ): Promise<boolean> {
   const baseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '';
   const url = `${baseUrl}/api/v1/chat`;
-  const token = tokenStorage.get();
 
   let response: Response;
   try {
@@ -106,9 +105,9 @@ export async function sendChatQuerySSE(
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'text/event-stream',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({ ...request, stream: true }),
+      credentials: 'include',
       signal,
     });
   } catch (err) {

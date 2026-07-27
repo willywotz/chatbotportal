@@ -146,6 +146,19 @@ describe('sendChatQuerySSE — idle timeout', () => {
 
     expect(capturedBody).toEqual({ query: 'test', stream: true });
   });
+
+  it('sends credentials: include and no Authorization header', async () => {
+    server.use(makeCompletingSSEHandler());
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+    await sendChatQuerySSE({ query: 'test' }, {});
+
+    const [, options] = fetchSpy.mock.calls[0];
+    expect(options?.credentials).toBe('include');
+    expect((options?.headers as Record<string, string> | undefined)?.Authorization).toBeUndefined();
+
+    fetchSpy.mockRestore();
+  });
 });
 
 // ---------------------------------------------------------------------------
