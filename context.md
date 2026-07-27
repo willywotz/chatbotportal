@@ -663,3 +663,27 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   no opt-in flag; the other by-ID endpoints are unchanged. Covered by
   `test_list_excludes_ephemeral_users` in `tests/test_users_router.py`. Spec:
   `docs/superpowers/specs/2026-07-26-hide-ephemeral-users-design.md`.
+- **Unified chat endpoint (one path, three transports, all OneChat versions).** The three chat
+  routes were merged into a single path `/chat`. `POST /api/v1/chat` (`app/routers/chat.py`) serves
+  JSON by default and SSE when the request body has `stream: true`; `WS /api/v1/chat` is a second
+  handler on the same path (ASGI dispatches HTTP vs WebSocket by scope type). The old
+  `POST /chat/external` and `POST /chat/stream` are **deleted** (hard cutover). All three transports
+  drive the one existing transport-free pipeline `prepare_turn` + `run_turn`
+  (`app/services/chat/stream.py`), so the sync path now shares caching/persistence/classification
+  with the stream path — including that a cache replay writes a `ConnectionLog` (a cached copy can
+  re-seed the similarity cache; consistent with the old SSE path, accepted by design). The old
+  sync-only `_copy_cached_answer` and the v3-direct `chat_v3` router path are gone. OneChat version
+  (v1–v5) is selected OpenAI-style via a `model` field: `resolve_model_version(model)`
+  (`app/services/chat/model.py`) maps `onechat`/omitted/unknown → v5 and `onechat-vN` → `vN`
+  (lenient), threaded to `prepare_turn(requested_version=...)`. The sync JSON response is a
+  version-faithful passthrough: `{ success, data: { message_id, cached, agentSteps, ...<the
+  version's answer-event payload> }, conversation_id, responseTime }`, built by `collect_turn`
+  (`app/services/chat/aggregate.py`) draining `run_turn`. WebSocket logic lives in
+  `app/services/chat/ws.py` (`ConnectionRegistry`, header-bearer `bearer_user`, `handle_chat_frame`)
+  mirroring `responses.py`; new settings `CHAT_WS_MAX_CONNECTIONS` / `CHAT_WS_MAX_DURATION_SECONDS`.
+  Frontend migrated: `chatApi.ts` posts SSE to `/api/v1/chat` with `stream: true` (was
+  `/chat/stream`), `ChatApiResponse` is the passthrough envelope with a `ChatReference` type;
+  `useChat.ts` and `agencyApi.ts` read the new optional fields with fallbacks (old `data.agencies`/
+  `data.confidence` removed). Spec:
+  `docs/superpowers/specs/2026-07-27-unified-chat-endpoint-design.md`; plan:
+  `docs/superpowers/plans/2026-07-27-unified-chat-endpoint.md`.
