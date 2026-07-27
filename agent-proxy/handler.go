@@ -164,12 +164,22 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	span.SetAttributes(attribute.String("proxy.response_body", responseBody))
 
 	var raw struct {
-		Query          string `json:"query"`
-		ConversationID string `json:"conversation_id"`
+		Query string `json:"query"`
 	}
 	_ = json.Unmarshal(body.Bytes(), &raw)
-	if raw.ConversationID != "" {
-		span.SetAttributes(attribute.String("conversation_id", raw.ConversationID))
+
+	var payload map[string]any
+	_ = json.Unmarshal(body.Bytes(), &payload)
+	for key, placeholder := range a.expectedPayload {
+		if placeholder != "__conversation_id__" {
+			continue
+		}
+		if v, ok := payload[key]; ok {
+			if id := fmt.Sprint(v); id != "" {
+				span.SetAttributes(attribute.String("conversation_id", id))
+			}
+		}
+		break
 	}
 	detail := fmt.Sprintf("Query: %s\n\nAnswer: %s", raw.Query, truncate(responseBody))
 

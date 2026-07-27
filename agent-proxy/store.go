@@ -8,14 +8,15 @@ import (
 )
 
 type agency struct {
-	endpointURL string
-	apiHeaders  []map[string]string
+	endpointURL     string
+	apiHeaders      []map[string]string
+	expectedPayload map[string]any
 }
 
 func getAgency(ctx context.Context, pool *pgxpool.Pool, id string) (agency, error) {
-	const q = "select endpoint_url, api_headers from agencies where id = $1"
+	const q = "select endpoint_url, api_headers, expected_payload from agencies where id = $1"
 	var a agency
-	err := pool.QueryRow(ctx, q, id).Scan(&a.endpointURL, &a.apiHeaders)
+	err := pool.QueryRow(ctx, q, id).Scan(&a.endpointURL, &a.apiHeaders, &a.expectedPayload)
 	return a, err
 }
 

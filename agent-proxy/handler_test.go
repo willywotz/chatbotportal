@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	tracetest "go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace/noop"
 )
 
@@ -132,5 +133,43 @@ func TestServeHTTP_PropagatesTraceContext(t *testing.T) {
 	}
 	if parts[2] == inboundSpanID {
 		t.Errorf("upstream span id still equals inbound %s: agent-proxy did not create+inject a child span (raw pass-through)", inboundSpanID)
+	}
+}
+
+func TestServeHTTP_TagsConversationIDFromExpectedPayload(t *testing.T) {
+	sr := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))
+	defer func() { _ = tp.Shutdown(context.Background()) }()
+
+	const id = "11111111-1111-4111-8111-111111111111"
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	h := &handler{
+		tracer: tp.Tracer("test"),
+		load: func(_ context.Context, _ string) (agency, error) {
+			return agency{
+				endpointURL:     upstream.URL,
+				expectedPayload: map[string]any{"session_id": "__conversation_id__", "question": "__query__"},
+			}, nil
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/agent-proxy/"+id, strings.NewReader(`{"session_id":"abc-123","question":"q"}`))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	var got string
+	for _, s := range sr.Ended() {
+		for _, kv := range s.Attributes() {
+			if string(kv.Key) == "conversation_id" {
+				got = kv.Value.AsString()
+			}
+		}
+	}
+	if got != "abc-123" {
+		t.Errorf("conversation_id: want abc-123, got %q", got)
 	}
 }
