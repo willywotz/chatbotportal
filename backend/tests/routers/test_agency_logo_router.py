@@ -12,11 +12,11 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.auth.dependencies import get_current_user
-from app.auth.security import create_access_token
+from app.auth.security import generate_api_key, hash_api_key
 from app.config import settings
 from app.main import app
 from app.models import Agency
-from app.models.user import User
+from app.models.user import User, UserAPIKey
 
 _PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
 _JPEG_BYTES = b"\xff\xd8\xff" + b"\x00" * 32
@@ -198,7 +198,7 @@ async def test_get_logo_404_for_emoji_only_agency():
 @pytest.mark.parametrize("role", ["user", "viewer", "auditor"])
 async def test_get_logo_allowed_for_authenticated_read_only_roles(role):
     """Regression: the role allowlist chokepoint must not 403 an <img> fetch
-    carrying a JWT for a role that isn't otherwise allowlisted for this path."""
+    carrying an API key for a role that isn't otherwise allowlisted for this path."""
     ag = await Agency.create(name="A", status="draft")
     async with await _client(_admin) as c:
         upload = await c.post(
@@ -209,9 +209,10 @@ async def test_get_logo_allowed_for_authenticated_read_only_roles(role):
     logo_url = upload.json()["logo"]
 
     user = await User.create(email=f"logo-{role}@x.io", hashed_password="h", role=role)
-    token = create_access_token({"sub": str(user.id)})
+    raw = generate_api_key()
+    await UserAPIKey.create(user_id=user.id, name="n", key_hash=hash_api_key(raw), key_prefix=raw[:12])
     async with await _client() as c:
-        r = await c.get(logo_url, headers={"Authorization": f"Bearer {token}"})
+        r = await c.get(logo_url, headers={"Authorization": f"Bearer {raw}"})
     assert r.status_code == 200
 
 

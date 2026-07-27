@@ -1,6 +1,6 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
-from app.auth.security import create_access_token, generate_api_key, hash_api_key
+from app.auth.security import generate_api_key, hash_api_key
 from app.main import app
 from app.models.conversation import Conversation, Message
 from app.models.user import User, UserAPIKey
@@ -41,8 +41,9 @@ async def test_retrieve_delete_input_items(db):
 
 async def test_retrieve_foreign_is_404(db):
     u, a = await _owned()
-    other = {"Authorization": f"Bearer {create_access_token({'sub': '00000000-0000-0000-0000-000000000000'})}"}
+    foreign = await User.create(email="foreign@x.y", hashed_password="!")
+    other = await _api_key_headers(foreign)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
         r = await c.get(f"/api/v1/responses/resp_{a.id}", headers=other)
-        # invalid/unknown user token → treated as anonymous → not owner → 404 (never 403)
-        assert r.status_code in (401, 404)
+        # authenticated but not the owner → 404 (never 403)
+        assert r.status_code == 404

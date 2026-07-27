@@ -15,9 +15,6 @@ class OverrideReport:
     unknown: list[str] = field(default_factory=list)
     invalid: list[str] = field(default_factory=list)
 
-DEFAULT_JWT_SECRET = "change-me-in-production-use-a-long-random-string"
-
-
 class Settings(BaseSettings):
     # ── App ──────────────────────────────────────────────────────────────────
     APP_NAME: str = "AI Chatbot Portal API"
@@ -44,12 +41,9 @@ class Settings(BaseSettings):
     REDIS_SOCKET_TIMEOUT_MS: int = 100
 
     # ── CORS ─────────────────────────────────────────────────────────────────
-    CORS_ORIGINS: list[str] = ["*"]  # bypass all origins by default
+    CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:8080"]
 
     # ── Auth ─────────────────────────────────────────────────────────────────
-    JWT_SECRET: str = DEFAULT_JWT_SECRET
-    JWT_ALGORITHM: str = "HS256"
-    JWT_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     MIN_PASSWORD_LENGTH: int = 6
 
     # ── Session cookie auth ──────────────────────────────────────────────────
@@ -153,11 +147,6 @@ def _deserialize(raw: str, annotation: type):
     return raw
 
 
-def assert_production_secrets(s: "Settings") -> None:
-    if s.ENV.strip().lower() == "production" and s.JWT_SECRET == DEFAULT_JWT_SECRET:
-        raise RuntimeError("JWT_SECRET must be changed when ENV=production")
-
-
 SETTINGS_GROUPS: dict[str, list[str]] = {
     "Similarity": ["SIMILARITY_CACHE_ENABLED", "SIMILARITY_THRESHOLD", "SIMILARITY_WINDOW_SECONDS"],
     # "App": ["APP_NAME", "APP_VERSION", "TIMEZONE", "USER_AGENT_PREFIX", "ENV"],
@@ -167,7 +156,7 @@ SETTINGS_GROUPS: dict[str, list[str]] = {
 }
 
 SECRET_FIELD_NAMES: set[str] = {
-    "JWT_SECRET", "OPENROUTER_API_KEY", "PARSE_SPEC_API_KEY",
+    "OPENROUTER_API_KEY", "PARSE_SPEC_API_KEY",
 }
 
 settings = Settings()
