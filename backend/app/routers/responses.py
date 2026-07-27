@@ -18,7 +18,8 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Query, WebSocket, WebSo
 from fastapi.responses import JSONResponse, StreamingResponse
 from opentelemetry import trace
 
-from app.auth.dependencies import _resolve_token, get_current_user_non_ephemeral
+from app.auth.dependencies import get_current_user_non_ephemeral
+from app.auth.ws import resolve_ws_user, ws_origin_allowed
 from app.models.user import User
 from app.schemas.responses import ResponsesRequest
 from app.services.chat.stream import ConversationNotFound, prepare_turn, run_turn
@@ -202,24 +203,11 @@ class _ConnectionRegistry:
 _connections = _ConnectionRegistry()
 
 
-async def _ws_user(websocket) -> User | None:
-    """Resolve the caller from the Authorization header; anonymous on anything else.
-
-    Browsers cannot set headers on a WebSocket — browser clients should use the
-    SSE transport. There is deliberately no query-parameter token fallback: it
-    would leak API keys into access logs.
-    """
-    header = websocket.headers.get("authorization", "")
-    if not header.lower().startswith("bearer "):
-        return None
-    try:
-        return await _resolve_token(header[7:])
-    except Exception:
-        return None
-
-
 @router.websocket("")
 async def responses_websocket(websocket: WebSocket) -> None:
+    if not ws_origin_allowed(websocket):
+        await websocket.close(code=1008)
+        return
     if not _connections.acquire():
         await websocket.close(code=1013)  # try again later
         return
@@ -229,7 +217,13 @@ async def responses_websocket(websocket: WebSocket) -> None:
 
     try:
         await websocket.accept()
-        session = WsSession(user=await _ws_user(websocket))
+        user = await resolve_ws_user(websocket)
+        if user is None or user.is_ephemeral:
+            await send(_error_frame(ResponsesApiError(
+                "Authentication required.", type="invalid_request_error", status=401)))
+            await websocket.close(code=1008)
+            return
+        session = WsSession(user=user)
         deadline = time.monotonic() + settings.RESPONSES_WS_MAX_DURATION_SECONDS
         while True:
             remaining = deadline - time.monotonic()

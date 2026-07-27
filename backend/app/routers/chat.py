@@ -23,6 +23,7 @@ from opentelemetry import trace
 from opentelemetry.trace import StatusCode
 
 from app.auth.dependencies import get_current_user_optional
+from app.auth.ws import resolve_ws_user, ws_origin_allowed
 from app.config import settings
 from app.models.user import User
 from app.schemas.chat import ChatRequest
@@ -34,7 +35,7 @@ from app.services.chat.stream import (
     prepare_turn,
     run_turn,
 )
-from app.services.chat.ws import ConnectionRegistry, bearer_user, handle_chat_frame
+from app.services.chat.ws import ConnectionRegistry, handle_chat_frame
 from app.utils import generate_uuid
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
@@ -117,6 +118,9 @@ _connections = ConnectionRegistry()
 
 @router.websocket("")
 async def chat_ws(websocket: WebSocket) -> None:
+    if not ws_origin_allowed(websocket):
+        await websocket.close(code=1008)
+        return
     if not _connections.acquire():
         await websocket.close(code=1013)  # try again later
         return
@@ -126,7 +130,7 @@ async def chat_ws(websocket: WebSocket) -> None:
 
     try:
         await websocket.accept()
-        user = await bearer_user(websocket)
+        user = await resolve_ws_user(websocket)
         deadline = time.monotonic() + settings.CHAT_WS_MAX_DURATION_SECONDS
         while True:
             remaining = deadline - time.monotonic()

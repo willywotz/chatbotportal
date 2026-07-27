@@ -8,7 +8,6 @@ import json
 import logging
 from typing import Awaitable, Callable
 
-from app.auth.dependencies import _resolve_token
 from app.config import settings
 from app.models.user import User
 from app.services.chat.model import resolve_model_version
@@ -34,21 +33,6 @@ class ConnectionRegistry:
 
     def release(self) -> None:
         self._open = max(0, self._open - 1)
-
-
-async def bearer_user(websocket) -> User | None:
-    """Resolve the caller from the Authorization header; anonymous otherwise.
-
-    Browsers cannot set headers on a WebSocket — they should use SSE. There is
-    deliberately no query-parameter token fallback (it would leak into logs).
-    """
-    header = websocket.headers.get("authorization", "")
-    if not header.lower().startswith("bearer "):
-        return None
-    try:
-        return await _resolve_token(header[7:])
-    except Exception:
-        return None
 
 
 def _error(message: str, code: int = 400) -> dict:
