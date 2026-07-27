@@ -1,4 +1,4 @@
-"""Transport-free chat-turn pipeline, shared by /chat/stream and /responses.
+"""Transport-free chat-turn pipeline, shared by /chat and /responses.
 
 Split in two on purpose. `prepare_turn()` does everything that must be able to
 fail before any bytes are committed to the client — conversation lookup,

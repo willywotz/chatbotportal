@@ -87,7 +87,7 @@ async function readWithIdleTimeout(
 }
 
 /**
- * Send chat query via v4 SSE streaming endpoint.
+ * Send chat query to the unified /chat endpoint with stream=true (SSE).
  * Returns true if SSE was used, false if fell back to JSON.
  */
 export async function sendChatQuerySSE(
