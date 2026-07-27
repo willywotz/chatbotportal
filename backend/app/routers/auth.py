@@ -1,12 +1,13 @@
 """
-Auth router — JWT-based authentication.
+Auth router — session-cookie-based authentication.
 
 Accounts are created by an admin via ``POST /api/v1/users``; there is no
 public self-registration.
 
 Endpoints
 ---------
-  POST  /auth/login             Sign in → returns access_token
+  POST  /auth/login             Sign in → sets session cookie
+  POST  /auth/logout            End the current session
   GET   /auth/me                Return the currently authenticated user
   PATCH /auth/me                Update display_name / avatar_url
   POST  /auth/change-password   Change your own password
@@ -14,12 +15,14 @@ Endpoints
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from app.auth.dependencies import get_current_user
+from app.config import settings
 from app.models.user import User
 from pydantic import BaseModel, EmailStr
 
-from app.auth.security import create_access_token, verify_password
+from app.auth.security import verify_password
+from app.services.auth_session import create_session, delete_session
 from app.services.user import hash_new_password
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -58,8 +61,8 @@ def _user_dict(user: User) -> dict:
 # Login
 # ---------------------------------------------------------------------------
 
-@router.post("/login", summary="Sign in and get an access token")
-async def login(body: LoginRequest) -> dict:
+@router.post("/login", summary="Sign in and start a session")
+async def login(body: LoginRequest, response: Response) -> dict:
     user = await User.filter(email=body.email, is_active=True).first()
 
     if not user or not verify_password(body.password, user.hashed_password):
@@ -68,12 +71,26 @@ async def login(body: LoginRequest) -> dict:
             detail="อีเมลหรือรหัสผ่านไม่ถูกต้อง",
         )
 
-    token = create_access_token({"sub": str(user.id)})
-    return {
-        "access_token": token,
-        "token_type": "bearer",
-        "user": _user_dict(user),
-    }
+    session_id = await create_session(str(user.id))
+    response.set_cookie(
+        settings.SESSION_COOKIE_NAME, session_id,
+        httponly=True, secure=settings.AUTH_COOKIE_SECURE, samesite="Lax",
+        max_age=settings.SESSION_TTL_MINUTES * 60, path="/",
+    )
+    return {"user": _user_dict(user)}
+
+
+# ---------------------------------------------------------------------------
+# Logout
+# ---------------------------------------------------------------------------
+
+@router.post("/logout", summary="End the current session")
+async def logout(request: Request, response: Response) -> dict:
+    sid = request.cookies.get(settings.SESSION_COOKIE_NAME)
+    if sid:
+        await delete_session(sid)
+    response.delete_cookie(settings.SESSION_COOKIE_NAME, path="/")
+    return {"ok": True}
 
 
 # ---------------------------------------------------------------------------
