@@ -55,7 +55,7 @@ async def test_cached_stream_emits_message_id_in_done(db):
 
     with patch.object(turn_stream, "find_similar_question",
                       new=AsyncMock(return_value=(user_msg, asst_msg, conn_log))):
-        resp = await chat_router.chat_stream(ChatRequest(query="q"), MagicMock(), BackgroundTasks(), None)
+        resp = await chat_router.chat(ChatRequest(query="q", stream=True), BackgroundTasks(), None)
         chunks = [c async for c in resp.body_iterator]
 
     text = "".join(c if isinstance(c, str) else c.decode() for c in chunks)
@@ -79,7 +79,7 @@ async def test_error_event_marks_endpoint_span_as_error(db):
 
     with patch.object(chat_router, "run_turn", fake_run_turn), \
          patch.object(chat_router.tracer, "start_as_current_span", return_value=mock_span_cm):
-        resp = await chat_router.chat_stream(ChatRequest(query="q"), MagicMock(), BackgroundTasks(), None)
+        resp = await chat_router.chat(ChatRequest(query="q", stream=True), BackgroundTasks(), None)
         [c async for c in resp.body_iterator]
 
     mock_span.set_status.assert_any_call(StatusCode.ERROR, "OneChat v5 returned 502")

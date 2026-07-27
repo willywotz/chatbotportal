@@ -11,7 +11,6 @@ from app.models.user import User, UserAPIKey
 
 def test_chat_endpoints_allowed():
     assert _is_allowed_for_basic_user("POST", "/api/v1/chat")
-    assert _is_allowed_for_basic_user("POST", "/api/v1/chat/stream")
     assert not _is_allowed_for_basic_user("GET", "/api/v1/chat")
 
 

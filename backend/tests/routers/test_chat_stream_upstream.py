@@ -93,7 +93,7 @@ def test_happy_path_streams_step_answer_and_done():
         'event: done\ndata: {"session_id": "s1", "total_ms": 42}\n\n'
     )
     with _stub_upstream(status=200, chunks=(body,)), TestClient(_client_app()) as client:
-        r = client.post("/api/v1/chat/stream", json={"query": "บัตรหาย"})
+        r = client.post("/api/v1/chat", json={"query": "บัตรหาย", "stream": True})
         assert r.status_code == 200
         events = _events(r.text)
         assert [e["event"] for e in events] == ["step", "answer", "done"]
@@ -120,7 +120,7 @@ def test_sse_reassembly_across_chunk_boundaries():
     chunks = (full[:cut1], full[cut1:cut2], full[cut2:])
 
     with _stub_upstream(status=200, chunks=chunks), TestClient(_client_app()) as client:
-        r = client.post("/api/v1/chat/stream", json={"query": "q"})
+        r = client.post("/api/v1/chat", json={"query": "q", "stream": True})
     events = _events(r.text)
     assert [e["event"] for e in events] == ["answer", "done"]
     assert events[0]["data"]["answer"] == "OK"
@@ -128,7 +128,7 @@ def test_sse_reassembly_across_chunk_boundaries():
 
 def test_upstream_non_200_emits_error_then_done():
     with _stub_upstream(status=502, chunks=()), TestClient(_client_app()) as client:
-        r = client.post("/api/v1/chat/stream", json={"query": "q"})
+        r = client.post("/api/v1/chat", json={"query": "q", "stream": True})
     events = _events(r.text)
     assert [e["event"] for e in events] == ["error", "done"]
     assert events[0]["data"]["code"] == 502
@@ -136,7 +136,7 @@ def test_upstream_non_200_emits_error_then_done():
 
 def test_read_timeout_emits_error_then_done():
     with _stub_upstream(exc=httpx.ReadTimeout("timed out")), TestClient(_client_app()) as client:
-        r = client.post("/api/v1/chat/stream", json={"query": "q"})
+        r = client.post("/api/v1/chat", json={"query": "q", "stream": True})
     events = _events(r.text)
     assert [e["event"] for e in events] == ["error", "done"]
     assert "timed out" in events[0]["data"]["message"]

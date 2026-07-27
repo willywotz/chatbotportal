@@ -27,7 +27,6 @@ def test_staff_get_exact_is_exactly_the_six_dashboards():
 def test_staff_keeps_everything_a_basic_user_can_do():
     shared = [
         ("POST", "/api/v1/chat"),
-        ("POST", "/api/v1/chat/stream"),
         ("POST", "/api/v1/responses"),
         ("PATCH", "/api/v1/messages/abc-123/rating"),
         ("GET", "/api/v1/history"),
@@ -55,7 +54,6 @@ def test_staff_still_cannot_reach_admin_surface():
 # captured from the two-role model. `staff` must reach all of these.
 _PRE_SPLIT_USER_SURFACE = [
     ("POST", "/api/v1/chat"),
-    ("POST", "/api/v1/chat/stream"),
     ("POST", "/api/v1/responses"),
     ("PATCH", "/api/v1/messages/abc-123/rating"),
     ("GET", "/api/v1/history"),

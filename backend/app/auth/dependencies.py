@@ -97,7 +97,7 @@ def _is_shared_write(method: str, path: str) -> bool:
     """
     if path.startswith("/api/v1/auth/"):  # all auth endpoints — each guards itself internally
         return True
-    if method == "POST" and path in ("/api/v1/chat", "/api/v1/chat/stream"):
+    if method == "POST" and path == "/api/v1/chat":
         return True
     if method == "PATCH" and _MESSAGE_RATING_PATH.match(path):
         return True
