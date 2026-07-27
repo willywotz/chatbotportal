@@ -73,7 +73,6 @@ async def test_user_surface_is_exactly_this(db):
     expected_prefixes_and_exact = {
         ("GET", "/api/v1/agencies"),
         ("POST", "/api/v1/chat"),
-        ("POST", "/api/v1/chat/stream"),
         ("POST", "/api/v1/responses"),
         ("GET", f"/api/v1/responses/{_SAMPLE_ID}"),
         ("DELETE", f"/api/v1/responses/{_SAMPLE_ID}"),
