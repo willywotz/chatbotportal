@@ -67,6 +67,9 @@ class Settings(BaseSettings):
     # ── OneChat endpoints ────────────────────────────────────────────────────
     ONECHAT_BASE_URL: str = "http://185.84.160.55:8000"
     MCP_ENDPOINT_URL: str = "http://185.84.161.145/mcp/"
+    # Appended as a query string to agent-proxy endpoint_url when set; used to
+    # probe whether OneChat preserves query strings on its callback (empty = off).
+    TRACE_URL_PROBE: str = ""
 
     # ── Chat ─────────────────────────────────────────────────────────────────
     A2A_DISPATCH_TIMEOUT: int = 30

@@ -62,6 +62,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
 	ctx, span := h.tracer.Start(ctx, "Handle HTTP Request")
 	defer span.End()
+	span.SetAttributes(attribute.String("proxy.incoming_query", r.URL.RawQuery))
 
 	m := pathRegexp.FindStringSubmatch(r.URL.Path)
 	if len(m) < 2 {

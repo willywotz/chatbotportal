@@ -173,3 +173,33 @@ func TestServeHTTP_TagsConversationIDFromExpectedPayload(t *testing.T) {
 		t.Errorf("conversation_id: want abc-123, got %q", got)
 	}
 }
+
+func TestServeHTTP_RecordsIncomingQuery(t *testing.T) {
+	sr := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))
+	defer func() { _ = tp.Shutdown(context.Background()) }()
+
+	const id = "11111111-1111-4111-8111-111111111111"
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }))
+	defer upstream.Close()
+
+	h := &handler{tracer: tp.Tracer("test"), load: func(_ context.Context, _ string) (agency, error) {
+		return agency{endpointURL: upstream.URL}, nil
+	}}
+
+	req := httptest.NewRequest(http.MethodPost, "/agent-proxy/"+id+"?tp_probe=AP1", strings.NewReader(`{}`))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	var got string
+	for _, s := range sr.Ended() {
+		for _, kv := range s.Attributes() {
+			if string(kv.Key) == "proxy.incoming_query" {
+				got = kv.Value.AsString()
+			}
+		}
+	}
+	if got != "tp_probe=AP1" {
+		t.Errorf("proxy.incoming_query: want tp_probe=AP1, got %q", got)
+	}
+}
