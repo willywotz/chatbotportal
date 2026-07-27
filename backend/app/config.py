@@ -159,6 +159,22 @@ SECRET_FIELD_NAMES: set[str] = {
     "OPENROUTER_API_KEY", "PARSE_SPEC_API_KEY",
 }
 
+def assert_production_config(s: "Settings") -> None:
+    """Refuse to start in production with a wildcard CORS origin.
+
+    Starlette's CORSMiddleware reflects the request `Origin` back with
+    `Access-Control-Allow-Credentials: true` when `allow_origins` contains
+    `"*"` and `allow_credentials=True` (as this app always sets). That
+    combination lets any site read session-cookie-authenticated responses.
+    """
+    if s.ENV.strip().lower() == "production" and "*" in s.CORS_ORIGINS:
+        raise RuntimeError(
+            "CORS_ORIGINS must not contain '*' in production: combined with "
+            "allow_credentials=True this reflects any Origin and exposes "
+            "session cookies to every site. Set an explicit origin instead."
+        )
+
+
 settings = Settings()
 
 
