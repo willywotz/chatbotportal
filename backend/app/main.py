@@ -48,6 +48,7 @@ from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
@@ -59,6 +60,7 @@ tracerProvider = TracerProvider(resource=resource)
 processor = BatchSpanProcessor(OTLPSpanExporter(endpoint="jaeger:4317", insecure=True))
 tracerProvider.add_span_processor(processor)
 trace.set_tracer_provider(tracerProvider)
+HTTPXClientInstrumentor().instrument()
 
 # stateless_http: production runs uvicorn --workers 4 with no session affinity.
 # Stateful sessions live in one worker's memory, so a follow-up request routed
