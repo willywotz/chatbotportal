@@ -29,6 +29,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings, load_settings_from_db, assert_production_secrets
 from app.errors import register_error_handlers
 from app.database import init_db, close_db
+from app.middleware.session_refresh import SessionRefreshMiddleware
 from app.services.rate_limit import close_limiter_client
 from app.mcp.server import mcp
 from app.auth.dependencies import enforce_role_allowlist
@@ -121,6 +122,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(SessionRefreshMiddleware)
 
 # ---------------------------------------------------------------------------
 # REST routers
