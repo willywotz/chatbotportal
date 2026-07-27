@@ -80,6 +80,8 @@ class Settings(BaseSettings):
     SPEC_TEXT_MAX_CHARS: int = 30000
     RESPONSES_WS_MAX_CONNECTIONS: int = 1024
     RESPONSES_WS_MAX_DURATION_SECONDS: int = 900
+    CHAT_WS_MAX_CONNECTIONS: int = 1024
+    CHAT_WS_MAX_DURATION_SECONDS: int = 900
 
     # ── Agency health / scheduler ────────────────────────────────────────────
     AGENCY_CHAT_TIMEOUT: int = 180
