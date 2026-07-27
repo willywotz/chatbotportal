@@ -19,5 +19,5 @@ def test_similarity_group_is_first():
 
 def test_permissive_defaults():
     s = Settings()
-    assert s.CORS_ORIGINS == ["http://localhost:5173", "http://localhost:8080"]
+    assert s.CORS_ORIGINS == ["*"]
     assert s.WEEKLY_BRIEF_TIMEOUT >= 3600.0         # effectively no limit

@@ -132,7 +132,10 @@ async def test_cookie_authenticated_round_trip(db):
     assert names == ["answer", "done"]
 
 
-def test_disallowed_origin_is_refused(db):
+def test_disallowed_origin_is_refused(db, monkeypatch):
+    # Wildcard is the app default (CORS_ORIGINS=["*"]); restrict it here to
+    # exercise the Origin gate's rejection path.
+    monkeypatch.setattr(settings, "CORS_ORIGINS", ["https://ok.example"])
     with TestClient(_app()) as client:
         with pytest.raises(Exception):
             with client.websocket_connect("/api/v1/chat", headers={"origin": "https://evil.example"}):

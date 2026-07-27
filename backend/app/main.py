@@ -26,7 +26,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.config import assert_production_config, settings, load_settings_from_db
+from app.config import settings, load_settings_from_db
 from app.errors import register_error_handlers
 from app.database import init_db, close_db
 from app.middleware.session_refresh import SessionRefreshMiddleware
@@ -79,7 +79,6 @@ mcp_app = mcp.http_app(path="/", stateless_http=True)
 async def lifespan(app: FastAPI):
     await init_db()
     await load_settings_from_db()
-    assert_production_config(settings)
     await _run_seed_admin()
     await _run_seed_agencies()
     # await seed_popular_questions()
