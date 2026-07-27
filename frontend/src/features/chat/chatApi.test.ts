@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { server } from '@/mocks/server';
 import { STREAM_IDLE_TIMEOUT_MS } from '@/shared/constants/query';
 
-import { sendChatQuerySSE } from './chatApi';
+import { sendChatQuery, sendChatQuerySSE } from './chatApi';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -16,12 +16,12 @@ function sseChunk(event: string, data: unknown): Uint8Array {
 }
 
 /**
- * Returns an MSW handler for POST /api/v1/chat/stream that:
+ * Returns an MSW handler for POST /api/v1/chat that:
  * 1. Immediately enqueues `initialChunk` into the stream.
  * 2. Never closes the stream (simulating a hung server).
  */
 function makeHangingSSEHandler(initialChunk: Uint8Array): ReturnType<typeof http.post> {
-  return http.post('*/api/v1/chat/stream', () => {
+  return http.post('*/api/v1/chat', () => {
     const stream = new ReadableStream<Uint8Array>({
       start(c) {
         c.enqueue(initialChunk);
@@ -37,11 +37,11 @@ function makeHangingSSEHandler(initialChunk: Uint8Array): ReturnType<typeof http
 }
 
 /**
- * Returns an MSW handler for POST /api/v1/chat/stream that emits one step
+ * Returns an MSW handler for POST /api/v1/chat that emits one step
  * event and then immediately closes the stream (normal happy path).
  */
 function makeCompletingSSEHandler(): ReturnType<typeof http.post> {
-  return http.post('*/api/v1/chat/stream', () => {
+  return http.post('*/api/v1/chat', () => {
     const stream = new ReadableStream<Uint8Array>({
       start(c) {
         c.enqueue(sseChunk('step', { step: 'thinking' }));
@@ -122,5 +122,61 @@ describe('sendChatQuerySSE — idle timeout', () => {
     expect(onStep).toHaveBeenCalledTimes(1);
     expect(onDone).toHaveBeenCalledTimes(1);
     expect(onError).not.toHaveBeenCalled();
+  });
+
+  it('posts to /api/v1/chat with stream: true in the request body', async () => {
+    let capturedBody: unknown;
+    server.use(
+      http.post('*/api/v1/chat', async ({ request }) => {
+        capturedBody = await request.json();
+        const stream = new ReadableStream<Uint8Array>({
+          start(c) {
+            c.enqueue(sseChunk('done', { sessionId: 'sess-1' }));
+            c.close();
+          },
+        });
+        return new HttpResponse(stream, {
+          status: 200,
+          headers: { 'Content-Type': 'text/event-stream' },
+        });
+      }),
+    );
+
+    await sendChatQuerySSE({ query: 'test' }, {});
+
+    expect(capturedBody).toEqual({ query: 'test', stream: true });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// sendChatQuery — unified envelope
+// ---------------------------------------------------------------------------
+
+describe('sendChatQuery', () => {
+  it('posts to /api/v1/chat with no stream flag and parses the unified envelope', async () => {
+    let capturedBody: unknown;
+    server.use(
+      http.post('*/api/v1/chat', async ({ request }) => {
+        capturedBody = await request.json();
+        return HttpResponse.json({
+          success: true,
+          data: {
+            message_id: 'msg-1',
+            cached: false,
+            agentSteps: [{ name: 'discover', status: 'done' }],
+            answer: 'Hello!',
+          },
+          conversation_id: 'conv-1',
+          responseTime: 42,
+        });
+      }),
+    );
+
+    const result = await sendChatQuery({ query: 'test' });
+
+    expect(capturedBody).toEqual({ query: 'test' });
+    expect(result.data.answer).toBe('Hello!');
+    expect(result.data.agentSteps).toEqual([{ name: 'discover', status: 'done' }]);
+    expect(result.data.message_id).toBe('msg-1');
   });
 });

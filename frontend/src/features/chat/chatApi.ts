@@ -12,15 +12,27 @@ export interface ChatApiRequest {
   conversation_id?: string;
 }
 
+export interface ChatReference {
+  number?: number;
+  agency_id?: string;
+  agency_name?: string;
+  agency?: string;
+  title?: string;
+  url: string | null;
+}
+
 export interface ChatApiResponse {
   success: boolean;
   data: {
     message_id: string;
-    answer: string;
-    references: { agency: string; title: string; url: string }[];
+    cached: boolean;
     agentSteps: AgentStep[];
-    agencies: { id: string; name: string; icon: string }[];
-    confidence: number;
+    answer?: string;
+    summary?: string;
+    references?: ChatReference[];
+    sections?: unknown[];
+    errors?: unknown[];
+    debug?: unknown;
   };
   conversation_id: string;
   responseTime: number;
@@ -84,7 +96,7 @@ export async function sendChatQuerySSE(
   signal?: AbortSignal,
 ): Promise<boolean> {
   const baseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '';
-  const url = `${baseUrl}/api/v1/chat/stream`;
+  const url = `${baseUrl}/api/v1/chat`;
   const token = tokenStorage.get();
 
   let response: Response;
@@ -96,7 +108,7 @@ export async function sendChatQuerySSE(
         'Accept': 'text/event-stream',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify(request),
+      body: JSON.stringify({ ...request, stream: true }),
       signal,
     });
   } catch (err) {
