@@ -8,59 +8,50 @@ is reproduced here.
 """
 import pytest
 from fastapi import HTTPException
-from fastapi.security import HTTPAuthorizationCredentials
 from starlette.requests import Request
 
 from app.auth.dependencies import enforce_role_allowlist
-from app.auth.security import create_access_token
-from app.models.user import User
+from app.auth.security import generate_api_key, hash_api_key
+from app.models.user import User, UserAPIKey
 
 
-def _request(method: str, path: str) -> Request:
+def _request(method: str, path: str, *, api_key: str) -> Request:
     return Request(
         {"type": "http", "method": method, "path": path,
-         "headers": [], "query_string": b""}
+         "headers": [(b"authorization", f"Bearer {api_key}".encode())], "query_string": b""}
     )
 
 
-def _creds(token: str) -> HTTPAuthorizationCredentials:
-    return HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
-
-
-async def _token_for_viewer() -> str:
+async def _api_key_for_viewer() -> str:
     user = await User.create(email="residual-viewer@x.com", hashed_password="h", role="viewer")
-    return create_access_token({"sub": str(user.id)})
+    raw = generate_api_key()
+    await UserAPIKey.create(
+        user_id=user.id, name="n", key_hash=hash_api_key(raw), key_prefix=raw[:12]
+    )
+    return raw
 
 
 async def test_residual_viewer_denied_on_api_keys(db):
-    token = await _token_for_viewer()
+    raw = await _api_key_for_viewer()
     with pytest.raises(HTTPException) as e:
-        await enforce_role_allowlist(
-            _request("POST", "/api/v1/api-keys/"), _creds(token)
-        )
+        await enforce_role_allowlist(_request("POST", "/api/v1/api-keys/", api_key=raw))
     assert e.value.status_code == 403
 
 
 async def test_residual_viewer_denied_on_connection_logs(db):
-    token = await _token_for_viewer()
+    raw = await _api_key_for_viewer()
     with pytest.raises(HTTPException) as e:
-        await enforce_role_allowlist(
-            _request("GET", "/api/v1/connection-logs"), _creds(token)
-        )
+        await enforce_role_allowlist(_request("GET", "/api/v1/connection-logs", api_key=raw))
     assert e.value.status_code == 403
 
 
 async def test_residual_viewer_allowed_on_chat(db):
-    token = await _token_for_viewer()
-    assert await enforce_role_allowlist(
-        _request("POST", "/api/v1/chat"), _creds(token)
-    ) is None
+    raw = await _api_key_for_viewer()
+    assert await enforce_role_allowlist(_request("POST", "/api/v1/chat", api_key=raw)) is None
 
 
 async def test_residual_viewer_denied_on_dashboard(db):
-    token = await _token_for_viewer()
+    raw = await _api_key_for_viewer()
     with pytest.raises(HTTPException) as e:
-        await enforce_role_allowlist(
-            _request("GET", "/api/v1/dashboard/stats"), _creds(token)
-        )
+        await enforce_role_allowlist(_request("GET", "/api/v1/dashboard/stats", api_key=raw))
     assert e.value.status_code == 403

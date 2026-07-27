@@ -19,16 +19,13 @@ from __future__ import annotations
 import re
 
 from fastapi import Depends, HTTPException, Request, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError
 
-from app.auth.security import API_KEY_PREFIX, decode_access_token, hash_api_key
+from app.auth.security import API_KEY_PREFIX, hash_api_key
+from app.config import settings
 from app.models.user import User, UserAPIKey
+from app.services.auth_session import resolve_session
 from app.services.usage_context import current_api_key_id, current_user_id
 from app.utils import now
-
-_bearer = HTTPBearer(auto_error=True)
-_bearer_optional = HTTPBearer(auto_error=False)
 
 _invalid_credentials = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -128,59 +125,36 @@ def _is_allowed_for_staff(method: str, path: str) -> bool:
     return method == "GET" and path in _STAFF_GET_EXACT
 
 
-# NOTE: token-branching mirrors _resolve_token; kept separate to stay side-effect-free.
-async def _resolve_role(token: str) -> str | None:
-    """Return the caller's role without the side effects of ``_resolve_token``.
+def _header_api_key(request: Request) -> str | None:
+    auth = request.headers.get("authorization", "")
+    return auth[7:] if auth.lower().startswith("bearer ") else None
 
-    Used only by the basic-user chokepoint. Deliberately skips API-key rate
-    limiting and ``last_used_at`` stamping so wiring it globally never double-
-    charges those — it only needs the role.
-    """
-    if token.startswith(API_KEY_PREFIX):
-        api_key = await UserAPIKey.filter(key_hash=hash_api_key(token)).first()
-        if api_key is None or not api_key.is_usable():
-            return None
-        user = await User.filter(id=api_key.user_id, is_active=True).first()
-        return user.role if user else None
 
-    try:
-        payload = decode_access_token(token)
-    except JWTError:
+async def _resolve_api_key(token: str) -> User | None:
+    """API-key path only (JWT is gone). Stamps last_used + usage context."""
+    if not token.startswith(API_KEY_PREFIX):
         return None
-    user_id: str = payload.get("sub", "")
-    if not user_id:
+    api_key = await UserAPIKey.filter(key_hash=hash_api_key(token)).first()
+    if api_key is None or not api_key.is_usable():
         return None
-    user = await User.filter(id=user_id, is_active=True).first()
-    return user.role if user else None
-
-
-async def _resolve_token(token: str) -> User | None:
-    """Resolve a bearer token to an active user.
-
-    Accepts either a JWT or a ``tcg_`` API key (distinguished by prefix), so
-    REST endpoints authenticate the same keys the MCP server already does.
-    Returns None when the token is invalid or the user is missing/inactive.
-    """
-    if token.startswith(API_KEY_PREFIX):
-        api_key = await UserAPIKey.filter(key_hash=hash_api_key(token)).first()
-        if api_key is None:
-            return None
-        if not api_key.is_usable():
-            return None
-        user = await User.filter(id=api_key.user_id, is_active=True).first()
-        if user is None:
-            return None
-        api_key.last_used_at = now()
-        await api_key.save(update_fields=["last_used_at"])
-        current_user_id.set(user.id)
-        current_api_key_id.set(api_key.id)
-        return user
-
-    try:
-        payload = decode_access_token(token)
-    except JWTError:
+    user = await User.filter(id=api_key.user_id, is_active=True).first()
+    if user is None:
         return None
-    user_id: str = payload.get("sub", "")
+    api_key.last_used_at = now()
+    await api_key.save(update_fields=["last_used_at"])
+    current_user_id.set(user.id)
+    current_api_key_id.set(api_key.id)
+    return user
+
+
+# Kept for the two WS callers (app/routers/responses.py::_ws_user,
+# app/services/chat/ws.py::bearer_user) that resolve a header token directly;
+# browsers can't set WS headers, so those paths stay bearer/API-key-only.
+_resolve_token = _resolve_api_key
+
+
+async def _resolve_session_user(session_id: str) -> User | None:
+    user_id = await resolve_session(session_id)
     if not user_id:
         return None
     user = await User.filter(id=user_id, is_active=True).first()
@@ -189,31 +163,32 @@ async def _resolve_token(token: str) -> User | None:
     return user
 
 
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(_bearer),
-) -> User:
-    user = await _resolve_token(credentials.credentials)
-    if user is None:
-        raise _invalid_credentials
-    return user
+async def get_current_user_optional(request: Request) -> User | None:
+    key = _header_api_key(request)
+    if key is not None:
+        user = await _resolve_api_key(key)
+        if user is None:  # deliberate API key that fails must 401
+            raise _invalid_credentials
+        return user
+    sid = request.cookies.get(settings.SESSION_COOKIE_NAME)
+    if sid:
+        return await _resolve_session_user(sid)  # bad session -> None (anonymous)
+    return None
 
 
-async def get_current_user_optional(
-    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_optional),
-) -> User | None:
-    # No credential → anonymous.
-    if credentials is None:
-        return None
-    token = credentials.credentials
-    user = await _resolve_token(token)
-    # A deliberate API-key auth that fails must NOT silently degrade to anonymous
-    # — a typo'd or revoked key should surface an error, not run as an anonymous
-    # caller under a different identity. A JWT, by
-    # contrast, is a session token a browser auto-attaches; an expired one
-    # degrades to anonymous so optional-auth endpoints (e.g. chat) still work.
-    if user is None and token.startswith(API_KEY_PREFIX):
-        raise _invalid_credentials
-    return user
+async def get_current_user(request: Request) -> User:
+    key = _header_api_key(request)
+    if key is not None:  # header present => header decides, no cookie fallback
+        user = await _resolve_api_key(key)
+        if user is None:
+            raise _invalid_credentials
+        return user
+    sid = request.cookies.get(settings.SESSION_COOKIE_NAME)
+    if sid:
+        user = await _resolve_session_user(sid)
+        if user is not None:
+            return user
+    raise _invalid_credentials
 
 
 async def require_admin(user: User = Depends(get_current_user)) -> User:
@@ -225,31 +200,46 @@ async def require_admin(user: User = Depends(get_current_user)) -> User:
     return user
 
 
+async def _resolve_role(request: Request) -> str | None:
+    """Role only, no side effects (no last_used stamp / rate charge)."""
+    key = _header_api_key(request)
+    if key is not None:
+        if not key.startswith(API_KEY_PREFIX):
+            return None
+        api_key = await UserAPIKey.filter(key_hash=hash_api_key(key)).first()
+        if api_key is None or not api_key.is_usable():
+            return None
+        user = await User.filter(id=api_key.user_id, is_active=True).first()
+        return user.role if user else None
+    sid = request.cookies.get(settings.SESSION_COOKIE_NAME)
+    if sid:
+        user_id = await resolve_session(sid)
+        if user_id:
+            user = await User.filter(id=user_id, is_active=True).first()
+            return user.role if user else None
+    return None
+
+
 _ROLE_ALLOWLIST = {
     "user": _is_allowed_for_basic_user,
     "staff": _is_allowed_for_staff,
 }
 
 
-async def enforce_role_allowlist(
-    request: Request,
-    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_optional),
-) -> None:
+async def enforce_role_allowlist(request: Request) -> None:
     """Deny-by-default chokepoint for every role except ``admin``.
 
     Anonymous callers pass straight through; their access is governed by each
     endpoint's own auth. Wired as a global dependency in ``app.main`` so it
     runs once per request.
     """
-    if credentials is None:
-        return
     if _is_public_get(request.method, request.url.path):
         return
-    role = await _resolve_role(credentials.credentials)
-    # An unresolvable token (invalid/expired/inactive) passes through so the
-    # endpoint's own auth returns 401 rather than a misleading 403. `admin` is
-    # governed per-endpoint. Every other role — including rows left behind by a
-    # not-yet-run migration — is denied by default.
+    role = await _resolve_role(request)
+    # An unresolvable credential (missing/invalid/expired/inactive) passes
+    # through so the endpoint's own auth returns 401 rather than a misleading
+    # 403. `admin` is governed per-endpoint. Every other role — including rows
+    # left behind by a not-yet-run migration — is denied by default.
     if role is None or role == "admin":
         return
     check = _ROLE_ALLOWLIST.get(role, _is_allowed_for_basic_user)

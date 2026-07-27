@@ -1,11 +1,13 @@
 """The basic-user allowlist maps 1:1 to the Chat + Architecture pages."""
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from fastapi import HTTPException
-from fastapi.security import HTTPAuthorizationCredentials
 from starlette.requests import Request
 
 from app.auth.dependencies import _is_allowed_for_basic_user, _resolve_role, enforce_role_allowlist
-from app.auth.security import create_access_token, generate_api_key, hash_api_key
+from app.auth.security import generate_api_key, hash_api_key
+from app.config import settings
 from app.models.user import User, UserAPIKey
 
 
@@ -74,38 +76,54 @@ def test_executive_summary_regenerate_still_admin_only():
     )
 
 
-async def test_resolve_role_from_jwt(db):
-    user = await User.create(email="role-jwt@x.com", hashed_password="h", role="user")
-    token = create_access_token({"sub": str(user.id)})
-    assert await _resolve_role(token) == "user"
+def _request(method: str, path: str, *, api_key: str | None = None,
+             session_id: str | None = None) -> Request:
+    headers = []
+    if api_key is not None:
+        headers.append((b"authorization", f"Bearer {api_key}".encode()))
+    if session_id is not None:
+        headers.append((b"cookie", f"{settings.SESSION_COOKIE_NAME}={session_id}".encode()))
+    return Request(
+        {"type": "http", "method": method, "path": path,
+         "headers": headers, "query_string": b""}
+    )
 
 
-async def test_resolve_role_admin(db):
-    user = await User.create(email="role-admin@x.com", hashed_password="h", role="admin")
-    token = create_access_token({"sub": str(user.id)})
-    assert await _resolve_role(token) == "admin"
-
-
-async def test_resolve_role_from_api_key(db):
-    user = await User.create(email="role-key@x.com", hashed_password="h", role="user")
+async def _api_key_for(email: str, role: str) -> str:
+    user = await User.create(email=email, hashed_password="h", role=role)
     raw = generate_api_key()
     await UserAPIKey.create(
         user_id=user.id, name="n", key_hash=hash_api_key(raw), key_prefix=raw[:12]
     )
-    assert await _resolve_role(raw) == "user"
+    return raw
+
+
+async def test_resolve_role_from_api_key(db):
+    raw = await _api_key_for("role-key@x.com", "user")
+    assert await _resolve_role(_request("GET", "/x", api_key=raw)) == "user"
+
+
+async def test_resolve_role_admin(db):
+    raw = await _api_key_for("role-admin@x.com", "admin")
+    assert await _resolve_role(_request("GET", "/x", api_key=raw)) == "admin"
+
+
+async def test_resolve_role_from_session_cookie(db):
+    user = await User.create(email="role-session@x.com", hashed_password="h", role="user")
+    with patch("app.auth.dependencies.resolve_session", new=AsyncMock(return_value=str(user.id))):
+        role = await _resolve_role(_request("GET", "/x", session_id="sid-1"))
+    assert role == "user"
 
 
 async def test_resolve_role_invalid_returns_none(db):
-    assert await _resolve_role("not-a-jwt") is None
-    assert await _resolve_role("tcg_bogus") is None
+    assert await _resolve_role(_request("GET", "/x")) is None
+    assert await _resolve_role(_request("GET", "/x", api_key="tcg_bogus")) is None
 
 
 async def test_resolve_role_inactive_user_returns_none(db):
-    user = await User.create(
-        email="role-inactive@x.com", hashed_password="h", role="user", is_active=False
-    )
-    token = create_access_token({"sub": str(user.id)})
-    assert await _resolve_role(token) is None
+    raw = await _api_key_for("role-inactive-user@x.com", "user")
+    await User.filter(email="role-inactive-user@x.com").update(is_active=False)
+    assert await _resolve_role(_request("GET", "/x", api_key=raw)) is None
 
 
 async def test_resolve_role_unusable_api_key_returns_none(db):
@@ -120,69 +138,43 @@ async def test_resolve_role_unusable_api_key_returns_none(db):
         key_prefix=raw[:12],
         revoked_at=now(),
     )
-    assert await _resolve_role(raw) is None
-
-
-def _request(method: str, path: str) -> Request:
-    return Request(
-        {"type": "http", "method": method, "path": path,
-         "headers": [], "query_string": b""}
-    )
-
-
-def _creds(token: str) -> HTTPAuthorizationCredentials:
-    return HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
-
-
-async def _token_for(email: str, role: str) -> str:
-    user = await User.create(email=email, hashed_password="h", role=role)
-    return create_access_token({"sub": str(user.id)})
+    assert await _resolve_role(_request("GET", "/x", api_key=raw)) is None
 
 
 async def test_basic_user_blocked_on_restricted_page(db):
-    token = await _token_for("b1@x.com", "user")
+    raw = await _api_key_for("b1@x.com", "user")
     with pytest.raises(HTTPException) as e:
-        await enforce_role_allowlist(
-            _request("GET", "/api/v1/connection-logs"), _creds(token)
-        )
+        await enforce_role_allowlist(_request("GET", "/api/v1/connection-logs", api_key=raw))
     assert e.value.status_code == 403
 
 
 async def test_basic_user_allowed_on_chat(db):
-    token = await _token_for("b2@x.com", "user")
+    raw = await _api_key_for("b2@x.com", "user")
     # No raise == allowed.
-    assert await enforce_role_allowlist(
-        _request("POST", "/api/v1/chat"), _creds(token)
-    ) is None
+    assert await enforce_role_allowlist(_request("POST", "/api/v1/chat", api_key=raw)) is None
 
 
 async def test_basic_user_denied_on_dashboard_stats(db):
     """Dashboards moved to the staff allowlist; a plain user no longer reaches them."""
-    token = await _token_for("b4@x.com", "user")
+    raw = await _api_key_for("b4@x.com", "user")
     with pytest.raises(HTTPException) as e:
-        await enforce_role_allowlist(
-            _request("GET", "/api/v1/dashboard/stats"), _creds(token)
-        )
+        await enforce_role_allowlist(_request("GET", "/api/v1/dashboard/stats", api_key=raw))
     assert e.value.status_code == 403
 
 
 async def test_basic_user_blocked_on_regenerate(db):
-    token = await _token_for("b5@x.com", "user")
+    raw = await _api_key_for("b5@x.com", "user")
     with pytest.raises(HTTPException) as e:
         await enforce_role_allowlist(
-            _request("POST", "/api/v1/executive-summary/regenerate"), _creds(token)
+            _request("POST", "/api/v1/executive-summary/regenerate", api_key=raw)
         )
     assert e.value.status_code == 403
 
 
 async def test_admin_unaffected(db):
-    token = await _token_for("b3@x.com", "admin")
-    assert await enforce_role_allowlist(
-        _request("GET", "/api/v1/dashboard/stats"), _creds(token)
-    ) is None
+    raw = await _api_key_for("b3@x.com", "admin")
+    assert await enforce_role_allowlist(_request("GET", "/api/v1/dashboard/stats", api_key=raw)) is None
 
 
 async def test_anonymous_unaffected(db):
-    assert await enforce_role_allowlist(
-        _request("GET", "/api/v1/dashboard/stats"), None
-    ) is None
+    assert await enforce_role_allowlist(_request("GET", "/api/v1/dashboard/stats")) is None

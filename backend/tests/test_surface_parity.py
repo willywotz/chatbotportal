@@ -9,13 +9,12 @@ nobody remembered is still covered.
 """
 from fastapi import HTTPException
 from fastapi.routing import APIRoute
-from fastapi.security import HTTPAuthorizationCredentials
 from starlette.requests import Request
 
 from app.auth.dependencies import enforce_role_allowlist
-from app.auth.security import create_access_token
+from app.auth.security import generate_api_key, hash_api_key
 from app.main import app
-from app.models.user import User
+from app.models.user import User, UserAPIKey
 
 # Path params are substituted with this so concrete paths hit the same regexes
 # the chokepoint uses at runtime.
@@ -36,25 +35,30 @@ def _concrete_paths() -> list[tuple[str, str]]:
     return sorted(set(pairs))
 
 
-def _make_request(method: str, path: str) -> Request:
-    return Request({"type": "http", "method": method, "path": path, "headers": []})
+def _make_request(method: str, path: str, *, api_key: str | None = None) -> Request:
+    headers = [(b"authorization", f"Bearer {api_key}".encode())] if api_key else []
+    return Request({"type": "http", "method": method, "path": path, "headers": headers})
 
 
-async def _reachable_by(token: str | None) -> set[tuple[str, str]]:
-    """The (method, path) set a caller with this token passes the chokepoint for."""
-    creds = (
-        HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
-        if token is not None
-        else None
-    )
+async def _reachable_by(api_key: str | None) -> set[tuple[str, str]]:
+    """The (method, path) set a caller with this API key passes the chokepoint for."""
     reachable = set()
     for method, path in _concrete_paths():
         try:
-            await enforce_role_allowlist(_make_request(method, path), credentials=creds)
+            await enforce_role_allowlist(_make_request(method, path, api_key=api_key))
         except HTTPException:
             continue
         reachable.add((method, path))
     return reachable
+
+
+async def _api_key_for(email: str, role: str) -> str:
+    user = await User.create(email=email, hashed_password="h", role=role)
+    raw = generate_api_key()
+    await UserAPIKey.create(
+        user_id=user.id, name="n", key_hash=hash_api_key(raw), key_prefix=raw[:12]
+    )
+    return raw
 
 
 async def test_anonymous_surface_is_unchanged(db):
@@ -66,9 +70,8 @@ async def test_anonymous_surface_is_unchanged(db):
 
 
 async def test_user_surface_is_exactly_this(db):
-    user = await User.create(email="parity-user@x.com", hashed_password="h", role="user")
-    token = create_access_token({"sub": str(user.id)})
-    reachable = await _reachable_by(token)
+    raw = await _api_key_for("parity-user@x.com", "user")
+    reachable = await _reachable_by(raw)
 
     expected_prefixes_and_exact = {
         ("GET", "/api/v1/agencies"),
@@ -122,9 +125,8 @@ async def test_user_surface_is_exactly_this(db):
 
 
 async def test_admin_reaches_the_whole_route_table(db):
-    admin = await User.create(email="parity-admin@x.com", hashed_password="h", role="admin")
-    token = create_access_token({"sub": str(admin.id)})
-    reachable = await _reachable_by(token)
+    raw = await _api_key_for("parity-admin@x.com", "admin")
+    reachable = await _reachable_by(raw)
     assert reachable == set(_concrete_paths())
 
 
