@@ -19,6 +19,38 @@
 
 ---
 
+## Amendments (applied during execution)
+
+Two of the test snippets below could not produce a genuine TDD red state as
+originally written; both were corrected during implementation, and a new
+decision was added for the agent-proxy correlation tag. The committed code
+reflects these amendments (not the original snippets in Tasks 1 and 4).
+
+1. **Task 1 test** — `httpx.MockTransport` is a *sibling* of `AsyncHTTPTransport`,
+   which is the only class `HTTPXClientInstrumentor().instrument()` patches, so a
+   MockTransport-based test never observes injection. The test was rewritten to
+   run against a real loopback `http.server` (default `AsyncHTTPTransport`) and to
+   import `app.main` so it exercises the production wiring. Red proof: commenting
+   out the `instrument()` line flips it to fail.
+2. **Task 4 test** — the existing `req.Header = r.Header.Clone()` already forwards
+   an inbound `traceparent` byte-for-byte, so a trace-id-only assertion passes
+   before any change. The test now also asserts the upstream **span-id differs**
+   from the inbound span-id, proving a real child span was created (extract →
+   Start → inject) rather than raw pass-through.
+3. **Task 4b (new) — agent-proxy conversation_id source.** The body field carrying
+   the id varies per agency (`session_id` / `conv_id` / `conversation_id`) because
+   it follows each agency's `expected_payload` template (which maps the
+   `__conversation_id__` placeholder; the MCP server substitutes only a returned
+   copy, so the DB template retains the placeholder). agent-proxy now loads
+   `expected_payload` from the DB, finds the key mapped to `__conversation_id__`,
+   and reads that field from the request body — replacing the hardcoded
+   `conversation_id` field. Behavioral test via a Go `tracetest.SpanRecorder`.
+   Known minor: the mapped value is stringified with `fmt.Sprint`; a JSON-null or
+   huge-number field would render oddly (unreachable for string-UUID ids) — a
+   future type-assert hardening, not blocking.
+
+---
+
 ### Task 1: Backend outbound httpx propagation
 
 **Files:**
