@@ -687,3 +687,30 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   `data.confidence` removed). Spec:
   `docs/superpowers/specs/2026-07-27-unified-chat-endpoint-design.md`; plan:
   `docs/superpowers/plans/2026-07-27-unified-chat-endpoint.md`.
+- **Cookie session auth (Phase A) — JWT removed.** Browser auth is now an opaque
+  server-side session, not a JWT. `POST /auth/login` verifies the password, creates a
+  Redis session (`app/services/auth_session.py`: `session:<id> → user_id`, TTL
+  `SESSION_TTL_MINUTES`, in-process fallback when `REDIS_URL` is empty) and sets an
+  `HttpOnly; Secure; SameSite=Lax` cookie (`settings.SESSION_COOKIE_NAME`); it returns
+  `{user}` with **no token**. `POST /auth/logout` deletes the session + clears the cookie
+  (revocation is inherent — no blocklist). Auth resolution (`app/auth/dependencies.py`)
+  is unified across both chokepoints (`get_current_user*` and the global
+  `enforce_role_allowlist`/`_resolve_role`) with ONE precedence rule: **an
+  `Authorization: Bearer` header decides (API-key only; 401 on failure, no cookie
+  fallback); the session cookie is used only when no header is present.** This closes an
+  allowlist-bypass (bogus bearer + valid cookie). Optional-auth asymmetry kept: bad API
+  key → 401, missing/expired session → anonymous. **JWT is gone** (`create_access_token`/
+  `decode_access_token`, `JWT_*` settings, `assert_production_secrets` removed);
+  machine clients use API-keys (`tcg_`). A `SessionRefreshMiddleware`
+  (`app/middleware/session_refresh.py`) re-rotates a session when its remaining TTL drops
+  below `SESSION_REFRESH_BELOW_MINUTES` (sliding window; new id + fresh cookie, old id
+  deleted). `/responses` + `/conversations` now **require** auth (`get_current_user`); the
+  auto-ephemeral-user flow (`owner_or_ephemeral` + `X-Portal-Session`) is removed. CORS
+  gained `allow_credentials=True` with explicit (non-wildcard) origins; a new
+  `assert_production_config` rejects wildcard CORS in production. Frontend is **header-
+  free**: axios `withCredentials`, no `Authorization`, `tokenStorage` deleted; session is
+  restored on mount via `GET /auth/me` and ended via `POST /auth/logout`; the two raw
+  `fetch` sites (SSE, logo upload) send `credentials: 'include'`. **Phase C** (anonymous
+  `/chat` session) and **Phase D** (WS reads the cookie + WS-default chat) follow. Spec:
+  `docs/superpowers/specs/2026-07-27-cookie-session-auth-phaseA-design.md`; plan:
+  `docs/superpowers/plans/2026-07-27-cookie-session-auth-phaseA.md`.
