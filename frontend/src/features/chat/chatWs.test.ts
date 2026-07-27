@@ -70,7 +70,7 @@ describe('sendChatQueryWS', () => {
     await expect(promise).resolves.toBe(false);
   });
 
-  it('resolves true (no fallback) and calls onError when the socket closes after frames but before done', async () => {
+  it('resolves true without calling onError when the socket closes after frames but before done', async () => {
     const onError = vi.fn();
     const onStep = vi.fn();
     const promise = sendChatQueryWS({ query: 'hi' }, { onStep, onError });

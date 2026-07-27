@@ -147,9 +147,9 @@ async def _resolve_api_key(token: str) -> User | None:
     return user
 
 
-# Kept for the two WS callers (app/routers/responses.py::_ws_user,
-# app/services/chat/ws.py::bearer_user) that resolve a header token directly;
-# browsers can't set WS headers, so those paths stay bearer/API-key-only.
+# Both WS handlers now go through resolve_ws_user (app/auth/ws.py) instead.
+# Kept only for compatibility with tests/auth/test_session_cookie_auth.py and
+# tests/test_api_key_rest_auth.py, which reference this alias directly.
 _resolve_token = _resolve_api_key
 
 
