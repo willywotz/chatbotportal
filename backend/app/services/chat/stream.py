@@ -31,6 +31,7 @@ from app.services.log_sanitize import sanitize_body
 from app.services.onechat import OneChatError, get_client, resolve_version
 from app.services.session import ensure_session_warmed
 from app.services.similarity import find_similar_question
+from app.trace_util import with_trace_query
 from app.utils import generate_uuid
 
 logger = logging.getLogger(__name__)
@@ -150,25 +151,29 @@ async def _stream_live(
     pipeline_events: list[tuple[str, dict]] = []
 
     try:
-        async for event_name, event_data in get_client(version).events(
-            plan.query, settings.MCP_ENDPOINT_URL, plan.conversation_id
-        ):
-            if log_latency_ms == 0:
-                log_latency_ms = int((time.perf_counter_ns() - start_ns) // 1_000_000)
-            if event_name == "answer":
-                answer_data = event_data
-            elif event_name == "done":
-                session_id = event_data.get("session_id")
-                total_ms = event_data.get("total_ms")
-                thread_name = event_data.get("thread_name")
-                done_event_data = event_data
-            elif event_name in ("step", "agency_start", "agency_responded", "agency_verified"):
-                pipeline_events.append((event_name, event_data))
-            with tracer.start_as_current_span("event") as event_span:
-                event_span.set_attribute("stream_event", event_name)
-                event_span.set_attribute("event_data", json.dumps(event_data)[:500])
-            if event_name != "done":
-                yield ChatEvent(event_name, event_data)
+        with tracer.start_as_current_span("onechat_call") as call_span:
+            call_span.set_attribute("conversation_id", plan.conversation_id)
+            call_span.set_attribute("chat_stream_version", version)
+            mcp_url = with_trace_query(settings.MCP_ENDPOINT_URL)
+            async for event_name, event_data in get_client(version).events(
+                plan.query, mcp_url, plan.conversation_id
+            ):
+                if log_latency_ms == 0:
+                    log_latency_ms = int((time.perf_counter_ns() - start_ns) // 1_000_000)
+                if event_name == "answer":
+                    answer_data = event_data
+                elif event_name == "done":
+                    session_id = event_data.get("session_id")
+                    total_ms = event_data.get("total_ms")
+                    thread_name = event_data.get("thread_name")
+                    done_event_data = event_data
+                elif event_name in ("step", "agency_start", "agency_responded", "agency_verified"):
+                    pipeline_events.append((event_name, event_data))
+                with tracer.start_as_current_span("event") as event_span:
+                    event_span.set_attribute("stream_event", event_name)
+                    event_span.set_attribute("event_data", json.dumps(event_data)[:500])
+                if event_name != "done":
+                    yield ChatEvent(event_name, event_data)
     except OneChatError as e:
         msg = (
             f"OneChat {version} connection timed out"

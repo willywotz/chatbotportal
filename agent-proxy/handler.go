@@ -15,8 +15,10 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -57,8 +59,21 @@ func truncate(s string) string {
 }
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ctx, span := h.tracer.Start(r.Context(), "Handle HTTP Request")
+	ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+	// OneChat sometimes drops headers but preserves URL query strings; fall
+	// back to traceparent/tracestate query params so the trace still continues.
+	if !trace.SpanContextFromContext(ctx).IsValid() {
+		if tp := r.URL.Query().Get("traceparent"); tp != "" {
+			carrier := propagation.MapCarrier{"traceparent": tp}
+			if ts := r.URL.Query().Get("tracestate"); ts != "" {
+				carrier["tracestate"] = ts
+			}
+			ctx = otel.GetTextMapPropagator().Extract(r.Context(), carrier)
+		}
+	}
+	ctx, span := h.tracer.Start(ctx, "Handle HTTP Request")
 	defer span.End()
+	span.SetAttributes(attribute.String("proxy.incoming_query", r.URL.RawQuery))
 
 	m := pathRegexp.FindStringSubmatch(r.URL.Path)
 	if len(m) < 2 {
@@ -123,6 +138,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for _, k := range toDelete {
 		req.Header.Del(k)
 	}
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header))
 	for k, v := range req.Header {
 		span.SetAttributes(attribute.String("proxy.request_header."+k, strings.Join(v, ",")))
 	}
@@ -163,6 +179,20 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Query string `json:"query"`
 	}
 	_ = json.Unmarshal(body.Bytes(), &raw)
+
+	var payload map[string]any
+	_ = json.Unmarshal(body.Bytes(), &payload)
+	for key, placeholder := range a.expectedPayload {
+		if placeholder != "__conversation_id__" {
+			continue
+		}
+		if v, ok := payload[key]; ok {
+			if id := fmt.Sprint(v); id != "" {
+				span.SetAttributes(attribute.String("conversation_id", id))
+			}
+		}
+		break
+	}
 	detail := fmt.Sprintf("Query: %s\n\nAnswer: %s", raw.Query, truncate(responseBody))
 
 	status := "success"
