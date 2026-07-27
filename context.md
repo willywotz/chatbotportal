@@ -714,3 +714,25 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   `/chat` session) and **Phase D** (WS reads the cookie + WS-default chat) follow. Spec:
   `docs/superpowers/specs/2026-07-27-cookie-session-auth-phaseA-design.md`; plan:
   `docs/superpowers/plans/2026-07-27-cookie-session-auth-phaseA.md`.
+- **Anonymous sessions + WS-default chat (Phase C+D).** Anonymous public-portal visitors
+  get a persistent session: `POST /auth/anon` (`app/routers/auth.py`, idempotent) mints an
+  `is_ephemeral` user + session cookie on first chat (created only when they chat, not per
+  page-load). The frontend calls it via `useAuth().ensureSession()` before the first turn
+  (no-op if already authenticated/anon). Anon works for `/chat` + own history but the
+  OpenAI-compat surfaces reject it: `get_current_user_non_ephemeral` (401 on `is_ephemeral`)
+  gates every `/responses` + `/conversations` HTTP endpoint, and the `/responses` WS closes
+  anon/None callers. `verify_password` now returns `False` on an unusable hash (anon's `"!"`)
+  instead of raising; `change-password` + `PATCH /me` require non-ephemeral. **WS cookie
+  auth:** both `/chat` and `/responses` WebSockets resolve the caller via `app/auth/ws.py`
+  `resolve_ws_user` (header API-key decides, else session cookie — same precedence as HTTP)
+  behind `ws_origin_allowed` (CSWSH defense: the handshake `Origin` must be in
+  `CORS_ORIGINS`, checked before accept; close 1008 otherwise). `/chat` WS allows anon
+  sessions; `/responses` WS requires non-anon. **Frontend WS-default:**
+  `useChatStream.startStream` tries `sendChatQueryWS` (`chatApi.ts`) first, falling back to
+  SSE then JSON. Fallback is safe against double-running a turn — WS falls back to SSE ONLY
+  if the socket closed before its first frame; a mid-stream death resolves `true` and
+  `finalizeStreaming` renders the partial answer / a connection-lost bubble. `AuthUser`
+  gained `isEphemeral`; `LoginPage` no longer redirects an anon user away from `/login`.
+  Anon-user pruning is a documented follow-up. Spec:
+  `docs/superpowers/specs/2026-07-27-chat-ws-default-phaseCD-design.md`; plan:
+  `docs/superpowers/plans/2026-07-27-chat-ws-default-phaseCD.md`.
