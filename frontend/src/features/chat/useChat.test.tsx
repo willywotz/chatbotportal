@@ -27,10 +27,11 @@ vi.mock('@/shared/data/mockData', () => ({
 }));
 
 import { updateMessageRating } from '@/features/chat/feedbackApi';
-import { sendChatQuerySSE } from '@/features/chat/chatApi';
+import { sendChatQuery, sendChatQuerySSE } from '@/features/chat/chatApi';
 
 const mockUpdateRating = updateMessageRating as ReturnType<typeof vi.fn>;
 const mockSendSSE = sendChatQuerySSE as ReturnType<typeof vi.fn>;
+const mockSendChatQuery = sendChatQuery as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -111,6 +112,39 @@ describe('unmount cleanup', () => {
 
     expect(abortSpy).toHaveBeenCalled();
     abortSpy.mockRestore();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 8 — sync (non-SSE) branch tolerates the unified chat envelope
+// ---------------------------------------------------------------------------
+
+describe('sync fallback response mapping (unified envelope)', () => {
+  it('falls back to summary and agency_name when answer/agency/title are absent', async () => {
+    mockSendChatQuery.mockResolvedValue({
+      success: true,
+      data: {
+        message_id: 'msg-1',
+        cached: false,
+        agentSteps: [],
+        summary: 'summarized answer',
+        references: [{ agency_name: 'Revenue Department', url: 'https://rd.go.th' }],
+      },
+      conversation_id: 'conv-1',
+      responseTime: 10,
+    });
+
+    const { result } = renderHook(() => useChat());
+
+    await act(async () => {
+      await result.current.handleSend('a question');
+    });
+
+    const aiMsg = result.current.messages.find((m) => m.role === 'assistant');
+    expect(aiMsg?.content).toBe('summarized answer');
+    expect(aiMsg?.sources).toEqual([
+      { agency: 'Revenue Department', url: 'https://rd.go.th', title: 'Revenue Department' },
+    ]);
   });
 });
 

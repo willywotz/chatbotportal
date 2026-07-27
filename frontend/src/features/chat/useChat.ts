@@ -107,13 +107,13 @@ export function useChat() {
         const aiMsg: ChatMessage = {
           id: aiMsgId,
           role: 'assistant',
-          content: response.data.answer,
+          content: response.data.answer ?? response.data.summary ?? '',
           timestamp: formatTimestamp(),
           agentSteps: response.data.agentSteps as AgentStep[],
-          sources: response.data.references.map((ref) => ({
-            agency: ref.agency,
-            url: ref.url,
-            title: ref.title,
+          sources: (response.data.references ?? []).map((ref) => ({
+            agency: ref.agency ?? ref.agency_name ?? '',
+            url: ref.url ?? '',
+            title: ref.title ?? ref.agency_name ?? '',
           })),
           rating: null,
         };
