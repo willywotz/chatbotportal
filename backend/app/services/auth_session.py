@@ -38,6 +38,11 @@ class _InProcessSessions:
     def delete(self, sid: str) -> None:
         self._store.pop(sid, None)
 
+    def expire(self, sid: str, *, ttl: int) -> None:
+        item = self._store.get(sid)
+        if item is not None:
+            self._store[sid] = (item[0], self._now() + ttl)
+
     def ttl(self, sid: str) -> int | None:
         item = self._store.get(sid)
         if item is None:
@@ -58,6 +63,9 @@ class _RedisSessions:
 
     async def delete(self, sid: str) -> None:
         await self._c.delete(_PREFIX + sid)
+
+    async def expire(self, sid: str, *, ttl: int) -> None:
+        await self._c.expire(_PREFIX + sid, ttl)
 
     async def ttl(self, sid: str) -> int | None:
         t = await self._c.ttl(_PREFIX + sid)  # -2 no key, -1 no expiry
@@ -114,6 +122,18 @@ async def delete_session(session_id: str) -> None:
         except (RedisError, OSError):
             pass
     _inprocess.delete(session_id)
+
+
+async def expire_session(session_id: str, ttl: int) -> None:
+    """Reset a session's TTL to ``ttl`` seconds (used for rotation grace)."""
+    backend = _redis_backend()
+    if backend is not None:
+        try:
+            await backend.expire(session_id, ttl=ttl)
+            return
+        except (RedisError, OSError):
+            pass
+    _inprocess.expire(session_id, ttl=ttl)
 
 
 async def remaining_ttl(session_id: str) -> int | None:

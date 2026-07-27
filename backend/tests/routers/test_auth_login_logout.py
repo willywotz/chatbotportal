@@ -36,5 +36,9 @@ async def test_logout_clears_cookie(db):
     client.post("/api/v1/auth/login", json={"email": "a@b.co", "password": "pw12345"})
     r = client.post("/api/v1/auth/logout")
     assert r.status_code == 200
-    # Deletion is a Set-Cookie with an expiry in the past / Max-Age=0.
-    assert settings.SESSION_COOKIE_NAME in r.headers.get("set-cookie", "")
+    # Deletion is a Set-Cookie with an expiry in the past / Max-Age=0, and it
+    # must carry matching attributes or strict browsers won't clear it.
+    set_cookie = r.headers.get("set-cookie", "")
+    assert settings.SESSION_COOKIE_NAME in set_cookie
+    assert "HttpOnly" in set_cookie and "SameSite=Lax" in set_cookie
+    assert "Secure" in set_cookie

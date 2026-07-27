@@ -7,7 +7,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.config import settings
 from app.services.auth_session import (
-    create_session, delete_session, remaining_ttl, resolve_session,
+    create_session, expire_session, remaining_ttl, resolve_session,
 )
 
 
@@ -24,7 +24,9 @@ class SessionRefreshMiddleware(BaseHTTPMiddleware):
         if not user_id:
             return response
         new_sid = await create_session(user_id)
-        await delete_session(sid)
+        # Grace instead of immediate delete: a sibling request already in
+        # flight for the old sid must not spuriously 401.
+        await expire_session(sid, settings.SESSION_ROTATE_GRACE_SECONDS)
         response.set_cookie(
             settings.SESSION_COOKIE_NAME, new_sid,
             httponly=True, secure=settings.AUTH_COOKIE_SECURE, samesite="Lax",

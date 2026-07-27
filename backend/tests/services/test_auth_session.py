@@ -1,7 +1,8 @@
 import pytest
 
 from app.services.auth_session import (
-    _InProcessSessions, create_session, delete_session, remaining_ttl, resolve_session,
+    _InProcessSessions, create_session, delete_session, expire_session,
+    remaining_ttl, resolve_session,
 )
 
 
@@ -17,6 +18,27 @@ def test_inprocess_set_get_delete_and_expiry():
     store.set("s2", "u2", ttl=100)
     store.delete("s2")
     assert store.get("s2") is None
+
+
+def test_inprocess_expire_shortens_ttl_and_then_expires():
+    clock = {"t": 1000.0}
+    store = _InProcessSessions(now_fn=lambda: clock["t"])
+    store.set("s1", "u1", ttl=1000)
+    store.expire("s1", ttl=5)
+    assert 0 < store.ttl("s1") <= 5
+    assert store.get("s1") == "u1"
+    clock["t"] += 6              # advance past the shortened grace ttl
+    assert store.get("s1") is None
+    assert store.ttl("s1") is None
+
+
+@pytest.mark.asyncio
+async def test_expire_session_shortens_ttl_on_inprocess_backend():
+    sid = await create_session("user-123")
+    await expire_session(sid, 5)
+    ttl = await remaining_ttl(sid)
+    assert ttl is not None and ttl <= 5
+    assert await resolve_session(sid) == "user-123"
 
 
 @pytest.mark.asyncio

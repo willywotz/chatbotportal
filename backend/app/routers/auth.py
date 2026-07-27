@@ -89,7 +89,10 @@ async def logout(request: Request, response: Response) -> dict:
     sid = request.cookies.get(settings.SESSION_COOKIE_NAME)
     if sid:
         await delete_session(sid)
-    response.delete_cookie(settings.SESSION_COOKIE_NAME, path="/")
+    response.delete_cookie(
+        settings.SESSION_COOKIE_NAME, path="/",
+        httponly=True, secure=settings.AUTH_COOKIE_SECURE, samesite="Lax",
+    )
     return {"ok": True}
 
 
