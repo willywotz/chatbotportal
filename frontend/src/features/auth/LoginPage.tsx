@@ -28,11 +28,11 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await api.post<{ access_token: string; user: AuthUser }>("/api/v1/auth/login", {
+      const res = await api.post<{ user: AuthUser }>("/api/v1/auth/login", {
         email,
         password,
       });
-      setAuth(res.access_token, res.user);
+      setAuth(res.user);
       toast.success("เข้าสู่ระบบสำเร็จ");
       navigate("/chat", { replace: true });
     } catch (err: unknown) {
