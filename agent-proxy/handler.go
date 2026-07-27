@@ -15,8 +15,10 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -57,7 +59,8 @@ func truncate(s string) string {
 }
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ctx, span := h.tracer.Start(r.Context(), "Handle HTTP Request")
+	ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+	ctx, span := h.tracer.Start(ctx, "Handle HTTP Request")
 	defer span.End()
 
 	m := pathRegexp.FindStringSubmatch(r.URL.Path)
@@ -123,6 +126,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for _, k := range toDelete {
 		req.Header.Del(k)
 	}
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header))
 	for k, v := range req.Header {
 		span.SetAttributes(attribute.String("proxy.request_header."+k, strings.Join(v, ",")))
 	}
@@ -160,9 +164,13 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	span.SetAttributes(attribute.String("proxy.response_body", responseBody))
 
 	var raw struct {
-		Query string `json:"query"`
+		Query          string `json:"query"`
+		ConversationID string `json:"conversation_id"`
 	}
 	_ = json.Unmarshal(body.Bytes(), &raw)
+	if raw.ConversationID != "" {
+		span.SetAttributes(attribute.String("conversation_id", raw.ConversationID))
+	}
 	detail := fmt.Sprintf("Query: %s\n\nAnswer: %s", raw.Query, truncate(responseBody))
 
 	status := "success"
