@@ -60,6 +60,17 @@ func truncate(s string) string {
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+	// OneChat sometimes drops headers but preserves URL query strings; fall
+	// back to traceparent/tracestate query params so the trace still continues.
+	if !trace.SpanContextFromContext(ctx).IsValid() {
+		if tp := r.URL.Query().Get("traceparent"); tp != "" {
+			carrier := propagation.MapCarrier{"traceparent": tp}
+			if ts := r.URL.Query().Get("tracestate"); ts != "" {
+				carrier["tracestate"] = ts
+			}
+			ctx = otel.GetTextMapPropagator().Extract(r.Context(), carrier)
+		}
+	}
 	ctx, span := h.tracer.Start(ctx, "Handle HTTP Request")
 	defer span.End()
 	span.SetAttributes(attribute.String("proxy.incoming_query", r.URL.RawQuery))

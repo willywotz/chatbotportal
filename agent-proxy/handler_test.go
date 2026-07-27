@@ -136,6 +136,91 @@ func TestServeHTTP_PropagatesTraceContext(t *testing.T) {
 	}
 }
 
+func TestServeHTTP_ExtractsTraceparentFromQuery(t *testing.T) {
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+	tp := sdktrace.NewTracerProvider()
+	defer func() { _ = tp.Shutdown(context.Background()) }()
+
+	const id = "11111111-1111-4111-8111-111111111111"
+	const traceID = "0af7651916cd43dd8448eb211c80319c"
+	const inboundSpanID = "b7ad6b7169203331"
+
+	var gotTP string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotTP = r.Header.Get("traceparent")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	h := &handler{
+		tracer: tp.Tracer("test"),
+		load: func(_ context.Context, _ string) (agency, error) {
+			return agency{endpointURL: upstream.URL}, nil
+		},
+	}
+
+	url := "/agent-proxy/" + id + "?traceparent=00-" + traceID + "-" + inboundSpanID + "-01"
+	req := httptest.NewRequest(http.MethodPost, url, strings.NewReader(`{"query":"q"}`))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if gotTP == "" {
+		t.Fatalf("no traceparent forwarded to upstream request")
+	}
+	parts := strings.Split(gotTP, "-")
+	if len(parts) != 4 {
+		t.Fatalf("malformed upstream traceparent: %q", gotTP)
+	}
+	if parts[1] != traceID {
+		t.Errorf("upstream trace id: want %s, got %s (query context not continued)", traceID, parts[1])
+	}
+	if parts[2] == inboundSpanID {
+		t.Errorf("upstream span id still equals inbound %s: agent-proxy did not create+inject a child span (raw pass-through)", inboundSpanID)
+	}
+}
+
+func TestServeHTTP_HeaderTraceparentTakesPrecedenceOverQuery(t *testing.T) {
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+	tp := sdktrace.NewTracerProvider()
+	defer func() { _ = tp.Shutdown(context.Background()) }()
+
+	const id = "11111111-1111-4111-8111-111111111111"
+	const headerTraceID = "0af7651916cd43dd8448eb211c80319c"
+	const queryTraceID = "1bf7651916cd43dd8448eb211c803199"
+	const inboundSpanID = "b7ad6b7169203331"
+
+	var gotTP string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotTP = r.Header.Get("traceparent")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	h := &handler{
+		tracer: tp.Tracer("test"),
+		load: func(_ context.Context, _ string) (agency, error) {
+			return agency{endpointURL: upstream.URL}, nil
+		},
+	}
+
+	url := "/agent-proxy/" + id + "?traceparent=00-" + queryTraceID + "-" + inboundSpanID + "-01"
+	req := httptest.NewRequest(http.MethodPost, url, strings.NewReader(`{"query":"q"}`))
+	req.Header.Set("traceparent", "00-"+headerTraceID+"-"+inboundSpanID+"-01")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if gotTP == "" {
+		t.Fatalf("no traceparent forwarded to upstream request")
+	}
+	parts := strings.Split(gotTP, "-")
+	if len(parts) != 4 {
+		t.Fatalf("malformed upstream traceparent: %q", gotTP)
+	}
+	if parts[1] != headerTraceID {
+		t.Errorf("upstream trace id: want header trace id %s (precedence), got %s", headerTraceID, parts[1])
+	}
+}
+
 func TestServeHTTP_TagsConversationIDFromExpectedPayload(t *testing.T) {
 	sr := tracetest.NewSpanRecorder()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))
