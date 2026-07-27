@@ -44,8 +44,10 @@ Two separate channels:
   - `create_session(user_id) -> session_id` — generate a UUID, `SET … EX ttl`.
   - `resolve_session(session_id) -> user_id | None` — `GET`; None if missing/expired.
   - `delete_session(session_id) -> None` — `DEL` (logout).
-  - `rotate_session(...)` — on login, always mint a **new** id (session-fixation
-    safety); the caller sets the new cookie.
+  - `create_session` is always used on login (never reuse an id) for
+    session-fixation safety; the caller sets the new cookie.
+  - `remaining_ttl(session_id) -> int | None` — Redis `TTL` in seconds (for the
+    sliding-refresh check in §4.5).
 - **`REDIS_URL` empty (single-worker dev):** `rate_limit.py` already degrades to
   an in-process fallback when Redis is absent. `auth_session` mirrors this with an
   in-process dict store so local dev without Redis still works. (Documented as
@@ -99,18 +101,44 @@ resolve_caller(request) -> User | None:
   machine path; a logged-in browser session also satisfies it.)
 - Remove any now-dead ephemeral-user helpers/imports.
 
-### 4.5 CORS — `app/main.py`
+### 4.5 Sliding session refresh (re-rotate near expiry)
+
+A session should not expire out from under an actively-used browser. On any
+request authenticated **via the session cookie** (not API-key), if the session's
+remaining TTL is below the refresh threshold, **re-rotate** it:
+
+1. `new_id = create_session(user_id)` (full TTL),
+2. `delete_session(old_id)`,
+3. `response.set_cookie(SESSION_COOKIE_NAME, new_id, …, max_age=SESSION_TTL_MINUTES*60)`.
+
+- **Placement:** a single `SessionRefreshMiddleware` (Starlette HTTP middleware)
+  so the logic lives in one place rather than being duplicated across the two
+  auth chokepoints. It runs only when a session cookie is present; API-key
+  requests and anonymous requests are untouched. The backend only serves `/api`
+  (nginx serves the SPA), so the middleware never sees static assets.
+- **Trigger:** `remaining_ttl < SESSION_REFRESH_BELOW_MINUTES*60`. Default is
+  half the full TTL, so any activity in the back half of the window renews to
+  full; a session idle past the full TTL still expires.
+- **Concurrency:** two in-flight requests near the threshold may both rotate,
+  orphaning one extra session that simply lives out its own TTL — benign and
+  self-healing; no locking needed.
+- **Transports:** covers HTTP (JSON + SSE — the `Set-Cookie` header is written
+  before the SSE body streams). WebSocket refresh is Phase D.
+
+### 4.6 CORS — `app/main.py`
 Add `allow_credentials=True`; replace the wildcard `CORS_ORIGINS=["*"]` default
 with an explicit origin list (`settings.CORS_ORIGINS`, defaulted to the
 frontend origin). Wildcard + credentials is illegal; explicit origin is required
 before credentialed requests work. Same-origin traffic is unaffected.
 
-### 4.6 Settings — `app/config.py`
+### 4.7 Settings — `app/config.py`
 - Add `SESSION_COOKIE_NAME: str = "session_id"`.
 - Add `AUTH_COOKIE_SECURE: bool = True` (set `False` only for pure-local
   plain-HTTP dev; tunnel/prod are HTTPS at the browser).
 - Add `SESSION_TTL_MINUTES: int = 60*24*7` (7 days; carries the old
   `JWT_EXPIRE_MINUTES` value).
+- Add `SESSION_REFRESH_BELOW_MINUTES: int = 60*24*3` (≈ half the TTL; the
+  sliding-refresh trigger in §4.5).
 - Remove `JWT_SECRET`, `JWT_ALGORITHM`, `JWT_EXPIRE_MINUTES` and the JWT
   production-secret assertion once JWT is deleted.
 
@@ -136,7 +164,9 @@ before credentialed requests work. Same-origin traffic is unaffected.
 - **CSRF:** covered by `SameSite=Lax` on a same-origin deployment (§2). If a future
   deployment splits the SPA and API across sites, a CSRF token becomes required —
   documented as the one thing that would change.
-- **Session fixation:** login always mints a fresh `session_id` (§3, `rotate`).
+- **Session fixation:** login always mints a fresh `session_id` (§3), and the
+  sliding refresh (§4.5) rotates the id periodically over a long-lived session —
+  a compromised id has a bounded useful life.
 - **`Secure` flag:** on by default so the cookie never traverses plain HTTP in
   prod; `AUTH_COOKIE_SECURE=False` is the explicit dev-only escape hatch.
 - **Cookie is opaque:** no user data in the cookie; server-side lookup only.
@@ -161,6 +191,9 @@ before credentialed requests work. Same-origin traffic is unaffected.
   session → anonymous.
 - `enforce_role_allowlist` honors the session cookie (role gating via cookie).
 - Logout deletes the session (subsequent cookie → anonymous) and clears the cookie.
+- **Sliding refresh:** a cookie request with remaining TTL below the threshold
+  re-rotates (new id set via `Set-Cookie`, old id deleted, fresh TTL); a request
+  with ample TTL does **not** rotate; an API-key request never rotates.
 - `/responses` + `/conversations` return 401 when anonymous; succeed with an API
   key; no ephemeral user is created.
 - CORS: credentialed response headers; wildcard origin rejected with credentials.
