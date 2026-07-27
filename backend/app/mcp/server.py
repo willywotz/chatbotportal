@@ -27,6 +27,7 @@ from app.auth.security import hash_api_key
 from app.config import settings
 from app.models.agency import Agency
 from app.models.user import User, UserAPIKey
+from app.trace_util import with_trace_query
 from app.utils import generate_uuid, now
 
 mcp = FastMCP(
@@ -95,11 +96,13 @@ def _external_scheme(request) -> str:
 
 def _agent_proxy_endpoint(request, agency_id: str) -> str:
     """Build the agent-proxy URL OneChat calls back, optionally tagged with
-    TRACE_URL_PROBE to check whether OneChat preserves query strings."""
+    TRACE_URL_PROBE to check whether OneChat preserves query strings, and
+    always tagged with the active W3C trace context so it survives OneChat's
+    header-dropping callback."""
     url = f"{_external_scheme(request)}://{request.headers.get('X-Forwarded-Host')}/agent-proxy/{agency_id}"
     if settings.TRACE_URL_PROBE:
-        url += f"?{settings.TRACE_URL_PROBE}"
-    return url
+        url += ("&" if "?" in url else "?") + settings.TRACE_URL_PROBE
+    return with_trace_query(url)
 
 @mcp.resource("agencies://list")
 async def list_agency_resource(ctx: Context = CurrentContext()) -> str:

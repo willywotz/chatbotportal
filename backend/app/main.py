@@ -39,6 +39,7 @@ from app.routers import responses
 from app.routers.seed import _run_seed_admin, _run_seed_agencies
 from app.services.popular_questions import seed_popular_questions
 from app.scheduler import start_scheduler, stop_scheduler
+from app.trace_util import QueryTraceparentASGI
 from app.utils import generate_uuid, now
 
 # ---------------------------------------------------------------------------
@@ -156,8 +157,10 @@ app.include_router(llm_router.router, prefix="/api/v1")
 # the mount without revisiting that intent — see backend/tests/test_mcp_role_access.py.
 # ---------------------------------------------------------------------------
 
-# MCP server — stateless streamable-HTTP sub-app
-app.mount("/mcp", OpenTelemetryMiddleware(mcp_app))
+# MCP server — stateless streamable-HTTP sub-app. QueryTraceparentASGI runs
+# first (promotes ?traceparent query param to a header when OneChat's callback
+# arrives with no header), then OpenTelemetryMiddleware extracts it.
+app.mount("/mcp", QueryTraceparentASGI(OpenTelemetryMiddleware(mcp_app)))
 
 # ---------------------------------------------------------------------------
 # Health check

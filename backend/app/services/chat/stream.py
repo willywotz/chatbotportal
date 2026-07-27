@@ -31,6 +31,7 @@ from app.services.log_sanitize import sanitize_body
 from app.services.onechat import OneChatError, get_client, resolve_version
 from app.services.session import ensure_session_warmed
 from app.services.similarity import find_similar_question
+from app.trace_util import with_trace_query
 from app.utils import generate_uuid
 
 logger = logging.getLogger(__name__)
@@ -153,8 +154,9 @@ async def _stream_live(
         with tracer.start_as_current_span("onechat_call") as call_span:
             call_span.set_attribute("conversation_id", plan.conversation_id)
             call_span.set_attribute("chat_stream_version", version)
+            mcp_url = with_trace_query(settings.MCP_ENDPOINT_URL)
             async for event_name, event_data in get_client(version).events(
-                plan.query, settings.MCP_ENDPOINT_URL, plan.conversation_id
+                plan.query, mcp_url, plan.conversation_id
             ):
                 if log_latency_ms == 0:
                     log_latency_ms = int((time.perf_counter_ns() - start_ns) // 1_000_000)
