@@ -69,6 +69,8 @@ services:
       redis:
         condition: service_healthy
         restart: true
+      jaeger:
+        condition: service_started
     networks:
       - chatbot-network
     healthcheck:
@@ -92,6 +94,8 @@ services:
       postgres:
         condition: service_healthy
         restart: true
+      jaeger:
+        condition: service_started
     networks:
       - chatbot-network
     healthcheck:

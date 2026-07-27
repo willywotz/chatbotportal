@@ -20,11 +20,14 @@ from fastmcp.dependencies import CurrentContext
 from fastmcp.server.context import Context
 from fastmcp.server.dependencies import get_http_request
 from fastmcp.server.middleware import Middleware, MiddlewareContext
+from opentelemetry import trace
 from starlette.datastructures import URLPath
 
 from app.auth.security import hash_api_key
+from app.config import settings
 from app.models.agency import Agency
 from app.models.user import User, UserAPIKey
+from app.trace_util import with_trace_query
 from app.utils import generate_uuid, now
 
 mcp = FastMCP(
@@ -61,6 +64,8 @@ class AuthMiddleware(Middleware):
             conversation_id = str(generate_uuid())
             await ctx.fastmcp_context.set_state("conversation_id", conversation_id)
 
+        trace.get_current_span().set_attribute("conversation_id", conversation_id)
+
         return await call_next(ctx)
 
 mcp.add_middleware(AuthMiddleware())
@@ -88,6 +93,16 @@ def _external_scheme(request) -> str:
         if scheme:
             return scheme
     return request.headers.get("X-Forwarded-Proto") or request.url.scheme
+
+def _agent_proxy_endpoint(request, agency_id: str) -> str:
+    """Build the agent-proxy URL OneChat calls back, optionally tagged with
+    TRACE_URL_PROBE to check whether OneChat preserves query strings, and
+    always tagged with the active W3C trace context so it survives OneChat's
+    header-dropping callback."""
+    url = f"{_external_scheme(request)}://{request.headers.get('X-Forwarded-Host')}/agent-proxy/{agency_id}"
+    if settings.TRACE_URL_PROBE:
+        url += ("&" if "?" in url else "?") + settings.TRACE_URL_PROBE
+    return with_trace_query(url)
 
 @mcp.resource("agencies://list")
 async def list_agency_resource(ctx: Context = CurrentContext()) -> str:
@@ -122,7 +137,6 @@ async def _fetch_agencies(ctx: Context) -> dict:
     """
 
     request = get_http_request()
-    http_host = request.headers.get("X-Forwarded-Host")
 
     user_is_admin = await ctx.get_state("user_is_admin")
 
@@ -151,7 +165,7 @@ async def _fetch_agencies(ctx: Context) -> dict:
                 del agencies[index]["api_headers"][j]
 
         if agency["connection_type"] == "API":
-            agency["endpoint_url"] = f"{_external_scheme(request)}://{http_host}/agent-proxy/{agency['id']}"
+            agency["endpoint_url"] = _agent_proxy_endpoint(request, agency["id"])
 
         for k, v in agency["expected_payload"].items():
             if isinstance(v, str) and "__user_id__" in v:

@@ -3,6 +3,9 @@ services:
   backend:
     build:
       target: development
+    environment:
+      ONECHAT_BASE_URL: ${ONECHAT_BASE_URL:-}
+      TRACE_URL_PROBE: ${TRACE_URL_PROBE:-}
     develop:
       watch:
         - action: rebuild

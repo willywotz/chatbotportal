@@ -347,6 +347,38 @@ writes a `connection_logs` row with `action="proxy"`, and increments `agencies.t
 **only on a 2xx** upstream; a transport failure returns 502. Hand-rolled UUIDv7 ids, Asia/Bangkok
 tz. Exports spans to Jaeger. `GET /health`.
 
+## Tracing (cross-service, W3C)
+
+A chat round-trip (user → portal → OneChat → /mcp → OneChat → agent-proxy → back) shares **one
+trace id**, verified live in Jaeger. OneChat drops the `traceparent` header between hops but
+preserves URL query strings, so the context is smuggled through the URLs we hand it (see URL
+context below). `conversation_id` is also stamped on every service's spans as a correlation tag,
+so fragments still join even if the header/URL path ever breaks. Frontend is out of scope (root
+span = `POST /api/v1/chat/stream`).
+
+- **Backend outbound** — `HTTPXClientInstrumentor().instrument()` in `app/main.py` injects
+  `traceparent` on every outbound httpx call (OneChat, agency dispatch, LLM). `services/onechat/client.py`
+  stays tracing-free by design.
+- **OneChat call span** — `_stream_live` (`services/chat/stream.py`) wraps the event loop in an
+  `onechat_call` span tagged with `conversation_id`.
+- **MCP inbound** — the `/mcp` mount is wrapped in `OpenTelemetryMiddleware` (mounts are never
+  covered by `FastAPIInstrumentor`) so an inbound `traceparent` continues the trace;
+  `AuthMiddleware.on_request` tags the span with `conversation_id`. `excluded_urls` still lists `/mcp`
+  to avoid double-instrumenting.
+- **agent-proxy** — `initTracer` sets a composite `TraceContext`+`Baggage` propagator (default was
+  no-op); `ServeHTTP` extracts inbound context before `Start` and injects the child span into the
+  upstream request. `conversation_id` is resolved from the agency's `expected_payload` template
+  (the key mapped to `__conversation_id__`), since the body field name varies per agency.
+- **URL context smuggling** (`app/trace_util.py`) — the piece that unifies the trace across
+  OneChat. `with_trace_query()` appends the active W3C context as a `?traceparent=` query param to
+  the `mcp_endpoint_url` sent to OneChat (`stream.py`) and to the `/agent-proxy/{id}` callback URL
+  (`_agent_proxy_endpoint`). On receipt, `QueryTraceparentASGI` (wrapping the `/mcp` mount) promotes
+  the query param back to a header before OTel extracts, and agent-proxy's `ServeHTTP` extracts
+  `traceparent` from the query when no header is present. A real header always wins.
+- **Verify** — `docs/tracing-verification.md`: POST `/api/v1/chat/stream` with a known `traceparent`,
+  then `GET /jaeger/api/traces/<id>` — spans from **both** `backend` and `agent-proxy` under the one
+  id confirm unification (last run: 82 spans, both services).
+
 ## Frontend (`frontend/`, React SPA)
 
 React 18 + Vite 5 + TypeScript, **shadcn/ui** (Radix + Tailwind), **TanStack Query**, **axios**,

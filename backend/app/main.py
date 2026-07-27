@@ -39,6 +39,7 @@ from app.routers import responses
 from app.routers.seed import _run_seed_admin, _run_seed_agencies
 from app.services.popular_questions import seed_popular_questions
 from app.scheduler import start_scheduler, stop_scheduler
+from app.trace_util import QueryTraceparentASGI
 from app.utils import generate_uuid, now
 
 # ---------------------------------------------------------------------------
@@ -48,6 +49,8 @@ from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.asgi import OpenTelemetryMiddleware
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
@@ -59,6 +62,7 @@ tracerProvider = TracerProvider(resource=resource)
 processor = BatchSpanProcessor(OTLPSpanExporter(endpoint="jaeger:4317", insecure=True))
 tracerProvider.add_span_processor(processor)
 trace.set_tracer_provider(tracerProvider)
+HTTPXClientInstrumentor().instrument()
 
 # stateless_http: production runs uvicorn --workers 4 with no session affinity.
 # Stateful sessions live in one worker's memory, so a follow-up request routed
@@ -77,7 +81,7 @@ async def lifespan(app: FastAPI):
     await load_settings_from_db()
     await _run_seed_admin()
     await _run_seed_agencies()
-    await seed_popular_questions()
+    # await seed_popular_questions()
     await start_scheduler()
 
     async with mcp_app.lifespan(app):
@@ -153,8 +157,10 @@ app.include_router(llm_router.router, prefix="/api/v1")
 # the mount without revisiting that intent — see backend/tests/test_mcp_role_access.py.
 # ---------------------------------------------------------------------------
 
-# MCP server — stateless streamable-HTTP sub-app
-app.mount("/mcp", mcp_app)
+# MCP server — stateless streamable-HTTP sub-app. QueryTraceparentASGI runs
+# first (promotes ?traceparent query param to a header when OneChat's callback
+# arrives with no header), then OpenTelemetryMiddleware extracts it.
+app.mount("/mcp", QueryTraceparentASGI(OpenTelemetryMiddleware(mcp_app)))
 
 # ---------------------------------------------------------------------------
 # Health check
@@ -166,4 +172,10 @@ async def health_check():
     return "ok\n"
 
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-FastAPIInstrumentor.instrument_app(app, excluded_urls="/health,^/health$,/mcp,^/mcp$")
+
+FastAPIInstrumentor.instrument_app(
+    app,
+    excluded_urls="/health,^/health$,/mcp,^/mcp$",
+    http_capture_headers_server_request=[".*"],
+    http_capture_headers_server_response=[".*"],
+)
