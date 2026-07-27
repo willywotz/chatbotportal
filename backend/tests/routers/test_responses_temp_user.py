@@ -1,4 +1,4 @@
-"""Ephemeral temp-user identity + X-Portal-Session on POST /api/v1/responses."""
+"""POST /api/v1/responses requires an authenticated caller (no ephemeral users)."""
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, patch
 
@@ -7,9 +7,9 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from tortoise import Tortoise
 
-from app.auth.security import create_access_token, hash_password
+from app.auth.security import generate_api_key, hash_api_key, hash_password
 from app.errors import register_error_handlers
-from app.models.user import User
+from app.models.user import User, UserAPIKey
 from app.routers import responses as responses_router
 from app.services.chat import stream as turn_stream
 from app.services.chat.stream import ChatEvent
@@ -44,30 +44,32 @@ def _default_events(conversation_id: str = "s"):
     )
 
 
-async def test_anonymous_create_returns_session_header():
+async def _api_key_headers(email: str) -> dict:
+    user = await User.create(email=email, hashed_password=hash_password("pw"))
+    raw = generate_api_key()
+    await UserAPIKey.create(
+        user_id=user.id, name="n", key_hash=hash_api_key(raw), key_prefix=raw[:12]
+    )
+    return {"Authorization": f"Bearer {raw}"}
+
+
+async def test_anonymous_create_is_401():
     app = _client_app()
     async with app.router.lifespan_context(app):
-        with patch.object(turn_stream, "find_similar_question", new=AsyncMock(return_value=None)), \
-             patch.object(turn_stream, "_stream_live", new=_fake_live(*_default_events())):
-            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
-                r = await c.post("/api/v1/responses", json={"input": "hi"})
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
+            r = await c.post("/api/v1/responses", json={"input": "hi"})
 
-    assert r.status_code == 200
-    assert "X-Portal-Session" in r.headers
+    assert r.status_code == 401
 
 
 async def test_authenticated_create_has_no_session_header():
     app = _client_app()
     async with app.router.lifespan_context(app):
-        user = await User.create(email="real@x.y", hashed_password=hash_password("pw"))
-        token = create_access_token({"sub": str(user.id)})
+        headers = await _api_key_headers("real@x.y")
         with patch.object(turn_stream, "find_similar_question", new=AsyncMock(return_value=None)), \
              patch.object(turn_stream, "_stream_live", new=_fake_live(*_default_events())):
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
-                r = await c.post(
-                    "/api/v1/responses", json={"input": "hi"},
-                    headers={"Authorization": f"Bearer {token}"},
-                )
+                r = await c.post("/api/v1/responses", json={"input": "hi"}, headers=headers)
 
     assert r.status_code == 200
     assert "X-Portal-Session" not in r.headers
@@ -76,10 +78,11 @@ async def test_authenticated_create_has_no_session_header():
 async def test_thai_text_not_ascii_escaped():
     app = _client_app()
     async with app.router.lifespan_context(app):
+        headers = await _api_key_headers("thai@x.y")
         with patch.object(turn_stream, "find_similar_question", new=AsyncMock(return_value=None)), \
              patch.object(turn_stream, "_stream_live", new=_fake_live(*_default_events())):
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
-                r = await c.post("/api/v1/responses", json={"input": "hi"})
+                r = await c.post("/api/v1/responses", json={"input": "hi"}, headers=headers)
 
     assert r.status_code == 200
     assert "คำตอบเต็ม" in r.text

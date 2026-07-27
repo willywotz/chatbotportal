@@ -1,9 +1,9 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
-from app.auth.security import create_access_token
+from app.auth.security import create_access_token, generate_api_key, hash_api_key
 from app.main import app
 from app.models.conversation import Conversation, Message
-from app.models.user import User
+from app.models.user import User, UserAPIKey
 
 
 async def _owned():
@@ -14,9 +14,17 @@ async def _owned():
     return u, a
 
 
+async def _api_key_headers(user: User) -> dict:
+    raw = generate_api_key()
+    await UserAPIKey.create(
+        user_id=user.id, name="n", key_hash=hash_api_key(raw), key_prefix=raw[:12]
+    )
+    return {"Authorization": f"Bearer {raw}"}
+
+
 async def test_retrieve_delete_input_items(db):
     u, a = await _owned()
-    h = {"Authorization": f"Bearer {create_access_token({'sub': str(u.id)})}"}
+    h = await _api_key_headers(u)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
         got = await c.get(f"/api/v1/responses/resp_{a.id}", headers=h)
         assert got.status_code == 200 and got.json()["output_text"] == "ans"

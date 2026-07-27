@@ -1,19 +1,29 @@
 from httpx import ASGITransport, AsyncClient
 
+from app.auth.security import generate_api_key, hash_api_key
 from app.main import app
 from app.models.conversation import Message
+from app.models.user import User, UserAPIKey
 
 
-async def _owned_conv(c: AsyncClient) -> tuple[str, dict]:
-    created = await c.post("/api/v1/conversations", json={})
-    cid = created.json()["id"]
-    h = {"Authorization": f"Bearer {created.headers['X-Portal-Session']}"}
-    return cid, h
+async def _auth_headers(email: str) -> dict:
+    user = await User.create(email=email, hashed_password="h", is_active=True)
+    raw = generate_api_key()
+    await UserAPIKey.create(
+        user_id=user.id, name="n", key_hash=hash_api_key(raw), key_prefix=raw[:12]
+    )
+    return {"Authorization": f"Bearer {raw}"}
+
+
+async def _owned_conv(c: AsyncClient, email: str) -> tuple[str, dict]:
+    h = await _auth_headers(email)
+    created = await c.post("/api/v1/conversations", json={}, headers=h)
+    return created.json()["id"], h
 
 
 async def test_items_crud(db):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
-        cid, h = await _owned_conv(c)
+        cid, h = await _owned_conv(c, "crud@x.com")
         made = await c.post(f"/api/v1/conversations/{cid}/items",
                              json={"items": [{"role": "user", "content": "one"},
                                              {"role": "assistant", "content": "two"}]}, headers=h)
@@ -38,14 +48,17 @@ async def test_items_crud(db):
 
 async def test_items_conversation_not_found(db):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
-        r = await c.get("/api/v1/conversations/conv_00000000-0000-0000-0000-000000000000/items")
+        h = await _auth_headers("notfound@x.com")
+        r = await c.get(
+            "/api/v1/conversations/conv_00000000-0000-0000-0000-000000000000/items", headers=h,
+        )
         assert r.status_code == 404 and r.json()["error"]["code"] == "conversation_not_found"
 
 
 async def test_list_items_paginates_past_tied_created_at(db):
     """A created_at tie (e.g. one bulk create_items call) must not drop items."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
-        cid, h = await _owned_conv(c)
+        cid, h = await _owned_conv(c, "paginate@x.com")
         made = await c.post(
             f"/api/v1/conversations/{cid}/items",
             json={"items": [{"role": "user", "content": str(i)} for i in range(4)]},
@@ -79,7 +92,7 @@ async def test_list_items_paginates_past_tied_created_at(db):
 
 async def test_create_items_rejects_too_many(db):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
-        cid, h = await _owned_conv(c)
+        cid, h = await _owned_conv(c, "rejects@x.com")
         r = await c.post(f"/api/v1/conversations/{cid}/items",
                           json={"items": [{"role": "user", "content": "x"}] * 21}, headers=h)
         assert r.status_code == 400 and r.json()["error"]["param"] == "items"

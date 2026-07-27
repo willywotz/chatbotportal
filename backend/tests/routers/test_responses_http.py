@@ -9,10 +9,13 @@ import httpx
 import pytest
 from fastapi import BackgroundTasks, FastAPI
 from fastapi.testclient import TestClient
+from httpx import ASGITransport, AsyncClient
 from tortoise import Tortoise
 
+from app.auth.security import generate_api_key, hash_api_key
 from app.errors import register_error_handlers
 from app.models.conversation import Conversation, Message
+from app.models.user import User, UserAPIKey
 from app.schemas.responses import ResponsesRequest
 from app.routers import responses as responses_router
 from app.services.chat import stream as turn_stream
@@ -243,24 +246,44 @@ def _client_app() -> FastAPI:
     return app
 
 
-def test_streaming_unknown_model_returns_400_over_http():
-    with TestClient(_client_app()) as client:
-        r = client.post(
-            "/api/v1/responses", json={"model": "gpt-5", "input": "hi", "stream": True},
-        )
+async def _api_key_headers(email: str) -> dict:
+    user = await User.create(email=email, hashed_password="!")
+    raw = generate_api_key()
+    await UserAPIKey.create(
+        user_id=user.id, name="n", key_hash=hash_api_key(raw), key_prefix=raw[:12]
+    )
+    return {"Authorization": f"Bearer {raw}"}
+
+
+@pytest.mark.asyncio
+async def test_streaming_unknown_model_returns_400_over_http():
+    app = _client_app()
+    async with app.router.lifespan_context(app):
+        headers = await _api_key_headers("badmodel@x.y")
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
+            r = await c.post(
+                "/api/v1/responses",
+                json={"model": "gpt-5", "input": "hi", "stream": True},
+                headers=headers,
+            )
     assert r.status_code == 400
     assert r.json()["error"]["param"] == "model"
 
 
-def test_streaming_unknown_previous_response_id_returns_404_over_http():
-    with TestClient(_client_app()) as client:
-        r = client.post(
-            "/api/v1/responses",
-            json={
-                "model": "onechat", "input": "hi", "stream": True,
-                "previous_response_id": f"resp_{uuid.uuid4()}",
-            },
-        )
+@pytest.mark.asyncio
+async def test_streaming_unknown_previous_response_id_returns_404_over_http():
+    app = _client_app()
+    async with app.router.lifespan_context(app):
+        headers = await _api_key_headers("badprev@x.y")
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
+            r = await c.post(
+                "/api/v1/responses",
+                json={
+                    "model": "onechat", "input": "hi", "stream": True,
+                    "previous_response_id": f"resp_{uuid.uuid4()}",
+                },
+                headers=headers,
+            )
     assert r.status_code == 404
     assert r.json()["error"]["code"] == "previous_response_not_found"
 

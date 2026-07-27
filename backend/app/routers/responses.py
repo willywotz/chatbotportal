@@ -18,12 +18,11 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Query, WebSocket, WebSo
 from fastapi.responses import JSONResponse, StreamingResponse
 from opentelemetry import trace
 
-from app.auth.dependencies import _resolve_token, get_current_user_optional
+from app.auth.dependencies import _resolve_token, get_current_user
 from app.models.user import User
 from app.schemas.responses import ResponsesRequest
 from app.services.chat.stream import ConversationNotFound, prepare_turn, run_turn
 from app.config import settings
-from app.services.openai.identity import owner_or_ephemeral
 from app.services.responses.continuity import resolve_conversation, response_id_for
 from app.services.responses.errors import ResponsesApiError
 from app.services.responses.request import extract_query, resolve_model
@@ -91,14 +90,13 @@ async def run_response(
 async def create_response(
     body: ResponsesRequest,
     background_tasks: BackgroundTasks,
-    user: User | None = Depends(get_current_user_optional),
+    user: User = Depends(get_current_user),
 ) -> Any:
     with tracer.start_as_current_span("responses_endpoint") as span:
         span.set_attribute("stream", body.stream)
-        owner, session_token = await owner_or_ephemeral(user)
 
         if body.stream:
-            events = run_response(body, user=owner, background_tasks=background_tasks)
+            events = run_response(body, user=user, background_tasks=background_tasks)
             # Prime the generator now, while we're still inside this handler and
             # any ResponsesApiError from the prelude (resolve_model,
             # resolve_conversation, prepare_turn) is caught by the
@@ -117,16 +115,13 @@ async def create_response(
                     yield render(event)
                 yield "data: [DONE]\n\n"
 
-            resp = StreamingResponse(
+            return StreamingResponse(
                 sse(), media_type="text/event-stream",
                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
             )
-            if session_token:
-                resp.headers["X-Portal-Session"] = session_token
-            return resp
 
         final = None
-        async for event in run_response(body, user=owner, background_tasks=background_tasks):
+        async for event in run_response(body, user=user, background_tasks=background_tasks):
             if event["type"] in ("response.completed", "response.failed"):
                 final = event["response"]
         if final is None:
@@ -134,10 +129,7 @@ async def create_response(
                 "The upstream produced no answer.", type="server_error",
                 code="no_answer", status=502,
             )
-        resp = JSONResponse(content=final)
-        if session_token:
-            resp.headers["X-Portal-Session"] = session_token
-        return resp
+        return JSONResponse(content=final)
 
 
 def _not_implemented(message: str) -> ResponsesApiError:
@@ -157,12 +149,12 @@ async def compact_stub(body: dict | None = None):
 
 
 @router.get("/{response_id}", summary="Retrieve a response")
-async def get_response(response_id: str, user: User | None = Depends(get_current_user_optional)):
+async def get_response(response_id: str, user: User = Depends(get_current_user)):
     return response_object(await load_assistant_message(response_id, user))
 
 
 @router.delete("/{response_id}", summary="Delete a response")
-async def delete_response(response_id: str, user: User | None = Depends(get_current_user_optional)):
+async def delete_response(response_id: str, user: User = Depends(get_current_user)):
     msg = await load_assistant_message(response_id, user)
     msg.deleted_at = now()
     await msg.save(update_fields=["deleted_at"])
@@ -179,7 +171,7 @@ async def cancel_stub(response_id: str):
 async def response_input_items(response_id: str, limit: int = Query(20, ge=1, le=100),
                                order: str = Query("desc"),
                                after: str | None = Query(None),
-                               user: User | None = Depends(get_current_user_optional)):
+                               user: User = Depends(get_current_user)):
     msg = await load_assistant_message(response_id, user)
     return await build_input_items(msg, order=order, limit=limit)
 
