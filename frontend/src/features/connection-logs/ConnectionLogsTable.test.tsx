@@ -68,3 +68,24 @@ describe("ConnectionLogsTable error state", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
+
+describe("ConnectionLogs test-action toggle", () => {
+  it("omits include_test by default and requests include_test=true when toggled", async () => {
+    const urls: string[] = [];
+    server.use(
+      http.get("*/api/v1/connection-logs", ({ request }) => {
+        urls.push(request.url);
+        return HttpResponse.json(EMPTY_LOGS);
+      }),
+      http.get("*/api/v1/connection-logs/info", () => HttpResponse.json({})),
+    );
+    renderPage();
+    await waitFor(() => expect(screen.getByText("ไม่พบข้อมูล")).toBeInTheDocument());
+    expect(urls.every((u) => !u.includes("include_test=true"))).toBe(true);
+
+    await userEvent.click(screen.getByRole("button", { name: "แสดงการทดสอบ" }));
+    await waitFor(() =>
+      expect(urls.some((u) => u.includes("include_test=true"))).toBe(true),
+    );
+  });
+});

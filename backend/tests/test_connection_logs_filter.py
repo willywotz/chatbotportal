@@ -25,7 +25,7 @@ async def test_connection_logs_paginate_unchanged():
     for _ in range(5):
         await ConnectionLog.create(agency=ag, connection_type="API", status="success", action="test")
     async with await _client() as c:
-        r = await c.get("/api/v1/connection-logs", params={"page": 1, "limit": 2})
+        r = await c.get("/api/v1/connection-logs", params={"page": 1, "limit": 2, "include_test": True})
     app.dependency_overrides.clear()
     body = r.json()
     assert len(body["items"]) == 2            # CURRENT behavior — pinned
@@ -40,7 +40,7 @@ async def test_status_and_type_filters_apply_to_items_and_stats():
     await ConnectionLog.create(agency=ag, connection_type="MCP", status="success", action="test")
     async with await _client() as c:
         r = await c.get("/api/v1/connection-logs",
-                        params={"status": "success", "connection_type": "API"})
+                        params={"status": "success", "connection_type": "API", "include_test": True})
     app.dependency_overrides.clear()
     body = r.json()
     assert len(body["items"]) == 1
@@ -55,6 +55,6 @@ async def test_page_size_alias_for_limit():
     for _ in range(4):
         await ConnectionLog.create(agency=ag, connection_type="API", status="success", action="test")
     async with await _client() as c:
-        r = await c.get("/api/v1/connection-logs", params={"page_size": 2})
+        r = await c.get("/api/v1/connection-logs", params={"page_size": 2, "include_test": True})
     app.dependency_overrides.clear()
     assert len(r.json()["items"]) == 2

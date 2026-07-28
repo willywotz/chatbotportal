@@ -57,6 +57,14 @@ describe("PublicPortal popular questions", () => {
   });
 });
 
+describe("PublicPortal login button", () => {
+  it("links to the login form so an anon user can sign in as a real user", async () => {
+    renderPortal();
+    const login = await screen.findByRole("link", { name: /เข้าสู่ระบบ/ });
+    expect(login).toHaveAttribute("href", "/login");
+  });
+});
+
 describe("PublicPortal connected agencies", () => {
   it("renders the connected-agencies section from the public endpoint", async () => {
     renderPortal();

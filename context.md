@@ -427,7 +427,12 @@ usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package m
   layout (like the staff `AppLayout`) with `features/public/PublicSidebar` — a public, auth-free
   mirror of `AppSidebar` showing a single **แชทใหม่** action (calls `useChat().reset`, no
   navigation) plus the same หน่วยงานที่เชื่อมต่อ list. The portal header is stripped to just the
-  **เข้าสู่ระบบเจ้าหน้าที่** staff-login control, rendered as an outline pill `Button` (→ `/chat`).
+  **เข้าสู่ระบบ** login control, rendered as an outline pill `Button` linking (react-router `Link`)
+  to `/login` — **not** `/chat`: once a visitor sends a chat message the app bootstraps an
+  *ephemeral* anon session (`ensureSession` → `POST /auth/anon`), so `ProtectedRoute` (which only
+  checks `!user`) would wave them straight into `/chat` still anonymous. `/login` is correct because
+  `LoginPage` only redirects away *real* users (`user && !user.isEphemeral`), so an ephemeral user
+  still sees the login form.
 - **Agency detail** (`features/agencies/detail/`): tabs ภาพรวม · Health · **แก้ไข (Edit)** · Logs.
   The Edit tab (`EditTab`) — shown to admins, the only role that can reach the page — consolidates
   General/Connection/Routing editing, each a section with its own save. It replaced the former standalone Connection/Routing tabs. The setup wizard
@@ -749,3 +754,16 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   `assert_production_config` wildcard guard was removed — `"*"` also short-circuits the WS
   Origin gate. Residual cross-site risk is mitigated by `SameSite=Lax` session cookies and
   header-based API keys.
+- **Hide test-action connection logs by default.** `/settings/connections`
+  (`ConnectionLogsPage`) was showing every `ConnectionLog`, including automated
+  `action="test"` health-check rows. New `include_test` bool query param (default `false`)
+  on `GET /connection-logs` and `/connection-logs/info` (`app/routers/connection_logs.py`):
+  when off, `qs = ConnectionLog.all().exclude(action="test")` is applied at the queryset
+  root — before search/agency/status/type filters, pagination, and the
+  total/successful/failed/avg-latency aggregates — so the stat tiles always match the
+  visible table. Frontend adds a `แสดงการทดสอบ` pill toggle (`ConnectionLogFilters.tsx`)
+  that sends `include_test=true` only when on (omitted otherwise); `includeTest` is threaded
+  through `useConnectionLogs`/`useConnectionLogInfo` (in both query keys), folded into
+  `hasFilters`, and cleared by `resetFilters`. Spec:
+  `docs/superpowers/specs/2026-07-28-hide-test-connection-logs-design.md`; plan:
+  `docs/superpowers/plans/2026-07-28-hide-test-connection-logs.md`.
