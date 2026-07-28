@@ -3,8 +3,8 @@
  *
  * Base URL:  VITE_API_BASE_URL  (default: http://localhost:8000)
  *
- * A request interceptor automatically attaches the JWT stored in
- * localStorage as  Authorization: Bearer <token>  on every request.
+ * The instance sends the HttpOnly session cookie on every request
+ * (`withCredentials: true`); no Authorization header is attached.
  *
  * A response interceptor unwraps Axios errors and surfaces the FastAPI
  * `detail` field as a plain Error message.
@@ -16,18 +16,6 @@
  */
 
 import axios, { type AxiosInstance, type AxiosResponse } from 'axios';
-
-// ---------------------------------------------------------------------------
-// Token helpers  (used by useAuth)
-// ---------------------------------------------------------------------------
-
-const TOKEN_KEY = 'auth_token';
-
-export const tokenStorage = {
-  get: (): string | null => localStorage.getItem(TOKEN_KEY),
-  set: (token: string): void => { localStorage.setItem(TOKEN_KEY, token); },
-  clear: (): void => { localStorage.removeItem(TOKEN_KEY); },
-};
 
 // ---------------------------------------------------------------------------
 // Axios instance
@@ -42,15 +30,7 @@ if (!baseURL || baseURL.trim() === '') {
 const axiosInstance: AxiosInstance = axios.create({
   baseURL: baseURL,
   headers: { 'Content-Type': 'application/json' },
-});
-
-// -- Request interceptor: attach Bearer token --------------------------------
-axiosInstance.interceptors.request.use((config) => {
-  const token = tokenStorage.get();
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
+  withCredentials: true,
 });
 
 // -- Response interceptor: surface FastAPI error message as Error ------------

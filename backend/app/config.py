@@ -15,9 +15,6 @@ class OverrideReport:
     unknown: list[str] = field(default_factory=list)
     invalid: list[str] = field(default_factory=list)
 
-DEFAULT_JWT_SECRET = "change-me-in-production-use-a-long-random-string"
-
-
 class Settings(BaseSettings):
     # ── App ──────────────────────────────────────────────────────────────────
     APP_NAME: str = "AI Chatbot Portal API"
@@ -44,13 +41,17 @@ class Settings(BaseSettings):
     REDIS_SOCKET_TIMEOUT_MS: int = 100
 
     # ── CORS ─────────────────────────────────────────────────────────────────
-    CORS_ORIGINS: list[str] = ["*"]  # bypass all origins by default
+    CORS_ORIGINS: list[str] = ["*"]
 
     # ── Auth ─────────────────────────────────────────────────────────────────
-    JWT_SECRET: str = DEFAULT_JWT_SECRET
-    JWT_ALGORITHM: str = "HS256"
-    JWT_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     MIN_PASSWORD_LENGTH: int = 6
+
+    # ── Session cookie auth ──────────────────────────────────────────────────
+    SESSION_COOKIE_NAME: str = "session_id"
+    AUTH_COOKIE_SECURE: bool = True
+    SESSION_TTL_MINUTES: int = 60 * 24 * 7          # 7 days
+    SESSION_REFRESH_BELOW_MINUTES: int = 60 * 24 * 3  # re-rotate below ~half TTL
+    SESSION_ROTATE_GRACE_SECONDS: int = 60  # old sid stays valid this long after rotation
 
     # ── LLM / OpenRouter ────────────────────────────────────────────────────
     OPENROUTER_API_KEY: str = ""
@@ -80,6 +81,8 @@ class Settings(BaseSettings):
     SPEC_TEXT_MAX_CHARS: int = 30000
     RESPONSES_WS_MAX_CONNECTIONS: int = 1024
     RESPONSES_WS_MAX_DURATION_SECONDS: int = 900
+    CHAT_WS_MAX_CONNECTIONS: int = 1024
+    CHAT_WS_MAX_DURATION_SECONDS: int = 900
 
     # ── Agency health / scheduler ────────────────────────────────────────────
     AGENCY_CHAT_TIMEOUT: int = 180
@@ -145,11 +148,6 @@ def _deserialize(raw: str, annotation: type):
     return raw
 
 
-def assert_production_secrets(s: "Settings") -> None:
-    if s.ENV.strip().lower() == "production" and s.JWT_SECRET == DEFAULT_JWT_SECRET:
-        raise RuntimeError("JWT_SECRET must be changed when ENV=production")
-
-
 SETTINGS_GROUPS: dict[str, list[str]] = {
     "Similarity": ["SIMILARITY_CACHE_ENABLED", "SIMILARITY_THRESHOLD", "SIMILARITY_WINDOW_SECONDS"],
     # "App": ["APP_NAME", "APP_VERSION", "TIMEZONE", "USER_AGENT_PREFIX", "ENV"],
@@ -159,7 +157,7 @@ SETTINGS_GROUPS: dict[str, list[str]] = {
 }
 
 SECRET_FIELD_NAMES: set[str] = {
-    "JWT_SECRET", "OPENROUTER_API_KEY", "PARSE_SPEC_API_KEY",
+    "OPENROUTER_API_KEY", "PARSE_SPEC_API_KEY",
 }
 
 settings = Settings()

@@ -663,3 +663,89 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   no opt-in flag; the other by-ID endpoints are unchanged. Covered by
   `test_list_excludes_ephemeral_users` in `tests/test_users_router.py`. Spec:
   `docs/superpowers/specs/2026-07-26-hide-ephemeral-users-design.md`.
+- **Unified chat endpoint (one path, three transports, all OneChat versions).** The three chat
+  routes were merged into a single path `/chat`. `POST /api/v1/chat` (`app/routers/chat.py`) serves
+  JSON by default and SSE when the request body has `stream: true`; `WS /api/v1/chat` is a second
+  handler on the same path (ASGI dispatches HTTP vs WebSocket by scope type). The old
+  `POST /chat/external` and `POST /chat/stream` are **deleted** (hard cutover). All three transports
+  drive the one existing transport-free pipeline `prepare_turn` + `run_turn`
+  (`app/services/chat/stream.py`), so the sync path now shares caching/persistence/classification
+  with the stream path — including that a cache replay writes a `ConnectionLog` (a cached copy can
+  re-seed the similarity cache; consistent with the old SSE path, accepted by design). The old
+  sync-only `_copy_cached_answer` and the v3-direct `chat_v3` router path are gone. OneChat version
+  (v1–v5) is selected OpenAI-style via a `model` field: `resolve_model_version(model)`
+  (`app/services/chat/model.py`) maps `onechat`/omitted/unknown → v5 and `onechat-vN` → `vN`
+  (lenient), threaded to `prepare_turn(requested_version=...)`. The sync JSON response is a
+  version-faithful passthrough: `{ success, data: { message_id, cached, agentSteps, ...<the
+  version's answer-event payload> }, conversation_id, responseTime }`, built by `collect_turn`
+  (`app/services/chat/aggregate.py`) draining `run_turn`. WebSocket logic lives in
+  `app/services/chat/ws.py` (`ConnectionRegistry`, header-bearer `bearer_user`, `handle_chat_frame`)
+  mirroring `responses.py`; new settings `CHAT_WS_MAX_CONNECTIONS` / `CHAT_WS_MAX_DURATION_SECONDS`.
+  Frontend migrated: `chatApi.ts` posts SSE to `/api/v1/chat` with `stream: true` (was
+  `/chat/stream`), `ChatApiResponse` is the passthrough envelope with a `ChatReference` type;
+  `useChat.ts` and `agencyApi.ts` read the new optional fields with fallbacks (old `data.agencies`/
+  `data.confidence` removed). Spec:
+  `docs/superpowers/specs/2026-07-27-unified-chat-endpoint-design.md`; plan:
+  `docs/superpowers/plans/2026-07-27-unified-chat-endpoint.md`.
+- **Cookie session auth (Phase A) — JWT removed.** Browser auth is now an opaque
+  server-side session, not a JWT. `POST /auth/login` verifies the password, creates a
+  Redis session (`app/services/auth_session.py`: `session:<id> → user_id`, TTL
+  `SESSION_TTL_MINUTES`, in-process fallback when `REDIS_URL` is empty) and sets an
+  `HttpOnly; Secure; SameSite=Lax` cookie (`settings.SESSION_COOKIE_NAME`); it returns
+  `{user}` with **no token**. `POST /auth/logout` deletes the session + clears the cookie
+  (revocation is inherent — no blocklist). Auth resolution (`app/auth/dependencies.py`)
+  is unified across both chokepoints (`get_current_user*` and the global
+  `enforce_role_allowlist`/`_resolve_role`) with ONE precedence rule: **an
+  `Authorization: Bearer` header decides (API-key only; 401 on failure, no cookie
+  fallback); the session cookie is used only when no header is present.** This closes an
+  allowlist-bypass (bogus bearer + valid cookie). Optional-auth asymmetry kept: bad API
+  key → 401, missing/expired session → anonymous. **JWT is gone** (`create_access_token`/
+  `decode_access_token`, `JWT_*` settings, `assert_production_secrets` removed);
+  machine clients use API-keys (`tcg_`). A `SessionRefreshMiddleware`
+  (`app/middleware/session_refresh.py`) re-rotates a session when its remaining TTL drops
+  below `SESSION_REFRESH_BELOW_MINUTES` (sliding window; new id + fresh cookie, old id
+  deleted). `/responses` + `/conversations` now **require** auth (`get_current_user`); the
+  auto-ephemeral-user flow (`owner_or_ephemeral` + `X-Portal-Session`) is removed. CORS
+  gained `allow_credentials=True` with explicit (non-wildcard) origins; a new
+  `assert_production_config` rejects wildcard CORS in production. Frontend is **header-
+  free**: axios `withCredentials`, no `Authorization`, `tokenStorage` deleted; session is
+  restored on mount via `GET /auth/me` and ended via `POST /auth/logout`; the two raw
+  `fetch` sites (SSE, logo upload) send `credentials: 'include'`. **Phase C** (anonymous
+  `/chat` session) and **Phase D** (WS reads the cookie + WS-default chat) follow. Spec:
+  `docs/superpowers/specs/2026-07-27-cookie-session-auth-phaseA-design.md`; plan:
+  `docs/superpowers/plans/2026-07-27-cookie-session-auth-phaseA.md`.
+- **Anonymous sessions + WS-default chat (Phase C+D).** Anonymous public-portal visitors
+  get a persistent session: `POST /auth/anon` (`app/routers/auth.py`, idempotent) mints an
+  `is_ephemeral` user + session cookie on first chat (created only when they chat, not per
+  page-load). The frontend calls it via `useAuth().ensureSession()` before the first turn
+  (no-op if already authenticated/anon). Anon works for `/chat` + own history but the
+  OpenAI-compat surfaces reject it: `get_current_user_non_ephemeral` (401 on `is_ephemeral`)
+  gates every `/responses` + `/conversations` HTTP endpoint, and the `/responses` WS closes
+  anon/None callers. `verify_password` now returns `False` on an unusable hash (anon's `"!"`)
+  instead of raising; `change-password` + `PATCH /me` require non-ephemeral. **WS cookie
+  auth:** both `/chat` and `/responses` WebSockets resolve the caller via `app/auth/ws.py`
+  `resolve_ws_user` (header API-key decides, else session cookie — same precedence as HTTP)
+  behind `ws_origin_allowed` (CSWSH defense: the handshake `Origin` must be in
+  `CORS_ORIGINS`, checked before accept; close 1008 otherwise). `/chat` WS allows anon
+  sessions; `/responses` WS requires non-anon. **Frontend WS-default:**
+  `useChatStream.startStream` tries `sendChatQueryWS` (`chatApi.ts`) first, falling back to
+  SSE then JSON. Fallback is safe against double-running a turn — WS falls back to SSE ONLY
+  if the socket closed before its first frame; a mid-stream death resolves `true` and
+  `finalizeStreaming` renders the partial answer / a connection-lost bubble. `AuthUser`
+  gained `isEphemeral`; `LoginPage` no longer redirects an anon user away from `/login`.
+  Anon-user pruning is a documented follow-up. Spec:
+  `docs/superpowers/specs/2026-07-27-chat-ws-default-phaseCD-design.md`; plan:
+  `docs/superpowers/plans/2026-07-27-chat-ws-default-phaseCD.md`.
+- **WebSocket handshake fix + open CORS.** Every `/chat` and `/responses` WebSocket returned
+  HTTP 500: the global `enforce_role_allowlist` dependency (`app/auth/dependencies.py`,
+  wired in `app/main.py`) required a `Request`, which FastAPI cannot inject for a WS
+  handshake → `TypeError` before the handler ran. Fixed by typing it `HTTPConnection` and
+  skipping non-`http` scopes (WS routes self-authenticate via `resolve_ws_user` +
+  `ws_origin_allowed`); the HTTP allowlist is unchanged (`scope["method"]`/`scope["path"]`).
+  Regression test wires the global dep onto a WS route like `app.main`. Also: `ws_origin_allowed`
+  now accepts same-origin handshakes (`Origin` host:port == `Host`), so a same-origin WS
+  through nginx works without listing the exact origin. Per request, CORS is now wide-open:
+  `CORS_ORIGINS` defaults to `["*"]` (Starlette reflects any origin with credentials) and the
+  `assert_production_config` wildcard guard was removed — `"*"` also short-circuits the WS
+  Origin gate. Residual cross-site risk is mitigated by `SameSite=Lax` session cookies and
+  header-based API keys.

@@ -14,6 +14,7 @@ import {
 // ---------------------------------------------------------------------------
 
 vi.mock('@/features/chat/chatApi', () => ({
+  sendChatQueryWS: vi.fn(),
   sendChatQuerySSE: vi.fn(),
   sendChatQuery: vi.fn(),
 }));
@@ -27,14 +28,17 @@ vi.mock('@/shared/data/mockData', () => ({
 }));
 
 import { updateMessageRating } from '@/features/chat/feedbackApi';
-import { sendChatQuerySSE } from '@/features/chat/chatApi';
+import { sendChatQuery, sendChatQuerySSE, sendChatQueryWS } from '@/features/chat/chatApi';
 
 const mockUpdateRating = updateMessageRating as ReturnType<typeof vi.fn>;
+const mockSendWS = sendChatQueryWS as ReturnType<typeof vi.fn>;
 const mockSendSSE = sendChatQuerySSE as ReturnType<typeof vi.fn>;
+const mockSendChatQuery = sendChatQuery as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // Default: SSE not used (fallback path not needed for most tests)
+  // Default: neither WS nor SSE used (fallback path not needed for most tests)
+  mockSendWS.mockResolvedValue(false);
   mockSendSSE.mockResolvedValue(false);
 });
 
@@ -101,9 +105,12 @@ describe('unmount cleanup', () => {
 
     const { result, unmount } = renderHook(() => useChat());
 
-    // Kick off a send so an AbortController is created and stored in abortRef
-    act(() => {
+    // Kick off a send so an AbortController is created and stored in abortRef.
+    // handleSend awaits ensureSession() before startStream(), so flush one
+    // microtask turn to let it reach the point where abortRef.current is set.
+    await act(async () => {
       result.current.handleSend('test question');
+      await Promise.resolve();
     });
 
     // Unmount — the cleanup effect should call abort()
@@ -111,6 +118,39 @@ describe('unmount cleanup', () => {
 
     expect(abortSpy).toHaveBeenCalled();
     abortSpy.mockRestore();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 8 — sync (non-SSE) branch tolerates the unified chat envelope
+// ---------------------------------------------------------------------------
+
+describe('sync fallback response mapping (unified envelope)', () => {
+  it('falls back to summary and agency_name when answer/agency/title are absent', async () => {
+    mockSendChatQuery.mockResolvedValue({
+      success: true,
+      data: {
+        message_id: 'msg-1',
+        cached: false,
+        agentSteps: [],
+        summary: 'summarized answer',
+        references: [{ agency_name: 'Revenue Department', url: 'https://rd.go.th' }],
+      },
+      conversation_id: 'conv-1',
+      responseTime: 10,
+    });
+
+    const { result } = renderHook(() => useChat());
+
+    await act(async () => {
+      await result.current.handleSend('a question');
+    });
+
+    const aiMsg = result.current.messages.find((m) => m.role === 'assistant');
+    expect(aiMsg?.content).toBe('summarized answer');
+    expect(aiMsg?.sources).toEqual([
+      { agency: 'Revenue Department', url: 'https://rd.go.th', title: 'Revenue Department' },
+    ]);
   });
 });
 

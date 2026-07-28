@@ -1,4 +1,4 @@
-import { api, tokenStorage } from '@/shared/lib/apiClient';
+import { api } from '@/shared/lib/apiClient';
 import { STREAM_IDLE_TIMEOUT_MS } from '@/shared/constants/query';
 import type { AgentStep } from '@/shared/types';
 import type {
@@ -12,15 +12,27 @@ export interface ChatApiRequest {
   conversation_id?: string;
 }
 
+export interface ChatReference {
+  number?: number;
+  agency_id?: string;
+  agency_name?: string;
+  agency?: string;
+  title?: string;
+  url: string | null;
+}
+
 export interface ChatApiResponse {
   success: boolean;
   data: {
     message_id: string;
-    answer: string;
-    references: { agency: string; title: string; url: string }[];
+    cached: boolean;
     agentSteps: AgentStep[];
-    agencies: { id: string; name: string; icon: string }[];
-    confidence: number;
+    answer?: string;
+    summary?: string;
+    references?: ChatReference[];
+    sections?: unknown[];
+    errors?: unknown[];
+    debug?: unknown;
   };
   conversation_id: string;
   responseTime: number;
@@ -45,6 +57,22 @@ export interface SSECallbacks {
   onAnswer?: (event: AnswerEvent) => void;
   onDone?: (event: DoneEvent) => void;
   onError?: (event: ErrorEvent) => void;
+}
+
+/** Dispatches one decoded stream event (from SSE or WS) to its matching callback. */
+export function dispatchStreamEvent(event: string, data: unknown, callbacks: SSECallbacks): void {
+  switch (event) {
+    case 'step': callbacks.onStep?.(data as StepEvent); break;
+    case 'agencies': callbacks.onAgencies?.(data as AgenciesEvent); break;
+    case 'intent': callbacks.onIntent?.(data as IntentEvent); break;
+    case 'routing': callbacks.onRouting?.(data as RoutingEvent); break;
+    case 'agency_start': callbacks.onAgencyStart?.(data as AgencyStartEvent); break;
+    case 'agency_responded': callbacks.onAgencyResponded?.(data as AgencyRespondedEvent); break;
+    case 'agency_verified': callbacks.onAgencyVerified?.(data as AgencyVerifiedEvent); break;
+    case 'answer': callbacks.onAnswer?.(data as AnswerEvent); break;
+    case 'done': callbacks.onDone?.(data as DoneEvent); break;
+    case 'error': callbacks.onError?.(data as ErrorEvent); break;
+  }
 }
 
 /** Sentinel value thrown by the idle timeout race. */
@@ -75,7 +103,7 @@ async function readWithIdleTimeout(
 }
 
 /**
- * Send chat query via v4 SSE streaming endpoint.
+ * Send chat query to the unified /chat endpoint with stream=true (SSE).
  * Returns true if SSE was used, false if fell back to JSON.
  */
 export async function sendChatQuerySSE(
@@ -84,8 +112,7 @@ export async function sendChatQuerySSE(
   signal?: AbortSignal,
 ): Promise<boolean> {
   const baseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '';
-  const url = `${baseUrl}/api/v1/chat/stream`;
-  const token = tokenStorage.get();
+  const url = `${baseUrl}/api/v1/chat`;
 
   let response: Response;
   try {
@@ -94,9 +121,9 @@ export async function sendChatQuerySSE(
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'text/event-stream',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify(request),
+      body: JSON.stringify({ ...request, stream: true }),
+      credentials: 'include',
       signal,
     });
   } catch (err) {
@@ -133,18 +160,7 @@ export async function sendChatQuerySSE(
     if (!block.trim()) return;
     const parsed = parseSSEBlock(block);
     if (!parsed) return;
-    switch (parsed.event) {
-      case 'step': callbacks.onStep?.(parsed.data as StepEvent); break;
-      case 'agencies': callbacks.onAgencies?.(parsed.data as AgenciesEvent); break;
-      case 'intent': callbacks.onIntent?.(parsed.data as IntentEvent); break;
-      case 'routing': callbacks.onRouting?.(parsed.data as RoutingEvent); break;
-      case 'agency_start': callbacks.onAgencyStart?.(parsed.data as AgencyStartEvent); break;
-      case 'agency_responded': callbacks.onAgencyResponded?.(parsed.data as AgencyRespondedEvent); break;
-      case 'agency_verified': callbacks.onAgencyVerified?.(parsed.data as AgencyVerifiedEvent); break;
-      case 'answer': callbacks.onAnswer?.(parsed.data as AnswerEvent); break;
-      case 'done': callbacks.onDone?.(parsed.data as DoneEvent); break;
-      case 'error': callbacks.onError?.(parsed.data as ErrorEvent); break;
-    }
+    dispatchStreamEvent(parsed.event, parsed.data, callbacks);
   };
 
   let idleTimeout = false;
@@ -188,6 +204,59 @@ export async function sendChatQuerySSE(
   }
 
   return true;
+}
+
+// --- WS Streaming ---
+
+/**
+ * Send chat query over the WS chat endpoint. Resolves `true` once a `done`
+ * frame arrives or after any frame has been received (WS died mid-stream —
+ * the caller must NOT fall back to SSE, that would double-persist the turn).
+ * Resolves `false` only if the socket never opened or closed before its
+ * first frame, signalling the caller to retry over SSE.
+ */
+export async function sendChatQueryWS(
+  request: ChatApiRequest,
+  callbacks: SSECallbacks,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  const httpBase = (import.meta.env.VITE_API_BASE_URL as string | undefined) || window.location.origin;
+  const url = `${httpBase.replace(/^http/, 'ws')}/api/v1/chat`;
+
+  return new Promise<boolean>((resolve) => {
+    let ws: WebSocket;
+    try {
+      ws = new WebSocket(url);
+    } catch {
+      resolve(false);
+      return;
+    }
+
+    let receivedFrame = false;
+    let settled = false;
+    const finish = (v: boolean) => {
+      if (settled) return;
+      settled = true;
+      try { ws.close(); } catch { /* noop */ }
+      resolve(v);
+    };
+
+    signal?.addEventListener('abort', () => finish(receivedFrame));
+    ws.onopen = () => ws.send(JSON.stringify(request));
+    ws.onmessage = (ev) => {
+      receivedFrame = true;
+      let frame: { event?: string; data?: unknown };
+      try {
+        frame = JSON.parse(ev.data as string);
+      } catch {
+        return;
+      }
+      if (frame.event) dispatchStreamEvent(frame.event, frame.data, callbacks);
+      if (frame.event === 'done') finish(true);
+    };
+    ws.onerror = () => { if (!receivedFrame) finish(false); }; // pre-frame error -> fall back
+    ws.onclose = () => finish(receivedFrame); // closed before frame -> false
+  });
 }
 
 function parseSSEBlock(block: string): { event: string; data: unknown } | null {

@@ -26,9 +26,10 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.config import settings, load_settings_from_db, assert_production_secrets
+from app.config import settings, load_settings_from_db
 from app.errors import register_error_handlers
 from app.database import init_db, close_db
+from app.middleware.session_refresh import SessionRefreshMiddleware
 from app.services.rate_limit import close_limiter_client
 from app.mcp.server import mcp
 from app.auth.dependencies import enforce_role_allowlist
@@ -76,7 +77,6 @@ mcp_app = mcp.http_app(path="/", stateless_http=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    assert_production_secrets(settings)
     await init_db()
     await load_settings_from_db()
     await _run_seed_admin()
@@ -118,9 +118,11 @@ register_error_handlers(app)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(SessionRefreshMiddleware)
 
 # ---------------------------------------------------------------------------
 # REST routers

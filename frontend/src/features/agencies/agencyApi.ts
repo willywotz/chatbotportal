@@ -1,3 +1,4 @@
+import type { ChatApiResponse } from '@/features/chat/chatApi';
 import { api } from '@/shared/lib/apiClient';
 import type { Agency, AgencyRow } from '@/shared/types/agency';
 import { mapRowToAgency } from '@/shared/types/agency';
@@ -26,30 +27,20 @@ type AgencyId = 'fda' | 'revenue' | 'dopa' | 'land';
  * app/routers/chat.py and update this function.
  */
 export async function queryAgency(agencyId: AgencyId, query: string): Promise<AgencyApiResponse> {
-  // Use the chat endpoint and extract the first (relevant) agency result
-  const res = await api.post<{
-    success: boolean;
-    data: {
-      answer: string;
-      references: { agency: string; title: string; url: string }[];
-      agentSteps: unknown[];
-      agencies: { id: string; name: string; icon: string }[];
-      confidence: number;
-    };
-    responseTime: number;
-  }>('/api/v1/chat', { query });
+  const res = await api.post<ChatApiResponse>('/api/v1/chat', { query, model: 'onechat' });
 
-  const agencyInfo = res.data.agencies.find((a) => a.id === agencyId) ?? res.data.agencies[0];
+  const answer = res.data.answer ?? res.data.summary ?? '';
+  const references = (res.data.references ?? []).map((r) => ({
+    title: r.title ?? r.agency_name ?? '',
+    url: r.url ?? '',
+  }));
+  const agencyName = res.data.references?.[0]?.agency_name ?? agencyId;
 
   return {
     success: res.success,
     agency: agencyId,
-    agencyName: agencyInfo?.name ?? agencyId,
-    data: {
-      answer: res.data.answer,
-      references: res.data.references.map(({ agency: _agency, ...ref }) => ref),
-      confidence: res.data.confidence,
-    },
+    agencyName,
+    data: { answer, references, confidence: 0 },
     responseTime: res.responseTime,
   };
 }

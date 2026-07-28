@@ -1,7 +1,7 @@
 """Characterization tests for chat save behavior BEFORE and AFTER the save_turn refactor.
 
-These pin current observable behavior for unchanged paths (_copy_cached_answer,
-_persist) and assert the NEW intended behavior for save_turn.
+These pin current observable behavior for unchanged paths (_persist) and assert
+the NEW intended behavior for save_turn.
 SQLite-portable: no external HTTP, no Postgres-only SQL.
 """
 import uuid
@@ -10,7 +10,6 @@ import pytest
 from fastapi import BackgroundTasks
 
 from app.models.conversation import Conversation, Message
-from app.routers.chat import _copy_cached_answer
 from app.services.chat.stream import TurnPlan, _persist
 from app.utils import generate_uuid
 
@@ -24,42 +23,6 @@ def _plan(conv_id: str, query: str = "q") -> TurnPlan:
 
 async def _make_conv() -> Conversation:
     return await Conversation.create(title="t", preview="p")
-
-
-@pytest.mark.usefixtures("db")
-async def test_copy_cached_answer_creates_two_messages_and_links_parent():
-    """_copy_cached_answer creates a fresh conv (status=success, message_count=2) when conv does not exist."""
-    source_conv = await _make_conv()
-    user_msg = await Message.create(
-        conversation=source_conv,
-        role="user",
-        content="q",
-        category="cat",
-    )
-    asst_msg = await Message.create(
-        conversation=source_conv,
-        role="assistant",
-        content="a",
-        sources=[{"x": 1}],
-        parent_id=user_msg.id,
-    )
-
-    new_conversation_id = str(uuid.uuid4())
-    new_asst = await _copy_cached_answer(
-        query="q again",
-        conversation_id=new_conversation_id,
-        user=None,
-        user_msg=user_msg,
-        asst_msg=asst_msg,
-    )
-
-    assert new_asst.role == "assistant"
-    assert new_asst.content == "a"
-    assert new_asst.sources == [{"x": 1}]
-
-    conv = await Conversation.get(id=new_conversation_id)
-    assert conv.status == "success"       # CURRENT behavior — pinned
-    assert conv.message_count == 2        # CURRENT behavior — pinned
 
 
 @pytest.mark.usefixtures("db")

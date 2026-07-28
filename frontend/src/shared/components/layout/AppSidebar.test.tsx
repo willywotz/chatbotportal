@@ -31,7 +31,7 @@ function LocationDisplay() {
 
 describe("AppSidebar visibility", () => {
   beforeEach(() => {
-    auth.user = { id: "1", email: "u@x.com", displayName: "U", role: "user", avatarUrl: null };
+    auth.user = { id: "1", email: "u@x.com", displayName: "U", role: "user", avatarUrl: null, isEphemeral: false };
   });
 
   it("shows only chat and architecture for a basic user (no dashboards, no admin pages)", () => {

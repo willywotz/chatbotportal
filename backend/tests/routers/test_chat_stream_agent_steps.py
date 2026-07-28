@@ -66,7 +66,7 @@ def test_streamed_turn_persists_agent_steps():
         'event: done\ndata: {"session_id": "s1", "total_ms": 42}\n\n'
     )
     with _stub(body), TestClient(_app()) as client:
-        r = client.post("/api/v1/chat/stream", json={"query": "q"})
+        r = client.post("/api/v1/chat", json={"query": "q", "stream": True})
         message_id = _events(r.text)[-1]["data"]["message_id"]
 
         async def _fetch():

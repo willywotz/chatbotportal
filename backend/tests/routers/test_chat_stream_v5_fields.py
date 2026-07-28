@@ -161,7 +161,7 @@ async def test_cached_replay_emits_summary_and_references():
 
     with patch.object(turn_stream, "find_similar_question",
                       new=AsyncMock(return_value=(user_msg, asst_msg, conn_log))):
-        resp = await chat_router.chat_stream(ChatRequest(query="q"), MagicMock(), BackgroundTasks(), None)
+        resp = await chat_router.chat(ChatRequest(query="q", stream=True), BackgroundTasks(), None)
         chunks = [c async for c in resp.body_iterator]
 
     text = "".join(c if isinstance(c, str) else c.decode() for c in chunks)

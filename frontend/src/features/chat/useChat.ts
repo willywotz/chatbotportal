@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ChatMessage, AgentStep } from '@/shared/types';
+import { useAuth } from '@/features/auth/useAuth';
 import { sendChatQuery } from '@/features/chat/chatApi';
 import { updateMessageRating } from '@/features/chat/feedbackApi';
 import { mockAgentSteps } from '@/shared/data/mockData';
@@ -21,6 +22,7 @@ export function useChat() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const { ensureSession } = useAuth();
   const { streamingState, streamingRef, abortRef, startStream, cancelStream: streamCancel, resetStream } = useChatStream();
 
   useEffect(() => {
@@ -84,6 +86,7 @@ export function useChat() {
     setActiveStepCount(0);
 
     try {
+      await ensureSession();
       const { usedSSE, aborted } = await startStream({
         query: question,
         conversation_id: conversationId || undefined,
@@ -107,13 +110,13 @@ export function useChat() {
         const aiMsg: ChatMessage = {
           id: aiMsgId,
           role: 'assistant',
-          content: response.data.answer,
+          content: response.data.answer ?? response.data.summary ?? '',
           timestamp: formatTimestamp(),
           agentSteps: response.data.agentSteps as AgentStep[],
-          sources: response.data.references.map((ref) => ({
-            agency: ref.agency,
-            url: ref.url,
-            title: ref.title,
+          sources: (response.data.references ?? []).map((ref) => ({
+            agency: ref.agency ?? ref.agency_name ?? '',
+            url: ref.url ?? '',
+            title: ref.title ?? ref.agency_name ?? '',
           })),
           rating: null,
         };
@@ -132,7 +135,7 @@ export function useChat() {
       resetStream();
       setMessages((prev) => [...prev, buildGenericErrorMessage()]);
     }
-  }, [input, isTyping, finalizeStreaming, startStream, conversationId, resetStream]);
+  }, [input, isTyping, finalizeStreaming, startStream, conversationId, resetStream, ensureSession]);
 
   const reset = useCallback(() => {
     setMessages([]);

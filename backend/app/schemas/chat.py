@@ -6,6 +6,8 @@ from typing import Any
 class ChatRequest(BaseModel):
     query: str
     conversation_id: str | None = None
+    stream: bool = False
+    model: str | None = None
 
 class ChatResponseData(BaseModel):
     message_id: uuid.UUID

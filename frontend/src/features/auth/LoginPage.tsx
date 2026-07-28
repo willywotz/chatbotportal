@@ -19,7 +19,7 @@ export default function LoginPage() {
 
   // Redirect if already logged in
   useEffect(() => {
-    if (!isLoading && user) {
+    if (!isLoading && user && !user.isEphemeral) {
       navigate("/chat", { replace: true });
     }
   }, [user, isLoading, navigate]);
@@ -28,11 +28,11 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await api.post<{ access_token: string; user: AuthUser }>("/api/v1/auth/login", {
+      const res = await api.post<{ user: AuthUser }>("/api/v1/auth/login", {
         email,
         password,
       });
-      setAuth(res.access_token, res.user);
+      setAuth(res.user);
       toast.success("เข้าสู่ระบบสำเร็จ");
       navigate("/chat", { replace: true });
     } catch (err: unknown) {
@@ -42,7 +42,7 @@ export default function LoginPage() {
     }
   };
 
-  if (!isLoading && user) return null;
+  if (!isLoading && user && !user.isEphemeral) return null;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">

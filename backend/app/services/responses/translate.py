@@ -17,7 +17,7 @@ _ZERO_USAGE = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
 
 # Upstream pipeline-progress events have no standard Responses counterpart.
 # Injecting non-standard event types is what breaks strict SDK parsers, so they
-# are dropped; clients wanting the pipeline view use /chat/stream.
+# are dropped; clients wanting the pipeline view use /chat with stream=true.
 _IGNORED = frozenset(
     {"step", "intent", "routing", "agency_start", "agency_responded", "agency_verified"}
 )

@@ -6,7 +6,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { api, tokenStorage } from "@/shared/lib/apiClient";
+import { api } from "@/shared/lib/apiClient";
 import { type Role } from "@/features/auth/roles";
 
 // ---------------------------------------------------------------------------
@@ -19,6 +19,7 @@ export interface AuthUser {
   displayName: string;
   role: Role;
   avatarUrl: string | null;
+  isEphemeral: boolean;
 }
 
 interface AuthContextType {
@@ -26,8 +27,10 @@ interface AuthContextType {
   isAdmin: boolean;
   isLoading: boolean;
   signOut: () => void;
-  /** Call after a successful login to store token + set user */
-  setAuth: (token: string, user: AuthUser) => void;
+  /** Call after a successful login to set the authenticated user */
+  setAuth: (user: AuthUser) => void;
+  /** Bootstraps an anonymous session when no user is signed in; no-op otherwise */
+  ensureSession: () => Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -40,6 +43,7 @@ const AuthContext = createContext<AuthContextType>({
   isLoading: true,
   signOut: () => {},
   setAuth: () => {},
+  ensureSession: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -52,34 +56,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // On mount: if a token exists verify it with /auth/me
+  // On mount: the session cookie (if any) is sent automatically — ask the
+  // server who we are.
   useEffect(() => {
-    const token = tokenStorage.get();
-    if (!token) {
-      setIsLoading(false);
-      return;
-    }
-
     api
       .get<{ user: AuthUser }>("/api/v1/auth/me")
       .then(({ user }) => setUser(user))
-      .catch(() => {
-        // Token invalid/expired — clear it
-        tokenStorage.clear();
-        setUser(null);
-      })
+      .catch(() => setUser(null))
       .finally(() => setIsLoading(false));
   }, []);
 
-  const setAuth = useCallback((token: string, authUser: AuthUser) => {
-    tokenStorage.set(token);
-    setUser(authUser);
-  }, []);
+  const setAuth = useCallback((authUser: AuthUser) => setUser(authUser), []);
 
   const signOut = useCallback(() => {
-    tokenStorage.clear();
+    api.post("/api/v1/auth/logout", {}).catch(() => {});
     setUser(null);
   }, []);
+
+  const ensureSession = useCallback(async () => {
+    if (user) return;
+    try {
+      const res = await api.post<{ user: AuthUser }>("/api/v1/auth/anon", {});
+      setUser(res.user);
+    } catch {
+      // Proceed anyway; the chat request may 401 and surface an error.
+    }
+  }, [user]);
 
   return (
     <AuthContext.Provider
@@ -89,6 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         signOut,
         setAuth,
+        ensureSession,
       }}
     >
       {children}
