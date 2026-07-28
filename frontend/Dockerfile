@@ -13,7 +13,7 @@ cmd ["pnpm", "run", "dev", "--host", "--port", "8080"]
 
 from base as builder
 copy . .
-run pnpm run build
+run --mount=type=cache,target=/app/node_modules/.vite pnpm run build
 
 from nginx:alpine as production
 copy --from=builder /app/dist /usr/share/nginx/html
