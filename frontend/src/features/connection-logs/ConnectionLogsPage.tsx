@@ -22,9 +22,10 @@ export default function ConnectionLogsPage() {
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<string | null>(null);
   const [filterAgency, setFilterAgency] = useState<string | null>(null);
+  const [includeTest, setIncludeTest] = useState(false);
   const [selectedLog, setSelectedLog] = useState<ConnectionLog | null>(null);
 
-  const { data: logInfo } = useConnectionLogInfo();
+  const { data: logInfo } = useConnectionLogInfo(includeTest);
   const { data, isLoading, isFetching, isError, refetch } = useConnectionLogs({
     page,
     limit: PAGE_SIZE,
@@ -32,6 +33,7 @@ export default function ConnectionLogsPage() {
     agencyId: filterAgency || undefined,
     status: filterStatus || undefined,
     connectionType: filterType || undefined,
+    includeTest: includeTest || undefined,
   });
 
   const items = data?.items ?? [];
@@ -43,13 +45,14 @@ export default function ConnectionLogsPage() {
     [agencies]
   );
 
-  const hasFilters = !!(filterStatus || filterType || filterAgency || search);
+  const hasFilters = !!(filterStatus || filterType || filterAgency || search || includeTest);
 
   const resetFilters = () => {
     setFilterStatus(null);
     setFilterType(null);
     setFilterAgency(null);
     setSearch("");
+    setIncludeTest(false);
     setPage(1);
   };
 
@@ -75,6 +78,8 @@ export default function ConnectionLogsPage() {
         onTypeChange={(v) => { setFilterType(v); setPage(1); }}
         onAgencyChange={(v) => { setFilterAgency(v); setPage(1); }}
         onReset={resetFilters}
+        includeTest={includeTest}
+        onIncludeTestChange={(v) => { setIncludeTest(v); setPage(1); }}
       />
 
       <ConnectionLogsTable

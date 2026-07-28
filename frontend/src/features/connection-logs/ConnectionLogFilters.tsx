@@ -16,11 +16,14 @@ interface Props {
   onTypeChange: (v: string | null) => void;
   onAgencyChange: (v: string | null) => void;
   onReset: () => void;
+  includeTest: boolean;
+  onIncludeTestChange: (v: boolean) => void;
 }
 
 export function ConnectionLogFilters({
   search, filterStatus, filterType, filterAgency, agencies, hasFilters,
   onSearchChange, onStatusChange, onTypeChange, onAgencyChange, onReset,
+  includeTest, onIncludeTestChange,
 }: Props) {
   return (
     <div className="flex flex-wrap gap-2 items-center">
@@ -61,6 +64,15 @@ export function ConnectionLogFilters({
           </button>
         ))}
       </div>
+      <button
+        onClick={() => onIncludeTestChange(!includeTest)}
+        className={cn(
+          "text-xs px-3 py-1.5 rounded-full border transition-colors",
+          includeTest ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:bg-accent"
+        )}
+      >
+        แสดงการทดสอบ
+      </button>
       {agencies.length > 0 && (
         <select
           value={filterAgency ?? ""}
