@@ -754,3 +754,16 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   `assert_production_config` wildcard guard was removed — `"*"` also short-circuits the WS
   Origin gate. Residual cross-site risk is mitigated by `SameSite=Lax` session cookies and
   header-based API keys.
+- **Hide test-action connection logs by default.** `/settings/connections`
+  (`ConnectionLogsPage`) was showing every `ConnectionLog`, including automated
+  `action="test"` health-check rows. New `include_test` bool query param (default `false`)
+  on `GET /connection-logs` and `/connection-logs/info` (`app/routers/connection_logs.py`):
+  when off, `qs = ConnectionLog.all().exclude(action="test")` is applied at the queryset
+  root — before search/agency/status/type filters, pagination, and the
+  total/successful/failed/avg-latency aggregates — so the stat tiles always match the
+  visible table. Frontend adds a `แสดงการทดสอบ` pill toggle (`ConnectionLogFilters.tsx`)
+  that sends `include_test=true` only when on (omitted otherwise); `includeTest` is threaded
+  through `useConnectionLogs`/`useConnectionLogInfo` (in both query keys), folded into
+  `hasFilters`, and cleared by `resetFilters`. Spec:
+  `docs/superpowers/specs/2026-07-28-hide-test-connection-logs-design.md`; plan:
+  `docs/superpowers/plans/2026-07-28-hide-test-connection-logs.md`.
