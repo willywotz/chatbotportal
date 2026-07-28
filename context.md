@@ -767,3 +767,19 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   `hasFilters`, and cleared by `resetFilters`. Spec:
   `docs/superpowers/specs/2026-07-28-hide-test-connection-logs-design.md`; plan:
   `docs/superpowers/plans/2026-07-28-hide-test-connection-logs.md`.
+- **Deploy build-cache: persist layer cache + incremental Vite.** Deploy runs
+  (`docker compose up -d --build`, ~112-145s) occasionally spiked because BuildKit
+  `--mount=type=cache` dirs (uv/go-mod/pnpm/go-build) are builder-local and get wiped by
+  `docker system prune`/GC/daemon restart → cold dependency reinstall. Fix 1: new deploy-only
+  overlay `docker-compose.cache.yaml` (layered by the Deploy workflow only, never local
+  `docker compose up`, whose default driver can't export local cache) adds
+  `cache_from`/`cache_to type=local,dest=${BUILDCACHE_DIR:-/opt/deploy-buildcache}/<svc>,mode=max`
+  per built service. `deploy.yml` now creates an idempotent container-driver buildx builder
+  (`docker buildx create --name deploy --driver docker-container`), sets `BUILDCACHE_DIR`,
+  `COMPOSE_BAKE=true`, `BUILDX_BUILDER=deploy`, and passes `-f docker-compose.cache.yaml`.
+  Unchanged lockfiles → dep-install *layer* restored from the host dir even on a cold builder,
+  so no reinstall. Fix 2: `frontend/Dockerfile` builder adds
+  `--mount=type=cache,target=/app/node_modules/.vite` to `pnpm run build` (minor — Vite
+  production/Rollup builds don't cache incrementally without a plugin; the real frontend win is
+  Fix 1 skipping `pnpm install`). One-time runner prereq is auto-handled by the workflow step;
+  cache lives under `$HOME/deploy-buildcache`. Not yet validated on the self-hosted runner.
