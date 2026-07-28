@@ -50,6 +50,7 @@ async def list_connection_logs(
     agency_id: str | None = Query(None, description="Filter by agency ID"),
     status_filter: str | None = Query(None, alias="status", description="success | error"),
     connection_type: str | None = Query(None, description="MCP | API | A2A"),
+    include_test: bool = Query(False, description="Include action=test logs"),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     page_size: int | None = Query(None, ge=1, le=100),
@@ -59,6 +60,8 @@ async def list_connection_logs(
     if not user.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
     qs = ConnectionLog.all()
+    if not include_test:
+        qs = qs.exclude(action="test")
 
     start = time.time()
 
@@ -146,10 +149,15 @@ class ConnectionLogInfoResponse(BaseModel):
     average_latency_ms: int
 
 @router.get("/info", summary="Get connection log info", response_model=ConnectionLogInfoResponse)
-async def get_connection_log_info(user: User = Depends(get_current_user)) -> ConnectionLogInfoResponse:
+async def get_connection_log_info(
+    include_test: bool = Query(False, description="Include action=test logs"),
+    user: User = Depends(get_current_user),
+) -> ConnectionLogInfoResponse:
     if not user.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
     qs = ConnectionLog.all()
+    if not include_test:
+        qs = qs.exclude(action="test")
 
     total_connections = await qs.count()
     successful_connections = await qs.filter(status="success").count()

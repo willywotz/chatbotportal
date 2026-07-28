@@ -23,6 +23,7 @@ export interface ConnectionLogParams {
   agencyId?: string;
   status?: string;
   connectionType?: string;
+  includeTest?: boolean;
 }
 
 async function fetchConnectionLogs(params: ConnectionLogParams = {}): Promise<ConnectionLogResponse> {
@@ -33,13 +34,14 @@ async function fetchConnectionLogs(params: ConnectionLogParams = {}): Promise<Co
   if (params.agencyId) qs.set('agency_id', params.agencyId);
   if (params.status) qs.set('status', params.status);
   if (params.connectionType) qs.set('connection_type', params.connectionType);
+  if (params.includeTest) qs.set('include_test', 'true');
   const query = qs.toString();
   return await api.get<ConnectionLogResponse>(`/api/v1/connection-logs${query ? `?${query}` : ''}`);
 }
 
 export function useConnectionLogs(params: ConnectionLogParams = {}) {
   return useQuery({
-    queryKey: ['connection-logs', params.agencyId ?? null, params.page ?? null, params.limit ?? null, params.search ?? null, params.status ?? null, params.connectionType ?? null],
+    queryKey: ['connection-logs', params.agencyId ?? null, params.page ?? null, params.limit ?? null, params.search ?? null, params.status ?? null, params.connectionType ?? null, params.includeTest ?? false],
     queryFn: () => fetchConnectionLogs(params),
     refetchInterval: REFETCH.normal,
     placeholderData: (prev) => prev,
@@ -65,14 +67,15 @@ export interface ConnectionLogInfo {
   average_latency_ms: number;
 }
 
-async function fetchConnectionLogInfo(): Promise<ConnectionLogInfo> {
-  return await api.get<ConnectionLogInfo>('/api/v1/connection-logs/info');
+async function fetchConnectionLogInfo(includeTest?: boolean): Promise<ConnectionLogInfo> {
+  const query = includeTest ? '?include_test=true' : '';
+  return await api.get<ConnectionLogInfo>(`/api/v1/connection-logs/info${query}`);
 }
 
-export function useConnectionLogInfo() {
+export function useConnectionLogInfo(includeTest?: boolean) {
   return useQuery({
-    queryKey: ['connection-log-info'],
-    queryFn: fetchConnectionLogInfo,
+    queryKey: ['connection-log-info', includeTest ?? false],
+    queryFn: () => fetchConnectionLogInfo(includeTest),
     refetchInterval: REFETCH.normal,
   });
 }
