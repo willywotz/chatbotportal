@@ -736,3 +736,16 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   Anon-user pruning is a documented follow-up. Spec:
   `docs/superpowers/specs/2026-07-27-chat-ws-default-phaseCD-design.md`; plan:
   `docs/superpowers/plans/2026-07-27-chat-ws-default-phaseCD.md`.
+- **WebSocket handshake fix + open CORS.** Every `/chat` and `/responses` WebSocket returned
+  HTTP 500: the global `enforce_role_allowlist` dependency (`app/auth/dependencies.py`,
+  wired in `app/main.py`) required a `Request`, which FastAPI cannot inject for a WS
+  handshake → `TypeError` before the handler ran. Fixed by typing it `HTTPConnection` and
+  skipping non-`http` scopes (WS routes self-authenticate via `resolve_ws_user` +
+  `ws_origin_allowed`); the HTTP allowlist is unchanged (`scope["method"]`/`scope["path"]`).
+  Regression test wires the global dep onto a WS route like `app.main`. Also: `ws_origin_allowed`
+  now accepts same-origin handshakes (`Origin` host:port == `Host`), so a same-origin WS
+  through nginx works without listing the exact origin. Per request, CORS is now wide-open:
+  `CORS_ORIGINS` defaults to `["*"]` (Starlette reflects any origin with credentials) and the
+  `assert_production_config` wildcard guard was removed — `"*"` also short-circuits the WS
+  Origin gate. Residual cross-site risk is mitigated by `SameSite=Lax` session cookies and
+  header-based API keys.
