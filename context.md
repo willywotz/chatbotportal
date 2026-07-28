@@ -427,7 +427,12 @@ usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package m
   layout (like the staff `AppLayout`) with `features/public/PublicSidebar` — a public, auth-free
   mirror of `AppSidebar` showing a single **แชทใหม่** action (calls `useChat().reset`, no
   navigation) plus the same หน่วยงานที่เชื่อมต่อ list. The portal header is stripped to just the
-  **เข้าสู่ระบบเจ้าหน้าที่** staff-login control, rendered as an outline pill `Button` (→ `/chat`).
+  **เข้าสู่ระบบ** login control, rendered as an outline pill `Button` linking (react-router `Link`)
+  to `/login` — **not** `/chat`: once a visitor sends a chat message the app bootstraps an
+  *ephemeral* anon session (`ensureSession` → `POST /auth/anon`), so `ProtectedRoute` (which only
+  checks `!user`) would wave them straight into `/chat` still anonymous. `/login` is correct because
+  `LoginPage` only redirects away *real* users (`user && !user.isEphemeral`), so an ephemeral user
+  still sees the login form.
 - **Agency detail** (`features/agencies/detail/`): tabs ภาพรวม · Health · **แก้ไข (Edit)** · Logs.
   The Edit tab (`EditTab`) — shown to admins, the only role that can reach the page — consolidates
   General/Connection/Routing editing, each a section with its own save. It replaced the former standalone Connection/Routing tabs. The setup wizard
