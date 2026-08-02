@@ -975,3 +975,15 @@ direct read (file:line), not inferred.
 - `frontend/tailwind.config.ts`: added `theme.extend.fontFamily.sans = ["Sarabun", ...defaultTheme.fontFamily.sans]`
   (import `tailwindcss/defaultTheme`) so `font-sans` / the default stack resolve to Sarabun, matching the
   `body` rule in `index.css` and preventing any `font-sans` utility from clobbering it. `tsc` clean.
+
+## 2026-08-02 — Windowed history pagination
+- Bug: `HistoryPage` rendered one page button per page via
+  `Array.from({ length: totalPages })` — 339 items (`PAGE_SIZE.history` = 10) produced 34 number
+  buttons plus prev/next. No upper bound.
+- New pure helper `frontend/src/shared/lib/pagination.ts` `getPaginationRange(current, total)`:
+  always shows first + last + current±1, collapses larger gaps to `"ellipsis"`, but renders a
+  lone hidden page instead of a pointless single-page ellipsis. ≤7 number items regardless of total.
+  Unit-tested in `pagination.test.ts` (5 cases).
+- `HistoryPage.tsx` maps `getPaginationRange(safePage, totalPages)`, rendering `…` spans for
+  ellipsis markers; prev/next chevrons unchanged. Added a regression test asserting ≤7 number
+  buttons + ellipsis for a 339-item total. `tsc` clean; full suite 431/431 pass.
