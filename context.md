@@ -912,3 +912,43 @@ direct read (file:line), not inferred.
   callback), and `resolveRequest` sets the `conversation_id` span attribute (parity with Python
   `server.py:67`). Also switched the `agencies://list` resource body to a non-HTML-escaping JSON
   encoder (`SetEscapeHTML(false)`) to byte-match Python's `ensure_ascii=False`. Suite now 15 tests.
+
+## 2026-08-02 — Public branding rename to "Agentic AI Chatbot"
+- Frontend copy rebrand (branch `chore/rename-agentic-ai-chatbot`):
+  - Hero headings `ศูนย์บริการข้อมูลภาครัฐ` → `Agentic AI Chatbot` in `LandingHero.tsx` and
+    `ChatPage.tsx` (the Thai `ศูนย์` sara-U vowel was being clipped by the gradient-text
+    heading, so switched to the English brand name).
+  - Hero subtitle collapsed to one line: `สอบถามข้อมูลจากหน่วยงานภาครัฐได้ครบในที่เดียวสำหรับประชาชน`
+    (dropped the ` — Single Portal เพื่อประชาชน` span).
+  - `AI Chatbot Portal กลาง` → `Agentic AI Chatbot` across AppLayout, AppSidebar, PublicSidebar,
+    PublicPortal footer, InfoPage, and LoginPage.
+  - Left `infoContent.ts` prose ("ระบบบทสนทนาอัจฉริยะกลาง (AI Chatbot Portal) …") unchanged — it is
+    descriptive body text, not the brand label. `tsc --noEmit` clean.
+
+## 2026-08-02 — Global typography defaults
+- `frontend/src/index.css` `@layer base`: set `html { font-size: 16px }`, `body { font-weight: 300
+  (Sarabun Light); line-height: 1.6 }`, and `h1–h6 { font-weight: 500 (Sarabun Medium) }`.
+- Note: components with explicit Tailwind weight/leading utilities (`font-bold`, `font-semibold`,
+  `leading-*`, `text-sm`, …) still override these base defaults by class specificity — intended.
+
+## 2026-08-02 — Enforce Sarabun Medium on all headings
+- Follow-up to the typography defaults: base `h1–h6 { font-weight: 500 }` was being overridden by
+  explicit `font-bold`/`font-semibold` utilities on 27 heading elements, so headings still rendered
+  heavy. Stripped those weight utilities from `<h1>–<h6>` across features + `ui/card.tsx` CardTitle,
+  keeping `text-*` sizes and all other classes; base Medium (500) now applies.
+- Left non-heading `font-bold`/`font-semibold`/`font-medium` utilities (buttons, badges, labels)
+  untouched — intentional design. `tsc` clean; no new lint errors.
+
+## 2026-08-02 — OG image rebrand (style 6)
+- Regenerated `frontend/public/og-image.png` (1200×630): brand label in the past-selected "style 6"
+  layout changed "ศูนย์บริการข้อมูลภาครัฐ" → "Agentic AI Chatbot"; hero h1/subtitle/chat card
+  unchanged. Rendered via Playwright's cached `chrome-headless-shell` (--window-size=1200,630,
+  --virtual-time-budget for Sarabun webfont). HTML source kept at `frontend/public/og-source/og-image.html`.
+- Not touched (still "ศูนย์บริการข้อมูลภาครัฐ"): `index.html` `og:title`/`twitter:title`/`og:image:alt`/
+  `author` meta and the page `<title>` — pending user decision on full SEO rebrand.
+
+## 2026-08-02 — index.html meta rebrand
+- Removed the URL line from the OG image (re-rendered `og-image.png` from `og-source/og-image.html`).
+- Rebranded all 6 "ศูนย์บริการข้อมูลภาครัฐ" occurrences in `frontend/index.html` → "Agentic AI Chatbot"
+  (`<title>`, keywords, author, `og:title`, `og:image:alt`, `twitter:title`). Descriptions left as-is
+  (no brand name in them).

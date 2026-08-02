@@ -33,7 +33,7 @@ export default function UsersPage() {
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">จัดการผู้ใช้</h1>
+        <h1 className="text-2xl">จัดการผู้ใช้</h1>
         <Button onClick={openCreate}><UserPlus className="h-4 w-4 mr-2" />เพิ่มผู้ใช้</Button>
       </div>
 

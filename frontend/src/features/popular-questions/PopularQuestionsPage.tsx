@@ -91,7 +91,7 @@ export default function PopularQuestionsPage() {
   return (
     <div className="p-4 md:p-6 space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-foreground">คำถามยอดนิยม</h2>
+        <h2 className="text-lg text-foreground">คำถามยอดนิยม</h2>
         <div className="flex items-center gap-2">
           <Button
             size="sm"

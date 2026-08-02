@@ -89,7 +89,7 @@ export default function AgenciesPage() {
     <div className="p-4 md:p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">จัดการหน่วยงานที่เชื่อมต่อ</h2>
+          <h2 className="text-lg text-foreground">จัดการหน่วยงานที่เชื่อมต่อ</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
             รองรับ MCP, A2A และ API สำหรับการสื่อสารระหว่าง AI Agent
           </p>

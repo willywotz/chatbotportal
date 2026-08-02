@@ -13,7 +13,7 @@ export default function InfoPage() {
       <header className="border-b border-border bg-card/80 backdrop-blur-sm px-6 py-3 flex items-center justify-between sticky top-0 z-10">
         <Link to="/" className="flex items-center gap-2.5 text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="h-4 w-4" />
-          <span className="font-semibold text-foreground">AI Chatbot Portal กลาง</span>
+          <span className="font-semibold text-foreground">Agentic AI Chatbot</span>
         </Link>
         <a href="/chat" className="text-xs text-primary hover:underline flex items-center gap-1 font-medium">
           เข้าสู่ระบบ <ArrowRight className="w-3 h-3" />
@@ -39,7 +39,7 @@ export default function InfoPage() {
             <Link to="/" className="hover:text-foreground transition-colors">กลับหน้าหลัก</Link>
           </nav>
 
-          <h1 className="text-2xl font-bold text-foreground mb-1">{section.title}</h1>
+          <h1 className="text-2xl text-foreground mb-1">{section.title}</h1>
           <p className="text-xs text-muted-foreground mb-6">{section.updated}</p>
 
           <p className="text-sm md:text-base text-foreground/90 leading-relaxed whitespace-pre-line mb-8">
@@ -50,7 +50,7 @@ export default function InfoPage() {
             {section.blocks.map((block, i) => (
               <section key={i}>
                 {block.heading && (
-                  <h2 className="text-base font-semibold text-foreground mb-2">{block.heading}</h2>
+                  <h2 className="text-base text-foreground mb-2">{block.heading}</h2>
                 )}
                 {block.paragraphs?.map((p, j) => (
                   <p key={j} className="text-sm md:text-base text-muted-foreground leading-relaxed whitespace-pre-line mb-2">

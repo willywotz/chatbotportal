@@ -40,7 +40,7 @@ export default function SettingsLayout() {
       <div className="p-4 md:p-6 pb-0">
         <div className="mb-4 flex items-center gap-2">
           <Settings className="h-5 w-5 text-primary" />
-          <h1 className="text-2xl font-semibold">ตั้งค่าระบบ</h1>
+          <h1 className="text-2xl">ตั้งค่าระบบ</h1>
         </div>
         <Tabs value={active} onValueChange={(v) => navigate(v)}>
           <TabsList className="flex h-auto flex-wrap">

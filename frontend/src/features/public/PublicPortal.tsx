@@ -109,7 +109,7 @@ export default function PublicPortal() {
 
             {publicAgencies && publicAgencies.length > 0 && (
               <section className="w-full max-w-4xl mt-12">
-                <h2 className="text-sm font-semibold text-foreground text-center mb-5">หน่วยงานที่เชื่อมต่อ</h2>
+                <h2 className="text-sm text-foreground text-center mb-5">หน่วยงานที่เชื่อมต่อ</h2>
                 <AgencyCards agencies={publicAgencies} />
               </section>
             )}
@@ -118,7 +118,7 @@ export default function PublicPortal() {
           <footer className="border-t border-border py-6 px-6">
             <div className="max-w-xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">© 2568 AI Chatbot Portal กลาง</span>
+                <span className="text-xs text-muted-foreground">© 2568 Agentic AI Chatbot</span>
               </div>
               <InfoLinks />
             </div>

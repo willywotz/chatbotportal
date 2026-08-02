@@ -16,12 +16,12 @@ export function AppLayout() {
           <header className="h-14 border-b border-border bg-card flex items-center justify-between px-4 shrink-0">
             <div className="flex items-center gap-2">
               <SidebarTrigger />
-              {/* <h1 className="text-base font-semibold text-foreground hidden sm:block">
-                AI Chatbot Portal กลาง
+              {/* <h1 className="text-base text-foreground hidden sm:block">
+                Agentic AI Chatbot
               </h1> */}
             </div>
             <div className="flex items-center gap-3">
-              <span className="text-xs text-muted-foreground hidden sm:block">ระบบบูรณาการข้อมูลหน่วยงานภาครัฐ</span>
+              {/* <span className="text-xs text-muted-foreground hidden sm:block">ระบบสนทนาอัจฉริยะกลางเพื่อเชื่อมโยงบริการภาครัฐ</span> */}
               {isChat && <TextScaleControl />}
               <ThemeToggle />
               <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">

@@ -75,8 +75,8 @@ export default function DashboardPage() {
       )}
       <div className="flex items-center justify-between animate-fade-in">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Dashboard สถิติการใช้งาน</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">ภาพรวมการใช้งานระบบ AI ประสานงานภาครัฐ</p>
+          <h2 className="text-lg text-foreground">Dashboard สถิติการใช้งาน</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">ภาพรวมการใช้งานระบบสนทนาอัจฉริยะกลางเพื่อเชื่อมโยงบริการภาครัฐ</p>
         </div>
         {lastUpdated && (
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
@@ -226,7 +226,7 @@ export default function DashboardPage() {
 
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold text-foreground">📊 Feedback</h3>
+          <h3 className="text-base text-foreground">📊 Feedback</h3>
           <Link to="/feedback" className="text-xs text-primary hover:underline">ดูทั้งหมด →</Link>
         </div>
         <FeedbackSummaryCards />

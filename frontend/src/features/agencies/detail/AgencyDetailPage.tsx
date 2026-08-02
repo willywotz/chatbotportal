@@ -84,7 +84,7 @@ export default function AgencyDetailPage() {
             <AgencyLogo logo={agency.logo} alt={agency.name} className="w-full h-full rounded-xl" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold flex items-center gap-2">
+            <h2 className="text-lg flex items-center gap-2">
               {agency.name}
               {showHealthDot && (
                 <span className={`inline-block w-2.5 h-2.5 rounded-full ${HEALTH_DOT_CLASS[agency.health.state]}`} />

@@ -54,7 +54,7 @@ export function RoutesPanel() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-foreground">เส้นทาง LLM</h2>
+        <h2 className="text-lg text-foreground">เส้นทาง LLM</h2>
         <button
           onClick={runAll}
           disabled={routes.length === 0 || anyTesting}

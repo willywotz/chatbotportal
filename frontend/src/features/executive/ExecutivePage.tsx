@@ -45,7 +45,7 @@ export default function ExecutivePage() {
     <div className="p-6 space-y-6 mx-auto">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight portal-gradient-text">Executive Dashboard</h1>
+          <h1 className="text-3xl tracking-tight portal-gradient-text">Executive Dashboard</h1>
           <p className="text-sm text-muted-foreground mt-1">
             ภาพรวมเชิงกลยุทธ์สำหรับผู้บริหาร · อัปเดตล่าสุด {new Date(generatedAt).toLocaleString('th-TH')}
           </p>
