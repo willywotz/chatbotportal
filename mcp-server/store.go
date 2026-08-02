@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -21,8 +22,8 @@ type Agency struct {
 }
 
 func getAgencies(ctx context.Context, pool *pgxpool.Pool) ([]Agency, error) {
-	const q = `select id, name, status, description, connection_type,
-	                  data_scope, endpoint_url, expected_payload, api_headers
+	const q = `select id, name, status, coalesce(description, '') as description, connection_type,
+	                  data_scope, coalesce(endpoint_url, '') as endpoint_url, expected_payload, api_headers
 	           from agencies`
 	rows, err := pool.Query(ctx, q)
 	if err != nil {
@@ -68,7 +69,9 @@ func authenticateAPIKey(ctx context.Context, pool *pgxpool.Pool, keyHash string)
 	if err != nil {
 		return Identity{}, false, err
 	}
-	_, _ = pool.Exec(ctx,
-		`update user_api_keys set last_used_at = now() where key_hash = $1`, keyHash)
+	if _, err := pool.Exec(ctx,
+		`update user_api_keys set last_used_at = now() where key_hash = $1`, keyHash); err != nil {
+		slog.Warn("bump last_used_at", slog.Any("error", err))
+	}
 	return Identity{UserID: id, IsAdmin: role == "admin"}, true, nil
 }
