@@ -21,7 +21,7 @@ export function AppLayout() {
               </h1> */}
             </div>
             <div className="flex items-center gap-3">
-              <span className="text-xs text-muted-foreground hidden sm:block">ระบบบูรณาการข้อมูลหน่วยงานภาครัฐ</span>
+              {/* <span className="text-xs text-muted-foreground hidden sm:block">ระบบสนทนาอัจฉริยะกลางเพื่อเชื่อมโยงบริการภาครัฐ</span> */}
               {isChat && <TextScaleControl />}
               <ThemeToggle />
               <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">

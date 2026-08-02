@@ -22,7 +22,7 @@ export const MessageBubble = memo(function MessageBubble({ message, onRate }: { 
     <div className={cn("flex gap-3 mb-4", isUser && "flex-row-reverse")}>
       <div className={cn("max-w-[80%] space-y-2", isUser && "text-right")}>
         {isUser ? (
-          <div className="rounded-2xl rounded-tr-sm bg-primary px-4 py-3 text-[1em] leading-relaxed text-primary-foreground">
+          <div className="rounded-2xl rounded-tr-sm bg-primary px-4 py-2 text-[1em] leading-relaxed text-primary-foreground">
             <div className="whitespace-pre-wrap">{message.content}</div>
           </div>
         ) : (

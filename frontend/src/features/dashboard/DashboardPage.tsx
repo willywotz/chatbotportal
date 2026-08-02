@@ -76,7 +76,7 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between animate-fade-in">
         <div>
           <h2 className="text-lg text-foreground">Dashboard สถิติการใช้งาน</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">ภาพรวมการใช้งานระบบ AI ประสานงานภาครัฐ</p>
+          <p className="text-xs text-muted-foreground mt-0.5">ภาพรวมการใช้งานระบบสนทนาอัจฉริยะกลางเพื่อเชื่อมโยงบริการภาครัฐ</p>
         </div>
         {lastUpdated && (
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
