@@ -946,3 +946,9 @@ direct read (file:line), not inferred.
   --virtual-time-budget for Sarabun webfont). HTML source kept at `frontend/public/og-source/og-image.html`.
 - Not touched (still "ศูนย์บริการข้อมูลภาครัฐ"): `index.html` `og:title`/`twitter:title`/`og:image:alt`/
   `author` meta and the page `<title>` — pending user decision on full SEO rebrand.
+
+## 2026-08-02 — index.html meta rebrand
+- Removed the URL line from the OG image (re-rendered `og-image.png` from `og-source/og-image.html`).
+- Rebranded all 6 "ศูนย์บริการข้อมูลภาครัฐ" occurrences in `frontend/index.html` → "Agentic AI Chatbot"
+  (`<title>`, keywords, author, `og:title`, `og:image:alt`, `twitter:title`). Descriptions left as-is
+  (no brand name in them).
