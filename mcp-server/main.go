@@ -13,7 +13,7 @@ import (
 
 func newRouter(srv *mcp.Server) *http.ServeMux {
 	mux := http.NewServeMux()
-	h := newStreamableHandler(srv)
+	h := withTracing(newStreamableHandler(srv))
 	mux.Handle("/mcp-v2", h)
 	mux.Handle("/mcp-v2/", h) // tolerate trailing slash / subpaths
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {

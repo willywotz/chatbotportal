@@ -2,11 +2,12 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const instructions = "This server exposes Thai government agency data for the AI " +
@@ -42,7 +43,7 @@ func newMCPServer(pool *pgxpool.Pool) *mcp.Server {
 		if err != nil {
 			return nil, err
 		}
-		b, err := json.MarshalIndent(agencies, "", "  ")
+		b, err := marshalIndentNoHTMLEscape(agencies)
 		if err != nil {
 			return nil, err
 		}
@@ -95,5 +96,6 @@ func resolveRequest(ctx context.Context, pool *pgxpool.Pool, h http.Header) (Ide
 			return Identity{}, "", "", err
 		}
 	}
+	trace.SpanFromContext(ctx).SetAttributes(attribute.String("conversation_id", conversationID))
 	return id, userID, conversationID, nil
 }

@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"log/slog"
 	"time"
 )
@@ -59,4 +61,17 @@ func formatUUID(uuid [16]byte) string {
 
 func now() time.Time {
 	return time.Now().In(bangkokLoc)
+}
+
+// marshalIndentNoHTMLEscape renders v as 2-space-indented JSON without
+// escaping <, >, & (mirrors Python's json.dumps(..., ensure_ascii=False)).
+func marshalIndentNoHTMLEscape(v any) ([]byte, error) {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(v); err != nil {
+		return nil, err
+	}
+	return bytes.TrimRight(buf.Bytes(), "\n"), nil
 }
