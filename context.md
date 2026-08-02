@@ -912,3 +912,15 @@ direct read (file:line), not inferred.
   callback), and `resolveRequest` sets the `conversation_id` span attribute (parity with Python
   `server.py:67`). Also switched the `agencies://list` resource body to a non-HTML-escaping JSON
   encoder (`SetEscapeHTML(false)`) to byte-match Python's `ensure_ascii=False`. Suite now 15 tests.
+
+## 2026-08-02 — Public branding rename to "Agentic AI Chatbot"
+- Frontend copy rebrand (branch `chore/rename-agentic-ai-chatbot`):
+  - Hero headings `ศูนย์บริการข้อมูลภาครัฐ` → `Agentic AI Chatbot` in `LandingHero.tsx` and
+    `ChatPage.tsx` (the Thai `ศูนย์` sara-U vowel was being clipped by the gradient-text
+    heading, so switched to the English brand name).
+  - Hero subtitle collapsed to one line: `สอบถามข้อมูลจากหน่วยงานภาครัฐได้ครบในที่เดียวสำหรับประชาชน`
+    (dropped the ` — Single Portal เพื่อประชาชน` span).
+  - `AI Chatbot Portal กลาง` → `Agentic AI Chatbot` across AppLayout, AppSidebar, PublicSidebar,
+    PublicPortal footer, InfoPage, and LoginPage.
+  - Left `infoContent.ts` prose ("ระบบบทสนทนาอัจฉริยะกลาง (AI Chatbot Portal) …") unchanged — it is
+    descriptive body text, not the brand label. `tsc --noEmit` clean.

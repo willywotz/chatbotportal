@@ -50,7 +50,7 @@ export default function LoginPage() {
         <CardHeader className="text-center space-y-2">
           <CardTitle className="text-xl">เข้าสู่ระบบ Admin</CardTitle>
           <p className="text-sm text-muted-foreground">
-            AI Chatbot Portal กลาง — ระบบบูรณาการข้อมูลหน่วยงานภาครัฐ
+            Agentic AI Chatbot — ระบบบูรณาการข้อมูลหน่วยงานภาครัฐ
           </p>
         </CardHeader>
         <CardContent>

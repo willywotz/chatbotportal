@@ -70,7 +70,7 @@ export function AppSidebar() {
         {!collapsed && (
           <div className="p-4 border-b border-sidebar-border">
             <div>
-              <p className="font-semibold text-sm text-sidebar-foreground">AI Chatbot Portal กลาง</p>
+              <p className="font-semibold text-sm text-sidebar-foreground">Agentic AI Chatbot</p>
               <p className="text-[10px] text-muted-foreground">ระบบบูรณาการข้อมูล</p>
             </div>
           </div>

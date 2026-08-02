@@ -17,7 +17,7 @@ export function AppLayout() {
             <div className="flex items-center gap-2">
               <SidebarTrigger />
               {/* <h1 className="text-base font-semibold text-foreground hidden sm:block">
-                AI Chatbot Portal กลาง
+                Agentic AI Chatbot
               </h1> */}
             </div>
             <div className="flex items-center gap-3">

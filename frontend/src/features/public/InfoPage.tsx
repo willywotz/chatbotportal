@@ -13,7 +13,7 @@ export default function InfoPage() {
       <header className="border-b border-border bg-card/80 backdrop-blur-sm px-6 py-3 flex items-center justify-between sticky top-0 z-10">
         <Link to="/" className="flex items-center gap-2.5 text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="h-4 w-4" />
-          <span className="font-semibold text-foreground">AI Chatbot Portal กลาง</span>
+          <span className="font-semibold text-foreground">Agentic AI Chatbot</span>
         </Link>
         <a href="/chat" className="text-xs text-primary hover:underline flex items-center gap-1 font-medium">
           เข้าสู่ระบบ <ArrowRight className="w-3 h-3" />

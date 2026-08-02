@@ -27,7 +27,7 @@ export function PublicSidebar({ agencies, onNewChat }: PublicSidebarProps) {
       <SidebarContent>
         {!collapsed && (
           <div className="p-4 border-b border-sidebar-border">
-            <p className="font-semibold text-sm text-sidebar-foreground">AI Chatbot Portal กลาง</p>
+            <p className="font-semibold text-sm text-sidebar-foreground">Agentic AI Chatbot</p>
             <p className="text-[10px] text-muted-foreground">ระบบบูรณาการข้อมูล</p>
           </div>
         )}
