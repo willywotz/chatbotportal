@@ -104,7 +104,7 @@ export default function ApiKeysPage() {
   return (
     <div className="p-4 md:p-6 space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-foreground">API Keys</h2>
+        <h2 className="text-lg text-foreground">API Keys</h2>
         <Button size="sm" onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4 mr-1" />
           สร้าง API Key

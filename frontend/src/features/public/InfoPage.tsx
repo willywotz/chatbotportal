@@ -39,7 +39,7 @@ export default function InfoPage() {
             <Link to="/" className="hover:text-foreground transition-colors">กลับหน้าหลัก</Link>
           </nav>
 
-          <h1 className="text-2xl font-bold text-foreground mb-1">{section.title}</h1>
+          <h1 className="text-2xl text-foreground mb-1">{section.title}</h1>
           <p className="text-xs text-muted-foreground mb-6">{section.updated}</p>
 
           <p className="text-sm md:text-base text-foreground/90 leading-relaxed whitespace-pre-line mb-8">
@@ -50,7 +50,7 @@ export default function InfoPage() {
             {section.blocks.map((block, i) => (
               <section key={i}>
                 {block.heading && (
-                  <h2 className="text-base font-semibold text-foreground mb-2">{block.heading}</h2>
+                  <h2 className="text-base text-foreground mb-2">{block.heading}</h2>
                 )}
                 {block.paragraphs?.map((p, j) => (
                   <p key={j} className="text-sm md:text-base text-muted-foreground leading-relaxed whitespace-pre-line mb-2">

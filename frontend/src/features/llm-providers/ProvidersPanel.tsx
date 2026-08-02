@@ -61,7 +61,7 @@ export function ProvidersPanel() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-foreground">ผู้ให้บริการ LLM</h2>
+        <h2 className="text-lg text-foreground">ผู้ให้บริการ LLM</h2>
         <Button size="sm" onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4 mr-1" />
           เพิ่มผู้ให้บริการ

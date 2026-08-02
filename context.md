@@ -930,3 +930,11 @@ direct read (file:line), not inferred.
   (Sarabun Light); line-height: 1.6 }`, and `h1–h6 { font-weight: 500 (Sarabun Medium) }`.
 - Note: components with explicit Tailwind weight/leading utilities (`font-bold`, `font-semibold`,
   `leading-*`, `text-sm`, …) still override these base defaults by class specificity — intended.
+
+## 2026-08-02 — Enforce Sarabun Medium on all headings
+- Follow-up to the typography defaults: base `h1–h6 { font-weight: 500 }` was being overridden by
+  explicit `font-bold`/`font-semibold` utilities on 27 heading elements, so headings still rendered
+  heavy. Stripped those weight utilities from `<h1>–<h6>` across features + `ui/card.tsx` CardTitle,
+  keeping `text-*` sizes and all other classes; base Medium (500) now applies.
+- Left non-heading `font-bold`/`font-semibold`/`font-medium` utilities (buttons, badges, labels)
+  untouched — intentional design. `tsc` clean; no new lint errors.

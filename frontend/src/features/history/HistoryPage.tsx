@@ -66,7 +66,7 @@ export default function HistoryPage() {
   return (
     <div className="p-4 md:p-6 space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-foreground">ประวัติการสนทนา</h2>
+        <h2 className="text-lg text-foreground">ประวัติการสนทนา</h2>
         {conversations.length > 0 && (
           <div className="flex gap-1.5">
             <Button

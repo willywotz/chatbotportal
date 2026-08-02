@@ -40,7 +40,7 @@ export default function ChatPage() {
       {!hasMessages && !isTyping ? (
         <ScrollArea className="flex-1 p-4">
           <div className="flex flex-col items-center justify-center h-full min-h-[60vh] text-center px-4">
-            <h1 className="text-3xl md:text-4xl font-bold text-center mb-3 portal-gradient-text">
+            <h1 className="text-3xl md:text-4xl text-center mb-3 portal-gradient-text">
               Agentic AI Chatbot
             </h1>
             <p className="text-sm md:text-base text-muted-foreground text-center max-w-lg mb-10 leading-relaxed">

@@ -63,7 +63,7 @@ function WorkflowNode({ node, isExpanded, onToggle }: { node: NodeData; isExpand
         <div className="flex items-center gap-3">
           <span className="text-2xl">{node.icon}</span>
           <div>
-            <h3 className="font-semibold text-sm text-foreground">{node.label}</h3>
+            <h3 className="text-sm text-foreground">{node.label}</h3>
             <p className="text-xs text-muted-foreground">{node.description}</p>
           </div>
         </div>
@@ -104,7 +104,7 @@ export default function ArchitecturePage() {
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-foreground">System Architecture</h1>
+        <h1 className="text-xl text-foreground">System Architecture</h1>
         <p className="text-sm text-muted-foreground">แผนผังระบบ Agentic AI — คลิกแต่ละ node เพื่อดูรายละเอียด</p>
       </div>
 
@@ -120,7 +120,7 @@ export default function ArchitecturePage() {
 
       {/* Agency connections */}
       <div>
-        <h2 className="text-base font-semibold text-foreground mb-3">หน่วยงานที่เชื่อมต่อ</h2>
+        <h2 className="text-base text-foreground mb-3">หน่วยงานที่เชื่อมต่อ</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {agencies.map((a) => (
             <div key={a.id} className="bg-card border border-border rounded-xl p-4 space-y-2">

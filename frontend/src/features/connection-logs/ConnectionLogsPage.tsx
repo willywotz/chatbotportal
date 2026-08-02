@@ -61,7 +61,7 @@ export default function ConnectionLogsPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Activity className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-semibold text-foreground">ประวัติการเชื่อมต่อ</h2>
+          <h2 className="text-lg text-foreground">ประวัติการเชื่อมต่อ</h2>
         </div>
         <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ["connection-logs"] })} disabled={isFetching}>
           <RefreshCw className={cn("h-3.5 w-3.5 mr-1", isFetching && "animate-spin")} /> รีเฟรช

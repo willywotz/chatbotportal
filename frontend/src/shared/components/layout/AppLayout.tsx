@@ -16,7 +16,7 @@ export function AppLayout() {
           <header className="h-14 border-b border-border bg-card flex items-center justify-between px-4 shrink-0">
             <div className="flex items-center gap-2">
               <SidebarTrigger />
-              {/* <h1 className="text-base font-semibold text-foreground hidden sm:block">
+              {/* <h1 className="text-base text-foreground hidden sm:block">
                 Agentic AI Chatbot
               </h1> */}
             </div>

@@ -109,7 +109,7 @@ export default function PublicPortal() {
 
             {publicAgencies && publicAgencies.length > 0 && (
               <section className="w-full max-w-4xl mt-12">
-                <h2 className="text-sm font-semibold text-foreground text-center mb-5">หน่วยงานที่เชื่อมต่อ</h2>
+                <h2 className="text-sm text-foreground text-center mb-5">หน่วยงานที่เชื่อมต่อ</h2>
                 <AgencyCards agencies={publicAgencies} />
               </section>
             )}

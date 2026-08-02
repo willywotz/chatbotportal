@@ -41,7 +41,7 @@ function HeatmapContent({
     <div className="p-6 space-y-6 mx-auto">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
+          <h1 className="text-3xl flex items-center gap-2">
             <Flame className="h-7 w-7 text-orange-500" />
             Usage Heatmap
           </h1>

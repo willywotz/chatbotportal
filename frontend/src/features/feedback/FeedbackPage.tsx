@@ -39,7 +39,7 @@ export default function FeedbackPage() {
   return (
     <div className="p-4 md:p-6 space-y-6">
       <div>
-        <h2 className="text-lg font-semibold text-foreground">ความคิดเห็นและความพึงพอใจ</h2>
+        <h2 className="text-lg text-foreground">ความคิดเห็นและความพึงพอใจ</h2>
         <p className="text-xs text-muted-foreground mt-0.5">วิเคราะห์ Feedback จากผู้ใช้งานระบบ</p>
       </div>
 
