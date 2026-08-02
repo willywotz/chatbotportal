@@ -854,3 +854,15 @@ direct read (file:line), not inferred.
   `response.completed`/`response.failed`) — this doc's "9" counts the happy path + `failed`; the
   extra is the `created` lifecycle event. `usage` is always zero by design; `input_items` ignores its
   `order`/`limit` args (`responses/retrieve.py:57`).
+
+## 2026-08-02 — frontend/index.html SEO + OG rebrand
+
+- Replaced Lovable placeholder metadata in `frontend/index.html` with real branding + full SEO/social
+  tags: `<html lang="th">`, Thai `<title>`/`description`/`keywords`/`author`, `robots`,
+  `theme-color`, `canonical`, and complete `og:*` / `twitter:*` sets (incl. `og:image:width/height/alt`).
+- **Public title is now `ศูนย์บริการข้อมูลภาครัฐ`** in the meta tags and the OG image (per user choice).
+  Note this diverges from the in-repo product name "AI Chatbot Portal" / "Thai Citizen Guide" —
+  the divergence is intentional for the public link preview only; app UI/`APP_NAME` unchanged.
+- Canonical + `og:image` absolute URLs point at prod `https://chatbotportal.opdc.ai.in.th/`.
+- Added `frontend/public/og-image.png` (1200×630) — "Style 6" chat-card design, rendered from a
+  scratchpad HTML mock via headless Chrome. Old Lovable R2 preview image reference removed.
