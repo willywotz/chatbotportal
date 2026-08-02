@@ -965,3 +965,13 @@ direct read (file:line), not inferred.
   Executive keeps its `portal-gradient-text` (passed as a title node — color preserved, size unified).
 - Left deliberately distinct: ChatPage + public InfoPage heroes (public-facing, not admin).
 - `tsc` clean; full suite 425/425 pass.
+
+## 2026-08-02 — Trim Sarabun weights + Tailwind fontFamily
+- `frontend/index.html`: trimmed the Sarabun Google Fonts `<link>` from all 16 ital/roman weights
+  (100–800 × 2) to `wght@300;400;500;600;700` (roman only). Audit: only 300/400/500/600/700 are used
+  (`font-medium`×91, `font-semibold`×30, `font-normal`×5, `font-bold`×3, body Light 300, heading 500).
+  Dropped italic variants — 2 `italic` uses are on `text-xs text-muted-foreground` helper text; faux
+  italic is acceptable there.
+- `frontend/tailwind.config.ts`: added `theme.extend.fontFamily.sans = ["Sarabun", ...defaultTheme.fontFamily.sans]`
+  (import `tailwindcss/defaultTheme`) so `font-sans` / the default stack resolve to Sarabun, matching the
+  `body` rule in `index.css` and preventing any `font-sans` utility from clobbering it. `tsc` clean.
