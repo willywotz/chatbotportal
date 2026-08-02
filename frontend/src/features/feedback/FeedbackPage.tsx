@@ -15,6 +15,7 @@ import { ThumbsDown } from "lucide-react";
 import { useTheme } from "next-themes";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
+import { PageHeader } from "@/shared/components/layout/PageHeader";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { QueryStateBoundary } from "@/shared/components/QueryStateBoundary";
 import { useFeedbackStats } from "@/features/feedback/useFeedbackStats";
@@ -38,10 +39,7 @@ export default function FeedbackPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-6">
-      <div>
-        <h2 className="text-lg text-foreground">ความคิดเห็นและความพึงพอใจ</h2>
-        <p className="text-xs text-muted-foreground mt-0.5">วิเคราะห์ Feedback จากผู้ใช้งานระบบ</p>
-      </div>
+      <PageHeader title="ความคิดเห็นและความพึงพอใจ" subtitle="วิเคราะห์ Feedback จากผู้ใช้งานระบบ" />
 
       <FeedbackSummaryCards />
 

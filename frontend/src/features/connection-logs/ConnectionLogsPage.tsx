@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { Button } from "@/shared/components/ui/button";
+import { PageHeader } from "@/shared/components/layout/PageHeader";
 import { Activity, RefreshCw } from "lucide-react";
 import { useConnectionLogs, useConnectionLogInfo } from "./useConnectionLogs";
 import { useAgencies } from "@/features/agencies/useAgencies";
@@ -58,15 +59,15 @@ export default function ConnectionLogsPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Activity className="h-5 w-5 text-primary" />
-          <h2 className="text-lg text-foreground">ประวัติการเชื่อมต่อ</h2>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ["connection-logs"] })} disabled={isFetching}>
-          <RefreshCw className={cn("h-3.5 w-3.5 mr-1", isFetching && "animate-spin")} /> รีเฟรช
-        </Button>
-      </div>
+      <PageHeader
+        icon={<Activity className="h-5 w-5 text-primary" />}
+        title="ประวัติการเชื่อมต่อ"
+        actions={
+          <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ["connection-logs"] })} disabled={isFetching}>
+            <RefreshCw className={cn("h-3.5 w-3.5 mr-1", isFetching && "animate-spin")} /> รีเฟรช
+          </Button>
+        }
+      />
 
       <ConnectionLogStats logInfo={logInfo} />
 

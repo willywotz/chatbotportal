@@ -1,5 +1,6 @@
 import { useAgencyHealth } from './useHealth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components/ui/card';
+import { PageHeader } from '@/shared/components/layout/PageHeader';
 import { Badge } from '@/shared/components/ui/badge';
 import { QueryStateBoundary } from '@/shared/components/QueryStateBoundary';
 import { Activity, AlertCircle, CheckCircle2, XCircle, Zap } from 'lucide-react';
@@ -12,18 +13,16 @@ const AGENCY_COLORS = ['hsl(213 70% 50%)', 'hsl(280 60% 55%)', 'hsl(35 90% 55%)'
 function HealthContent({ data }: { data: AgencyHealthData }) {
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl flex items-center gap-2">
-            <Activity className="h-7 w-7 text-primary" />
-            Agency Health Monitoring
-          </h1>
-          <p className="text-muted-foreground mt-1">Real-time uptime, latency และ historical chart</p>
-        </div>
-        <Badge variant="outline" className="text-xs animate-pulse">
-          ● Live (refresh ทุก 15 วินาที)
-        </Badge>
-      </div>
+      <PageHeader
+        icon={<Activity className="h-7 w-7 text-primary" />}
+        title="Agency Health Monitoring"
+        subtitle="Real-time uptime, latency และ historical chart"
+        actions={
+          <Badge variant="outline" className="text-xs animate-pulse">
+            ● Live (refresh ทุก 15 วินาที)
+          </Badge>
+        }
+      />
 
       {/* Real-time agency cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

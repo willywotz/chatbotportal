@@ -3,6 +3,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/shared/components/ui/table';
 import { Input } from '@/shared/components/ui/input';
+import { PageHeader } from '@/shared/components/layout/PageHeader';
 import { BarChart3 } from 'lucide-react';
 import { useUsage } from './useUsage';
 
@@ -21,10 +22,7 @@ export default function UsageAnalyticsPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-4">
-      <div className="flex items-center gap-2">
-        <BarChart3 className="h-5 w-5 text-primary" />
-        <h1 className="text-2xl">การใช้งานต่อ API Key</h1>
-      </div>
+      <PageHeader icon={<BarChart3 className="h-5 w-5 text-primary" />} title="การใช้งานต่อ API Key" />
 
       <div className="flex flex-wrap items-center gap-3">
         <label className="text-sm text-muted-foreground">ตั้งแต่</label>

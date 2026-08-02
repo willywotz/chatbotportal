@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/shared/components/ui/button";
+import { PageHeader } from "@/shared/components/layout/PageHeader";
 import { Loader2, Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -90,28 +91,30 @@ export default function PopularQuestionsPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg text-foreground">คำถามยอดนิยม</h2>
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => regenerateMutation.mutate()}
-            disabled={regenerateMutation.isPending}
-          >
-            {regenerateMutation.isPending ? (
-              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4 mr-1" />
-            )}
-            สร้างใหม่ตอนนี้
-          </Button>
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4 mr-1" />
-            เพิ่มคำถาม
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="คำถามยอดนิยม"
+        actions={
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => regenerateMutation.mutate()}
+              disabled={regenerateMutation.isPending}
+            >
+              {regenerateMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-1" />
+              )}
+              สร้างใหม่ตอนนี้
+            </Button>
+            <Button size="sm" onClick={() => setCreateOpen(true)}>
+              <Plus className="h-4 w-4 mr-1" />
+              เพิ่มคำถาม
+            </Button>
+          </div>
+        }
+      />
 
       {isLoading && (
         <div className="flex items-center justify-center py-12">

@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
+import { PageHeader } from "@/shared/components/layout/PageHeader";
 import { Input } from "@/shared/components/ui/input";
 import type { Agency, AgencyLifecycleStatus } from "@/shared/types/agency";
 
@@ -87,22 +88,20 @@ export default function AgenciesPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg text-foreground">จัดการหน่วยงานที่เชื่อมต่อ</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            รองรับ MCP, A2A และ API สำหรับการสื่อสารระหว่าง AI Agent
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">{filtered.length} หน่วยงาน</span>
-          <Button size="sm" asChild>
-            <Link to="/agencies/new">
-              <Plus className="h-4 w-4 mr-1" /> เพิ่มหน่วยงาน
-            </Link>
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="จัดการหน่วยงานที่เชื่อมต่อ"
+        subtitle="รองรับ MCP, A2A และ API สำหรับการสื่อสารระหว่าง AI Agent"
+        actions={
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">{filtered.length} หน่วยงาน</span>
+            <Button size="sm" asChild>
+              <Link to="/agencies/new">
+                <Plus className="h-4 w-4 mr-1" /> เพิ่มหน่วยงาน
+              </Link>
+            </Button>
+          </div>
+        }
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         {STATUS_FILTERS.map((s) => (
