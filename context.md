@@ -924,3 +924,9 @@ direct read (file:line), not inferred.
     PublicPortal footer, InfoPage, and LoginPage.
   - Left `infoContent.ts` prose ("ระบบบทสนทนาอัจฉริยะกลาง (AI Chatbot Portal) …") unchanged — it is
     descriptive body text, not the brand label. `tsc --noEmit` clean.
+
+## 2026-08-02 — Global typography defaults
+- `frontend/src/index.css` `@layer base`: set `html { font-size: 16px }`, `body { font-weight: 300
+  (Sarabun Light); line-height: 1.6 }`, and `h1–h6 { font-weight: 500 (Sarabun Medium) }`.
+- Note: components with explicit Tailwind weight/leading utilities (`font-bold`, `font-semibold`,
+  `leading-*`, `text-sm`, …) still override these base defaults by class specificity — intended.
