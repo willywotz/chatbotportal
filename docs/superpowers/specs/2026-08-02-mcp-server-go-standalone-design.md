@@ -44,6 +44,38 @@ database to verify parity before trusting the new service.
 | 5 | MCP library | `github.com/modelcontextprotocol/go-sdk` **v1.7.0** | Official SDK; latest (2026-07-27); `StreamableHTTPHandler{Stateless:true}` verified present. |
 | 6 | Transport | streamable-HTTP, `Stateless: true` | Matches Python `stateless_http=True`; safe under concurrency. |
 | 7 | Config source | env var | `TRACE_URL_PROBE` via env (simpler than DB-loaded settings parity). |
+| 8 | Protocol version | **Strict MCP `2026-07-28`** | Per [spec](https://modelcontextprotocol.io/specification/2026-07-28.md). Verified `latestProtocolVersion = "2026-07-28"` and in `supportedProtocolVersions` in go-sdk v1.7.0. |
+
+## Protocol Conformance (MCP `2026-07-28`)
+
+The server MUST strictly conform to the
+[MCP `2026-07-28` specification](https://modelcontextprotocol.io/specification/2026-07-28.md).
+
+**Conformance requirements:**
+
+1. **Version negotiation.** The `initialize` response MUST advertise
+   `protocolVersion: "2026-07-28"` (the SDK's `latestProtocolVersion`). If a client
+   requests an older supported version, the SDK negotiates down — acceptable, but the
+   server's own latest MUST be `2026-07-28`.
+2. **Stateless, self-contained requests + per-request capability negotiation.** Use
+   `StreamableHTTPOptions{Stateless: true}` — aligns with the spec's stateless model
+   and the Python server's `stateless_http=True`. Per POST, GET/DELETE → `405`.
+3. **Capabilities.** Advertise only what we implement — `tools` and `resources`.
+   Do **not** advertise `prompts`, `logging`, or client-feature capabilities we do
+   not serve.
+4. **Extensions are opt-in and NOT used.** Tasks, Skills-over-MCP, and MCP Apps are
+   spec extensions requiring explicit negotiation. This server negotiates **none** of
+   them; it MUST not require or assume any extension.
+5. **No deprecated constructs.** Several fields are deprecated as of `2026-07-28`
+   (SEP-2577) — still functional in the SDK during the deprecation window, but for
+   strict conformance the server MUST NOT emit deprecated shapes. Prefer the current
+   content-block / result shapes the SDK produces by default at `2026-07-28`.
+6. **Security & Trust.** Tool annotations are untrusted per spec; the server exposes a
+   single read-only data tool behind API-key auth and performs no side effects beyond
+   bumping `last_used_at`.
+
+Conformance is asserted by an `initialize`-handshake test (see Testing) plus reliance
+on the SDK's own protocol implementation at the pinned version.
 
 ## Architecture
 
@@ -131,6 +163,7 @@ Red → green → refactor for each unit. Go tests mirror the Python suite:
 
 | Go test | Mirrors | Asserts |
 |---------|---------|---------|
+| `conformance_test.go` | — (new) | `initialize` handshake negotiates `protocolVersion: "2026-07-28"`; advertised capabilities are exactly `tools` + `resources` (no prompts/logging, no extensions). |
 | `mcpserver_test.go` | `test_mcp_streamable_calls`, `test_mcp_stateless_http` | `list_agency` over streamable-HTTP returns `{agencies,total}`; stateless POST works, GET/DELETE → 405. |
 | `auth_test.go` | `test_mcp_role_access` | admin sees `Authorization` headers; non-admin has them stripped; anonymous still gets data. |
 | `agencies_test.go` | `_fetch_agencies` behavior | redaction, `API`→agent-proxy rewrite, `__user_id__`/`__conversation_id__` templating. |
@@ -149,6 +182,7 @@ output, so auth is provably compatible.
 | `hashAPIKey` mismatch → auth silently fails | Known-vector unit test against Python output. |
 | nginx regex vs prefix precedence | Use `location ^~ /mcp-v2` so the prefix beats the existing regex location. |
 | `TRACE_URL_PROBE` parity | Sourced via env var; if DB-loaded parity is later required, add a settings read. |
+| Strict `2026-07-28` conformance vs SDK deprecation-window fields | Rely on SDK default shapes at pinned latest version; `conformance_test.go` asserts negotiated version + capability set; avoid explicitly setting any SEP-2577-deprecated field. |
 
 ## Out of Scope
 
