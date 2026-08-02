@@ -905,3 +905,10 @@ direct read (file:line), not inferred.
     cannot serve `list_agency` at all against the present seed data.
 - Final sweep in `mcp-server/`: `go test ./...` → 13 passed; `go vet ./...` → clean; `go build ./...`
   → success.
+- **Post-review observability fix** (whole-branch review finding): added `mcp-server/otelmw.go`
+  `withTracing` HTTP middleware wrapping `/mcp-v2` — extracts the inbound W3C context and starts a
+  request span, so `traceparentQuery`/`agentProxyEndpoint` now inject the active `traceparent` into
+  the `/agent-proxy/{id}` callback URL (distributed trace survives OneChat's header-dropping
+  callback), and `resolveRequest` sets the `conversation_id` span attribute (parity with Python
+  `server.py:67`). Also switched the `agencies://list` resource body to a non-HTML-escaping JSON
+  encoder (`SetEscapeHTML(false)`) to byte-match Python's `ensure_ascii=False`. Suite now 15 tests.
