@@ -866,3 +866,42 @@ direct read (file:line), not inferred.
 - Canonical + `og:image` absolute URLs point at prod `https://chatbotportal.opdc.ai.in.th/`.
 - Added `frontend/public/og-image.png` (1200×630) — "Style 6" chat-card design, rendered from a
   scratchpad HTML mock via headless Chrome. Old Lovable R2 preview image reference removed.
+
+## 2026-08-02 — Standalone Go MCP server at /mcp-v2
+
+- New top-level `mcp-server/` service (module `github.com/willywotz/thai-citizen-guide/mcp-server`),
+  built on the official `go-sdk v1.7.0`, exposing a streamable-HTTP MCP endpoint with `Stateless: true`.
+  It targets strict MCP `2026-07-28` conformance: the latest protocol version is advertised only via
+  the SEP-2575 `server/discover` RPC, while the legacy `initialize` handshake reports compat
+  capabilities pinned at `2025-11-25` (verified empirically below — this is expected, not a bug).
+- Reads Postgres **directly via `pgx`** (`store.go`), the same pattern as `agent-proxy`; it does not
+  import the Python `backend` package. It re-implements, in Go: sha256 API-key auth (`auth.go`),
+  admin-only header redaction and `API`→`/agent-proxy/{id}` endpoint-URL rewrite
+  (`agencies.go`/`url.go`), and `__user_id__`/`__conversation_id__` payload templating — mirroring
+  `backend/app/mcp/server.py`'s `list_agency` tool.
+- Deploy is purely additive: the old Python `/mcp` (served by `backend`) is untouched; the new
+  service is reachable at `/mcp-v2` via an nginx `^~ /mcp-v2` location (`nginx/routes.conf`) plus a
+  new `mcp-server` compose service (`docker-compose.yaml`) — no existing routes or services changed.
+- **Parity check (Task 10), stack `postgres`+`postgres-init`+`backend`+`mcp-server`+`nginx` up via
+  `docker compose`, called `list_agency` from the backend container's `fastmcp` client against both
+  `http://backend:8080/mcp/` and `http://mcp-server:8080/mcp-v2`:**
+  - **Protocol fact confirmed:** a classic `fastmcp.Client` (raw `initialize`) negotiates
+    `protocolVersion=2025-11-25` against **both** servers — expected, since `initialize` is
+    deprecated in `2026-07-28` and the newer version is only offered via `server/discover`.
+  - **Data identity matches:** the seeded DB has 4 agencies (FDA/MCP, กรมสรรพากร/API,
+    กรมการปกครอง/A2A, กรมที่ดิน/MCP). `/mcp-v2` returned all 4 with `id`/`name`/`connection_type`/
+    `data_scope` exactly matching a direct `SELECT` against `agencies`, and correctly rewrote the
+    `API`-type agency's `endpoint_url` to the `/agent-proxy/{id}` form.
+  - **Discrepancy found (pre-existing Python bug, not introduced by this work):** `/mcp`'s
+    `list_agency` tool call **crashes** (`fastmcp.exceptions.ToolError: 'NoneType' object has no
+    attribute 'items'`) on the current seed data, because `backend/app/mcp/server.py:170` does
+    `agency["expected_payload"].items()` unconditionally, and the seeder never sets
+    `expected_payload` (column is `NULL` for all 4 rows; `Agency.expected_payload` is
+    `JSONField(null=True)`). `/mcp-v2` handles the same `NULL` gracefully, returning `{}`. This is a
+    **new latent defect** (Python-side, out of scope for the Go server / this task to fix) — added
+    here for visibility alongside the existing "Latent defects" list earlier in this doc. Net
+    parity verdict: the two servers read identical agency data from Postgres; the Go server is
+    strictly more robust against `NULL expected_payload` than the Python original, which currently
+    cannot serve `list_agency` at all against the present seed data.
+- Final sweep in `mcp-server/`: `go test ./...` → 13 passed; `go vet ./...` → clean; `go build ./...`
+  → success.
