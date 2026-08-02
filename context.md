@@ -938,3 +938,11 @@ direct read (file:line), not inferred.
   keeping `text-*` sizes and all other classes; base Medium (500) now applies.
 - Left non-heading `font-bold`/`font-semibold`/`font-medium` utilities (buttons, badges, labels)
   untouched — intentional design. `tsc` clean; no new lint errors.
+
+## 2026-08-02 — OG image rebrand (style 6)
+- Regenerated `frontend/public/og-image.png` (1200×630): brand label in the past-selected "style 6"
+  layout changed "ศูนย์บริการข้อมูลภาครัฐ" → "Agentic AI Chatbot"; hero h1/subtitle/chat card
+  unchanged. Rendered via Playwright's cached `chrome-headless-shell` (--window-size=1200,630,
+  --virtual-time-budget for Sarabun webfont). HTML source kept at `frontend/public/og-source/og-image.html`.
+- Not touched (still "ศูนย์บริการข้อมูลภาครัฐ"): `index.html` `og:title`/`twitter:title`/`og:image:alt`/
+  `author` meta and the page `<title>` — pending user decision on full SEO rebrand.
