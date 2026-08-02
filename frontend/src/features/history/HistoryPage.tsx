@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Card, CardContent } from "@/shared/components/ui/card";
+import { PageHeader } from "@/shared/components/layout/PageHeader";
 import { Input } from "@/shared/components/ui/input";
 import { Badge } from "@/shared/components/ui/badge";
 import { Search, CheckCircle, XCircle, Loader2, Trash2, Download, FileText, CalendarIcon, X, ChevronLeft, ChevronRight } from "lucide-react";
@@ -65,29 +66,31 @@ export default function HistoryPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg text-foreground">ประวัติการสนทนา</h2>
-        {conversations.length > 0 && (
-          <div className="flex gap-1.5">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => { exportToCsv(conversations); toast.success("ส่งออก CSV เรียบร้อย"); }}
-            >
-              <Download className="h-3.5 w-3.5 mr-1" />
-              CSV
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => { exportToPdf(conversations); toast.success("ส่งออก PDF เรียบร้อย"); }}
-            >
-              <FileText className="h-3.5 w-3.5 mr-1" />
-              PDF
-            </Button>
-          </div>
-        )}
-      </div>
+      <PageHeader
+        title="ประวัติการสนทนา"
+        actions={
+          conversations.length > 0 && (
+            <div className="flex gap-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { exportToCsv(conversations); toast.success("ส่งออก CSV เรียบร้อย"); }}
+              >
+                <Download className="h-3.5 w-3.5 mr-1" />
+                CSV
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { exportToPdf(conversations); toast.success("ส่งออก PDF เรียบร้อย"); }}
+              >
+                <FileText className="h-3.5 w-3.5 mr-1" />
+                PDF
+              </Button>
+            </div>
+          )
+        }
+      />
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2">

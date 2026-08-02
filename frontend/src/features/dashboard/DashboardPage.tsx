@@ -8,6 +8,7 @@ import { Link } from "react-router-dom";
 import { useTheme } from "next-themes";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
+import { PageHeader } from "@/shared/components/layout/PageHeader";
 import { useAgencies } from "@/features/agencies/useAgencies";
 import { FeedbackSummaryCards } from "@/features/feedback/FeedbackSummaryCards";
 import { useFeedbackStats } from "@/features/feedback/useFeedbackStats";
@@ -73,20 +74,21 @@ export default function DashboardPage() {
           <button onClick={() => refetchStats()} className="ml-auto underline text-xs">ลองอีกครั้ง</button>
         </div>
       )}
-      <div className="flex items-center justify-between animate-fade-in">
-        <div>
-          <h2 className="text-lg text-foreground">Dashboard สถิติการใช้งาน</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">ภาพรวมการใช้งานระบบสนทนาอัจฉริยะกลางเพื่อเชื่อมโยงบริการภาครัฐ</p>
-        </div>
-        {lastUpdated && (
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
-            <Activity className="h-3 w-3 text-success animate-pulse" />
-            <span>Live</span>
-            <span className="text-muted-foreground/60">•</span>
-            <span>{lastUpdated}</span>
-          </div>
-        )}
-      </div>
+      <PageHeader
+        className="animate-fade-in"
+        title="Dashboard สถิติการใช้งาน"
+        subtitle="ภาพรวมการใช้งานระบบสนทนาอัจฉริยะกลางเพื่อเชื่อมโยงบริการภาครัฐ"
+        actions={
+          lastUpdated && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
+              <Activity className="h-3 w-3 text-success animate-pulse" />
+              <span>Live</span>
+              <span className="text-muted-foreground/60">•</span>
+              <span>{lastUpdated}</span>
+            </div>
+          )
+        }
+      />
 
       <DashboardStatsRow statCards={statCards} />
 

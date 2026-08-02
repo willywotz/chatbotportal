@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
+import { PageHeader } from "@/shared/components/layout/PageHeader";
 import { Button } from "@/shared/components/ui/button";
 import { Label } from "@/shared/components/ui/label";
 import { Alert, AlertDescription } from "@/shared/components/ui/alert";
@@ -94,29 +95,31 @@ export default function SettingsPage() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl">ตั้งค่าระบบ</h1>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            disabled={flushMutation.isPending}
-            onClick={handleFlush}
-          >
-            {flushMutation.isPending
-              ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              : <Trash2 className="h-4 w-4 mr-2" />}
-            ล้าง answer cache
-          </Button>
-          <Button
-            disabled={dirtyKeys.length === 0 || saveMutation.isPending}
-            onClick={() => saveMutation.mutate()}
-          >
-            {saveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            <Save className="h-4 w-4 mr-2" />
-            บันทึก ({dirtyKeys.length})
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="ตั้งค่าระบบ"
+        actions={
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              disabled={flushMutation.isPending}
+              onClick={handleFlush}
+            >
+              {flushMutation.isPending
+                ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                : <Trash2 className="h-4 w-4 mr-2" />}
+              ล้าง answer cache
+            </Button>
+            <Button
+              disabled={dirtyKeys.length === 0 || saveMutation.isPending}
+              onClick={() => saveMutation.mutate()}
+            >
+              {saveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              <Save className="h-4 w-4 mr-2" />
+              บันทึก ({dirtyKeys.length})
+            </Button>
+          </div>
+        }
+      />
 
       {groups.map((group) => (
         <Card key={group.group}>

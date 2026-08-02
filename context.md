@@ -952,3 +952,16 @@ direct read (file:line), not inferred.
 - Rebranded all 6 "ศูนย์บริการข้อมูลภาครัฐ" occurrences in `frontend/index.html` → "Agentic AI Chatbot"
   (`<title>`, keywords, author, `og:title`, `og:image:alt`, `twitter:title`). Descriptions left as-is
   (no brand name in them).
+
+## 2026-08-02 — Unified admin page headers (PageHeader component)
+- Root cause of "so many title/subtitle designs": no shared header component. Each feature page
+  hand-rolled its own header, so heading level (h1/h2), size (text-lg/2xl/3xl), and subtitle style
+  (text-xs mt-0.5 vs text-sm mt-1, or absent) had drifted across 4 patterns.
+- Added `frontend/src/shared/components/layout/PageHeader.tsx` (+ TDD test, 5 cases): one canonical
+  `<h1 className="text-2xl">`, optional muted `text-sm mt-1` subtitle, optional leading `icon`, and a
+  right-aligned `actions` slot. `flex flex-wrap items-center justify-between gap-3`.
+- Migrated 15 pages to it: users, audit, usage, feedback, connection-logs, popular-questions,
+  dashboard, health, executive, agencies, api-keys, architecture, heatmap, history, settings.
+  Executive keeps its `portal-gradient-text` (passed as a title node — color preserved, size unified).
+- Left deliberately distinct: ChatPage + public InfoPage heroes (public-facing, not admin).
+- `tsc` clean; full suite 425/425 pass.

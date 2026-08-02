@@ -3,6 +3,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/shared/components/ui/table';
 import { Button } from '@/shared/components/ui/button';
+import { PageHeader } from '@/shared/components/layout/PageHeader';
 import { Input } from '@/shared/components/ui/input';
 import { Badge } from '@/shared/components/ui/badge';
 import {
@@ -32,10 +33,10 @@ export default function UsersPage() {
 
   return (
     <div className="p-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl">จัดการผู้ใช้</h1>
-        <Button onClick={openCreate}><UserPlus className="h-4 w-4 mr-2" />เพิ่มผู้ใช้</Button>
-      </div>
+      <PageHeader
+        title="จัดการผู้ใช้"
+        actions={<Button onClick={openCreate}><UserPlus className="h-4 w-4 mr-2" />เพิ่มผู้ใช้</Button>}
+      />
 
       <div className="flex flex-wrap items-center gap-3">
         <Input

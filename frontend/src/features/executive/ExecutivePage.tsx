@@ -1,6 +1,7 @@
 import { useExecutiveSummary, useRegenerateExecutiveSummary } from "./useExecutive";
 import { useAuth } from "@/features/auth/useAuth";
 import { Card, CardContent } from "@/shared/components/ui/card";
+import { PageHeader } from "@/shared/components/layout/PageHeader";
 import { Button } from "@/shared/components/ui/button";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { AlertCircle } from "lucide-react";
@@ -43,14 +44,10 @@ export default function ExecutivePage() {
 
   return (
     <div className="p-6 space-y-6 mx-auto">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl tracking-tight portal-gradient-text">Executive Dashboard</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            ภาพรวมเชิงกลยุทธ์สำหรับผู้บริหาร · อัปเดตล่าสุด {new Date(generatedAt).toLocaleString('th-TH')}
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title={<span className="portal-gradient-text">Executive Dashboard</span>}
+        subtitle={`ภาพรวมเชิงกลยุทธ์สำหรับผู้บริหาร · อัปเดตล่าสุด ${new Date(generatedAt).toLocaleString('th-TH')}`}
+      />
       <ExecutiveKpiGrid kpis={kpis} />
       <ExecutiveTrendChart monthlyTrend={monthlyTrend} />
       <ExecutiveWeeklyBrief

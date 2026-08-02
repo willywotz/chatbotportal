@@ -3,6 +3,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/shared/components/ui/table';
 import { Button } from '@/shared/components/ui/button';
+import { PageHeader } from '@/shared/components/layout/PageHeader';
 import { Input } from '@/shared/components/ui/input';
 import { Badge } from '@/shared/components/ui/badge';
 import {
@@ -56,10 +57,7 @@ export default function AuditLogPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-4">
-      <div className="flex items-center gap-2">
-        <ScrollText className="h-5 w-5 text-primary" />
-        <h1 className="text-2xl">บันทึกการตรวจสอบ</h1>
-      </div>
+      <PageHeader icon={<ScrollText className="h-5 w-5 text-primary" />} title="บันทึกการตรวจสอบ" />
 
       <div className="flex flex-wrap items-center gap-3">
         <Select value={action} onValueChange={(v) => resetOffset(() => setAction(v))}>

@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/shared/components/ui/button";
+import { PageHeader } from "@/shared/components/layout/PageHeader";
 import { Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -103,13 +104,15 @@ export default function ApiKeysPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg text-foreground">API Keys</h2>
-        <Button size="sm" onClick={() => setCreateOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" />
-          สร้าง API Key
-        </Button>
-      </div>
+      <PageHeader
+        title="API Keys"
+        actions={
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" />
+            สร้าง API Key
+          </Button>
+        }
+      />
 
       {isLoading && (
         <div className="flex items-center justify-center py-12">

@@ -3,6 +3,7 @@ import { cn } from "@/shared/lib/utils";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useAgencies } from "@/features/agencies/useAgencies";
 import { AgencyLogo } from "@/shared/components/AgencyLogo";
+import { PageHeader } from "@/shared/components/layout/PageHeader";
 
 interface NodeData {
   id: string;
@@ -103,10 +104,10 @@ export default function ArchitecturePage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-xl text-foreground">System Architecture</h1>
-        <p className="text-sm text-muted-foreground">แผนผังระบบ Agentic AI — คลิกแต่ละ node เพื่อดูรายละเอียด</p>
-      </div>
+      <PageHeader
+        title="System Architecture"
+        subtitle="แผนผังระบบ Agentic AI — คลิกแต่ละ node เพื่อดูรายละเอียด"
+      />
 
       {/* Main workflow */}
       <div className="max-w-md mx-auto">

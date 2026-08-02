@@ -1,6 +1,7 @@
 import { useUsageHeatmap } from './useHeatmap';
 import type { HeatmapRange, UsageHeatmapData } from './heatmapApi';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components/ui/card';
+import { PageHeader } from '@/shared/components/layout/PageHeader';
 import { Badge } from '@/shared/components/ui/badge';
 import { QueryStateBoundary } from '@/shared/components/QueryStateBoundary';
 import { ToggleGroup, ToggleGroupItem } from '@/shared/components/ui/toggle-group';
@@ -39,15 +40,12 @@ function HeatmapContent({
 
   return (
     <div className="p-6 space-y-6 mx-auto">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-3xl flex items-center gap-2">
-            <Flame className="h-7 w-7 text-orange-500" />
-            Usage Heatmap
-          </h1>
-          <p className="text-muted-foreground mt-1">ปริมาณคำถามตามช่วงเวลา-หน่วยงาน จากข้อมูลจริง</p>
-        </div>
-        <div className="flex items-center gap-3">
+      <PageHeader
+        icon={<Flame className="h-7 w-7 text-orange-500" />}
+        title="Usage Heatmap"
+        subtitle="ปริมาณคำถามตามช่วงเวลา-หน่วยงาน จากข้อมูลจริง"
+        actions={
+          <div className="flex items-center gap-3">
           <Badge variant="outline" className="text-xs flex items-center gap-1">
             <Database className="h-3 w-3" />
             {data.sampleSize.toLocaleString()} conversations · {data.totalMessages.toLocaleString()} messages
@@ -63,8 +61,9 @@ function HeatmapContent({
             <ToggleGroupItem value="30d">30 วัน</ToggleGroupItem>
             <ToggleGroupItem value="90d">90 วัน</ToggleGroupItem>
           </ToggleGroup>
-        </div>
-      </div>
+          </div>
+        }
+      />
 
       {/* Insights */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
