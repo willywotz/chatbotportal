@@ -783,3 +783,74 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   production/Rollup builds don't cache incrementally without a plugin; the real frontend win is
   Fix 1 skipping `pnpm install`). One-time runner prereq is auto-handled by the workflow step;
   cache lives under `$HOME/deploy-buildcache`. Not yet validated on the self-hosted runner.
+
+## Full-read audit findings (2026-08-02)
+
+Every source file (286 Python · 295 TS/TSX · 6 Go = 587) was read in full to re-verify this
+doc against HEAD `9655e87`. The architecture above held up; the items below are confirmed
+drift, latent defects, and dead code that were **not** previously recorded. Each was verified by
+direct read (file:line), not inferred.
+
+**Confirmed drift**
+- **`deploy.yml` still requires + writes a dead `JWT_SECRET`.** The cookie-session migration
+  removed all JWT code from `backend/app/` (grep: zero hits for `JWT_SECRET`/`create_access_token`/
+  `decode_access_token`; `test_jwt_removed.py` asserts the settings are gone), but
+  `.github/workflows/deploy.yml` still hard-fails if `secrets.JWT_SECRET` is unset (L19) and writes
+  `JWT_SECRET=…` into the prod `.env` (L37). The backend never reads it — harmless but dead config;
+  a future cleanup should drop the check + the `.env` line.
+
+**Latent defects (verified, not yet fixed)**
+- **`PATCH /messages/{id}/rating` is unauthenticated at the handler and double-counts.**
+  `routers/messages.py:26` `update_rating(message_id, body)` takes **no `Depends`** — it imports
+  `require_admin`/`get_current_user` but wires neither; access is gated only by the global
+  allowlist's `_MESSAGE_RATING_PATH` (basic-user allowed). Worse, `messages.py:41-49` **always
+  increments** `Agency.rating_up`/`rating_down` on every call with no read/decrement of the prior
+  rating, so re-rating the same message (up→down, or up→up) inflates the denormalized counters
+  permanently. No idempotency guard.
+- **MCP `authorization`-header redaction has a skip bug + a None-crash.** `mcp/server.py:162-165`
+  redacts agency `authorization` headers from non-admins by `del agencies[index]["api_headers"][j]`
+  **while iterating that same list by index** — after a delete every later element shifts down but
+  `enumerate` advances `j`, so the element immediately after a redacted header is skipped. Two
+  adjacent `authorization` headers → the second **leaks to a non-admin**. The safe approach
+  (setting `value="REDACTED"`) is commented out directly above (L164). Also `header.get("name").lower()`
+  raises `AttributeError` if a header lacks `name`.
+- **Stubbed analytics return hardcoded zeros.** `routers/insight.py` `GET /analytics-insights`
+  returns `totalWeekQuestions=0` (`:88`) and `HeatmapInsights.totalRequests=0` (`:236`) as literals —
+  not computed. `routers/feedback.py` daily-trend `rate` is `0` (`:249`) and ~135 lines of the old
+  implementation are commented out (`:86`, `:116`), though the per-agency `rate` **is** computed via
+  `RawSQL('AVG(CASE WHEN rating = up …) * 100')` (`:209`) — so "feedback rate is never computed" is
+  only partly true.
+
+**Dead / orphaned code (zero importers, verified by grep)**
+- Frontend chat: `features/chat/AgentStepDisplay.tsx` (and its `StreamingProgress` export) — no
+  importer. The live pipeline view is `ChatConversation.tsx:37` `<AgentStepsCard defaultOpen loading>`
+  fed by `buildAgentStepsSnapshot` (as this doc already states). Note two divergent `STEP_LABELS`:
+  `chatHelpers.ts:27` (6, incl. `summarize`) vs the dead `AgentStepDisplay.tsx:5` (5).
+- Frontend dashboard: `features/dashboard/LiveActivityChart.tsx` + `useRealtimeActivity.ts` — no
+  importer (`DashboardPage` never mounts them).
+- Frontend executive: `features/executive/exportExecutiveReport.ts` (jsPDF report) — no importer;
+  `ExecutivePage` renders no export button, so several `ExecutiveKPIs` fields (`costSaved`,
+  `agencyScorecard`, `topIssues`) exist only to feed this unused path.
+- Frontend public: `AgencyCards.tsx` `agencyColors`/`agencyBgColors` are keyed by slugs
+  (`fda`/`revenue`/…) but the lookup key is the agency **UUID** `id`, so the tint never applies
+  (a test explicitly guards the fallback).
+- `llmRouteApi.ts` `createRoute`/`deleteRoute`/`listPurposes` — all exported, none used (RoutesPanel
+  is edit-only, as recorded). Backend unused imports: `mcp/server.py`/`main.py` import
+  `generate_uuid`/`now` partly unused; `utils/uuid7.py` imports `os` unused.
+
+**Other verified specifics worth pinning**
+- **Dashboard 4× over-fetch:** `dashboardApi` fires four TanStack queries
+  (stats/agencyUsage/weeklyTrend/categoryData) that all hit the single `/dashboard/stats` endpoint.
+- **Auto-maintenance threshold:** `agency_reconcile` flips to maintenance only on **>50% (strict)
+  error rate AND ≥5 checks** (`test_agency_reconcile.py`).
+- **Tests are SQLite-`:memory:`-only** except two gated files: `services/test_similarity_window_pg.py`
+  (`TEST_PG_URL`) and `test_redis_rate_limit.py` (`TEST_REDIS_URL`, skips if unreachable). RBAC
+  matrix (`test_surface_parity.py`) walks the **real** `app.routes` table, not a hand list.
+- **Test coverage gaps:** no end-to-end MCP-over-HTTP authz test (MCP role behavior is verified only
+  by reproducing the DB lookup + a source-inspection guard `test_mcp_role_access.py:128`); the
+  `scripts/hash_existing_api_keys.py` migration is itself untested; no full live-upstream WS chat-turn
+  test (streaming upstream is always stubbed).
+- **Responses translate emits ~10 of 53 events** (the 8-event answer burst + `response.created` +
+  `response.completed`/`response.failed`) — this doc's "9" counts the happy path + `failed`; the
+  extra is the `created` lifecycle event. `usage` is always zero by design; `input_items` ignores its
+  `order`/`limit` args (`responses/retrieve.py:57`).
