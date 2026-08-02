@@ -113,6 +113,33 @@ describe("HistoryPage server-side filtering", () => {
     );
   });
 
+  it("windows page buttons with ellipsis instead of rendering one per page", async () => {
+    server.use(
+      http.get("*/api/v1/history", () =>
+        HttpResponse.json({
+          success: true,
+          data: makeConversations(10),
+          total: 339, // 34 pages
+          responseTime: 10,
+        }),
+      ),
+    );
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText(/จาก 339 รายการ/)).toBeInTheDocument());
+
+    // First, last, and current-window pages are shown; the other 30 are collapsed.
+    expect(screen.getByRole("button", { name: "1" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "34" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "17" })).not.toBeInTheDocument();
+
+    const numberButtons = screen
+      .getAllByRole("button")
+      .filter((b) => /^\d+$/.test(b.textContent ?? ""));
+    expect(numberButtons.length).toBeLessThanOrEqual(7);
+  });
+
   it("sends date_from and date_to when dateRange state has values", async () => {
     const captured: Array<Record<string, string>> = [];
     server.use(

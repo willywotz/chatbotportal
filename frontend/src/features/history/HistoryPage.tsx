@@ -18,6 +18,7 @@ import { exportToCsv, exportToPdf } from "@/features/history/exportHistory";
 import { format } from "date-fns";
 import { th } from "date-fns/locale";
 import { cn } from "@/shared/lib/utils";
+import { getPaginationRange } from "@/shared/lib/pagination";
 import type { DateRange } from "react-day-picker";
 import { PAGE_SIZE as PAGE_SIZES } from "@/shared/constants/query";
 
@@ -230,17 +231,21 @@ export default function HistoryPage() {
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                  <Button
-                    key={p}
-                    variant={p === safePage ? "default" : "outline"}
-                    size="icon"
-                    className="h-8 w-8 text-xs"
-                    onClick={() => setPage(p)}
-                  >
-                    {p}
-                  </Button>
-                ))}
+                {getPaginationRange(safePage, totalPages).map((p, i) =>
+                  p === "ellipsis" ? (
+                    <span key={`ellipsis-${i}`} className="px-1 text-xs text-muted-foreground">…</span>
+                  ) : (
+                    <Button
+                      key={p}
+                      variant={p === safePage ? "default" : "outline"}
+                      size="icon"
+                      className="h-8 w-8 text-xs"
+                      onClick={() => setPage(p)}
+                    >
+                      {p}
+                    </Button>
+                  ),
+                )}
                 <Button
                   variant="outline"
                   size="icon"
