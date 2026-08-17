@@ -1077,3 +1077,23 @@ direct read (file:line), not inferred.
 - Still open (needs an infra decision): Factor VI — agency-logo uploads use a local-disk
   Docker volume (`UPLOAD_DIR`); true statelessness needs an S3-compatible object store
   (e.g. MinIO added to docker-compose). Not provisioned unilaterally.
+
+## 2026-08-17 — Event-Driven Architecture: transactional outbox + dispatcher
+- Added a real event-driven seam (producer → durable channel → async consumer), no broker:
+  - `app/models/event.py` `DomainEvent` — the outbox table (event_type, payload, created_at,
+    dispatched_at). Migration `migrations/models/29_*_domain_events_outbox.py` (DDL correct;
+    its aerich MODELS_STATE is a placeholder to regenerate via `aerich migrate` with a DB).
+  - `app/services/events.py` — `publish(event_type, payload)` appends to the outbox;
+    `subscribe(event_type, handler)` registers a consumer; `dispatch_pending()` delivers
+    undispatched rows to handlers and stamps `dispatched_at` (at-most-once, logged-not-retried).
+  - `app/services/event_consumers.py` — `register_consumers()` (idempotent) wires the first
+    consumer: `agency.status_changed` → a system-actor audit projection.
+  - Producer: `agency_lifecycle.transition_status` now publishes `agency.status_changed`.
+  - Wiring: `scheduler.start_scheduler` registers consumers and adds a `dispatch_pending`
+    interval job (`EVENT_DISPATCH_INTERVAL_SECONDS`, default 10, env-driven per Factor III).
+- Additive: existing synchronous behavior unchanged; the producer only appends an outbox row.
+- TDD: `tests/services/test_events.py` (publish → outbox, dispatch → consumer + mark, failing
+  handler does not block, and an end-to-end agency status change). Full backend suite 839 pass /
+  6 skip.
+- This is the minimal real EDA seam. Grow it by adding events/consumers as needs appear
+  (the repo's YAGNI rule); a broker only when a second service must consume the stream.

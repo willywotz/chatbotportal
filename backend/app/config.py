@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     USER_AGENT_PREFIX: str = "AI-Chatbot-Portal/1.0"
     ENV: str = "development"  # development | production
     LOG_LEVEL: str = "INFO"   # 15-Factor XI: log level for the stdout event stream
+    EVENT_DISPATCH_INTERVAL_SECONDS: int = 10  # domain-event outbox dispatcher tick
 
     # ── Database ─────────────────────────────────────────────────────────────
     DATABASE_URL: str = "postgres://postgres:postgres@localhost:5432/chatbot"
