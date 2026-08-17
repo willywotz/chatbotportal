@@ -15,15 +15,12 @@ jobs:
 
       - name: Check required secrets
         run: |
-          : "${JWT_SECRET:?Secret JWT_SECRET is not set}"
           : "${OPENROUTER_API_KEY:?Secret OPENROUTER_API_KEY is not set}"
         env:
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
 
       - name: Write .env
         env:
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           {
@@ -33,7 +30,6 @@ jobs:
             echo "EXTERNAL_POSTGRES_PORT=5432"
             echo "CERT_DOMAIN=chatbotportal.opdc.ai.in.th"
             echo "CERT_EMAIL=dogajack@gmail.com"
-            echo "JWT_SECRET=$JWT_SECRET"
             echo "OPENROUTER_API_KEY=$OPENROUTER_API_KEY"
           } > .env
 

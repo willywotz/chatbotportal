@@ -1,6 +1,6 @@
 # API Consumer Quickstart
 
-This guide covers everything you need to start sending queries to the Thai Citizen Guide
+This guide covers everything you need to start sending queries to the AI Chatbot Portal
 gateway from your own application.
 
 ---
@@ -416,7 +416,7 @@ from openai import OpenAI
 client = OpenAI(base_url="https://<host>/api/v1", api_key="tcg_...")
 
 response = client.responses.create(
-    model="thai-citizen-guide",
+    model="onechat",
     input="ทำบัตรประชาชนหายต้องทำอย่างไร",
 )
 print(response.output_text)
@@ -426,14 +426,15 @@ Continue a conversation with `previous_response_id`:
 
 ```python
 follow_up = client.responses.create(
-    model="thai-citizen-guide",
+    model="onechat",
     input="ต้องใช้เอกสารอะไรบ้าง",
     previous_response_id=response.id,
 )
 ```
 
-**Models:** `thai-citizen-guide` follows the configured upstream;
-`thai-citizen-guide-v5` and `thai-citizen-guide-v4` pin it.
+**Models:** `onechat` is the only accepted model id on the Responses API
+(any other value returns 400). The upstream version is chosen per request by
+the portal, not by the client.
 
 **Streaming:** `stream=True` emits the standard Responses event sequence. The answer
 arrives as a single `response.output_text.delta` — the orchestrator produces a complete
