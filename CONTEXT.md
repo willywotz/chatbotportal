@@ -1066,3 +1066,14 @@ direct read (file:line), not inferred.
   of ordinary english words. The rule targets abbreviations of ordinary words
   (anon→anonymous, auth→authentication, llm→language-model), which are now all expanded.
 - Backend suite 835 pass / 6 skip; frontend auth tests 26 pass.
+
+## 2026-08-17 — 15-Factor XII: seeding is a one-off process, not an HTTP route
+- Added `backend/scripts/seed.py` (one-off admin process; `uv run python scripts/seed.py
+  [admin|agencies|all]`), following the existing `scripts/hash_existing_api_keys.py` pattern.
+- Removed the dead `app/routers/seed.py` HTTP router (it was already unmounted in `main.py`)
+  and dropped `seed` from the router import list. Seeding logic lives in `app/services/seed.py`,
+  shared by app startup and the CLI.
+- Backend suite 835 pass / 6 skip; `app.main` and the CLI import cleanly.
+- Still open (needs an infra decision): Factor VI — agency-logo uploads use a local-disk
+  Docker volume (`UPLOAD_DIR`); true statelessness needs an S3-compatible object store
+  (e.g. MinIO added to docker-compose). Not provisioned unilaterally.

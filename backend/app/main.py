@@ -43,7 +43,7 @@ from app.middleware.session_refresh import SessionRefreshMiddleware
 from app.services.rate_limit import close_limiter_client
 from app.mcp.server import mcp
 from app.auth.dependencies import enforce_role_allowlist
-from app.routers import agencies, audit_log, conversations, messages, dashboard, feedback, auth, seed, chat, connection_logs, api_key, executive_summary, insight, popular_questions, public_status, users, settings as settings_router
+from app.routers import agencies, audit_log, conversations, messages, dashboard, feedback, auth, chat, connection_logs, api_key, executive_summary, insight, popular_questions, public_status, users, settings as settings_router
 from app.routers import llm as llm_router
 from app.routers import openai_conversations
 from app.routers import responses
@@ -140,7 +140,6 @@ app.add_middleware(SessionRefreshMiddleware)
 
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
-# app.include_router(seed.router, prefix="/api/v1")
 app.include_router(agencies.router, prefix="/api/v1")
 app.include_router(conversations.router, prefix="/api/v1")
 app.include_router(messages.router, prefix="/api/v1")

@@ -36,7 +36,7 @@ _LLM_MAX_QUESTIONS = 8
 _LLM_QUESTION_SAMPLE = 200
 
 # 2 natural citizen questions per seeded agency (must match seeded agency names
-# in app/routers/seed.py's DEFAULT_AGENCIES).
+# in app/services/seed.py's DEFAULT_AGENCIES).
 _SEED_QUESTIONS = [
     ("กรมการปกครอง", "ทำบัตรประชาชนใหม่ ต้องใช้เอกสารอะไรบ้าง"),
     ("กรมการปกครอง", "ย้ายทะเบียนบ้านออนไลน์ทำอย่างไร"),
