@@ -1128,3 +1128,13 @@ Note: the Python backend already serves MCP at `/mcp` (`app/mcp/server.py`), so 
   body). An upstream connection error or timeout gives 502 and an error log.
   EDA note: the log write and the counter are direct service calls, not domain events
   (they match the three existing `ConnectionLog.create` writers). TDD: 8 tests pass.
+
+- Task 2 (done): route + registration + auth bypass. `app/routers/agent_proxy.py` — a thin
+  route `ALL /api/v1/agent-proxy/{agency_id}` that reads the request, calls the service, and
+  returns a `StreamingResponse` with the upstream status and headers (hop-by-hop headers
+  removed). Registered under `/api/v1` in `app/main.py`. Because this route is an external
+  OneChat callback (no portal API key), it must pass the role chokepoint: `app/auth/
+  dependencies.py` adds an anchored, single-segment bypass
+  (`^/api/v1/agent-proxy/[^/]+$`) that skips ONLY the role allowlist. The surface-parity test
+  now enumerates the new route from the live route table. TDD: router 2, service 8, parity
+  32 pass; full suite 849 pass / 6 skip.
