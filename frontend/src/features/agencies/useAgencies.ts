@@ -156,8 +156,6 @@ export function useTestConnection() {
       return await api.get<TestResult>(`/api/v1/agencies/${agencyId}/test`);
     },
     onSuccess: (_data, variables) => {
-      // Refresh the connection-logs list for this ag ency so the log panel
-      // shows the new entry without a manual reload.
       qc.invalidateQueries({ queryKey: ['connection-logs', variables.agencyId] }); // matches ['connection-logs', agencyId, ...rest]
     },
   });

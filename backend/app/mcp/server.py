@@ -161,7 +161,7 @@ async def _fetch_agencies(ctx: Context) -> dict:
 
         for j, header in enumerate(agency["api_headers"]):
             if header.get("name").lower() == "authorization" and not user_is_admin:
-                # agencies[index]["api_headers"][j]["value"] = "REDACTED"
+                # Strip the credential so non-admin callers never see it (trust boundary).
                 del agencies[index]["api_headers"][j]
 
         if agency["connection_type"] == "API":

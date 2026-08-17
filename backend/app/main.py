@@ -91,7 +91,6 @@ async def lifespan(app: FastAPI):
     await load_settings_from_db()
     await run_seed_admin()
     await run_seed_agencies()
-    # await seed_popular_questions()
     await start_scheduler()
 
     async with mcp_app.lifespan(app):

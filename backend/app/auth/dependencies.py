@@ -53,7 +53,7 @@ _PUBLIC_PREFIX = "/api/v1/public"
 # Agency logo images are already publicly exposed via GET /public/agencies;
 # serving them at /agencies/{id}/logo (not under /public/) keeps the URL an
 # <img> tag hits stable, but it must still bypass the role allowlist so an
-# authenticated user's attached JWT doesn't 403 the fetch.
+# authenticated user's attached credential doesn't 403 the fetch.
 _AGENCY_LOGO_GET_PATTERN = re.compile(r"^/api/v1/agencies/[^/]+/logo$")
 
 # Agent-proxy is an external OneChat callback, not a portal-user request. It
