@@ -4,7 +4,8 @@ cert_email: dogajack@gmail.com
 external_http_port: 80
 external_https_port: 443
 external_postgres_port: 5432
-cors_origins: '["https://{{ cert_domain }}"]'
+cors_origins:
+  - "https://{{ cert_domain }}"
 postgres_db: chatbot
 postgres_user: chatbot
 deploy_dir: /opt/chatbotportal
