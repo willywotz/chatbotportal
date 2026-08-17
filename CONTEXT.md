@@ -1143,3 +1143,14 @@ Note: the Python backend already serves MCP at `/mcp` (`app/mcp/server.py`), so 
   `/api/v1/agent-proxy/{id}` (was `/agent-proxy/{id}`). The scheme, `TRACE_URL_PROBE`, and
   trace-query behavior are unchanged. Because nginx already sends `/api/*` to the backend,
   no new nginx rule is needed. TDD: `tests/test_trace_url_probe.py` 5 pass; full suite 850.
+
+- Task 4 (done): removed the Go services. Deleted `agent-proxy/` and `mcp-server/`. In
+  `docker-compose.yaml` removed both service blocks, their four build-cache/module volumes,
+  and their `depends_on` entries (in `backend` and `nginx`). In `nginx/routes.conf` removed
+  the `location /agent-proxy/` and `location ^~ /mcp-v2` blocks and the matching comment
+  lines. `/mcp` (the Python MCP mount) and the `/api` catch-all (which now serves the proxy)
+  stay. `docker compose config` is valid; the backend suite is 850 pass / 6 skip.
+- Result: the system now has one backend language (Python) and one backend service. The proxy
+  is `app/routers/agent_proxy.py` + `app/services/agent_proxy.py` at
+  `/api/v1/agent-proxy/{agency_id}`; MCP stays at `/mcp` via `app/mcp/server.py`. `/mcp-v2` is
+  dropped. No frontend change. This branch is local only (not pushed/merged).
