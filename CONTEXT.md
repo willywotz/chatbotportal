@@ -1000,3 +1000,13 @@ direct read (file:line), not inferred.
   (`/llm`, `/mcp`, `/api-keys`) and OpenAI-compatible surfaces (`/responses`, `/conversations`)
   kept — standard technical terms / external-contract compatibility.
 - Backend auth+parity tests pass (7); frontend auth test passes (6).
+
+## 2026-08-17 — Methodology compliance gap report
+- Wrote `docs/assessment-methodology-compliance-2026-08-17.md`: scores the code against
+  Clean Architecture, 15-Factor, and event-driven architecture. No code change.
+- Findings: Clean Architecture = Partial (writes use services, reads build ORM querysets in
+  routers; all 26 routers import `app.models`). 15-Factor = Partial (strong env config; gaps:
+  local-disk uploads `UPLOAD_DIR`, no central log config, seed as HTTP routes). EDA = Gap
+  (no bus/queue/outbox; `record_audit` is the natural first event seam).
+- Priority: Clean Architecture first (low risk, one router per commit), then 15-Factor infra,
+  then EDA via an audit outbox only when a consumer needs it.
