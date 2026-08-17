@@ -1,9 +1,9 @@
 """Agent-proxy: stream a OneChat callback to the agency's real endpoint,
 then record one connection log and count the call.
 
-Port of the Go agent-proxy/handler.go into the Python backend. Trace
-continuation from ?traceparent query params is done globally by the
-QueryTraceparentASGI shim (app/trace_util.py), so it is not repeated here.
+Port of the Go agent-proxy/handler.go into the Python backend. The main app is
+wrapped with QueryTraceparentASGI (see app/main.py), so a ?traceparent query
+param becomes a header before OTel extraction; this module does not repeat it.
 """
 from __future__ import annotations
 
@@ -38,8 +38,15 @@ def _safe_json(body: bytes) -> dict:
         return {}
 
 
+_DROP_HEADERS = {"host", "content-length", "connection", "transfer-encoding"}
+
+
 def _upstream_headers(incoming: Mapping[str, str], api_headers: list[dict] | None) -> dict[str, str]:
-    headers = {k: v for k, v in incoming.items() if not k.lower().startswith("x-forwarded")}
+    headers = {
+        k: v
+        for k, v in incoming.items()
+        if not k.lower().startswith("x-forwarded") and k.lower() not in _DROP_HEADERS
+    }
     for header in api_headers or []:
         name = header.get("name")
         if name:
@@ -103,6 +110,10 @@ async def proxy(
         await _log(agency, "error", latency_ms, body, "", f"error forwarding request: {exc}")
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Bad Gateway")
 
+    # Latency is time-to-headers (Go measured right after the client returns),
+    # not time-to-last-byte, so a slow client stream does not inflate it.
+    latency_ms = int((time.monotonic() - started) * 1000)
+
     async def stream() -> AsyncIterator[bytes]:
         limit = settings.CONNECTION_LOG_BODY_MAX_CHARS
         captured = bytearray()
@@ -112,7 +123,6 @@ async def proxy(
                     captured.extend(chunk[: limit - len(captured)])
                 yield chunk
         finally:
-            latency_ms = int((time.monotonic() - started) * 1000)
             await response.aclose()
             await client.aclose()
             answer = captured.decode(errors="replace")

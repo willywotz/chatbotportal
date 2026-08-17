@@ -192,3 +192,9 @@ FastAPIInstrumentor.instrument_app(
     http_capture_headers_server_request=[".*"],
     http_capture_headers_server_response=[".*"],
 )
+
+# Wrap the whole app so a ?traceparent query param is promoted to a header
+# before OTel extracts it. OneChat drops the header but keeps the query string,
+# so every route (not only /mcp) can continue the trace. `app` stays a FastAPI
+# instance; the ASGI server serves `asgi_app`.
+asgi_app = QueryTraceparentASGI(app)

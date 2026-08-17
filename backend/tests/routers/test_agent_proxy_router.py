@@ -12,7 +12,10 @@ from app.services import agent_proxy
 @pytest.fixture
 def fake_upstream(monkeypatch):
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, content=b"agency-answer")
+        return httpx.Response(
+            200, content=b"agency-answer",
+            headers={"content-encoding": "identity", "x-agency": "keep"},
+        )
 
     real = agent_proxy.proxy
 
@@ -41,6 +44,9 @@ async def test_proxy_route_streams_without_portal_auth(db, fake_upstream):
         )
     assert resp.status_code == 200
     assert resp.content == b"agency-answer"
+    # Hop-by-hop headers must not leak to the client; other headers pass through.
+    assert "content-encoding" not in resp.headers
+    assert resp.headers.get("x-agency") == "keep"
 
 
 async def test_proxy_route_bad_uuid_returns_400(db, fake_upstream):

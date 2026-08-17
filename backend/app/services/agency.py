@@ -7,6 +7,7 @@ from uuid import UUID
 import httpx
 from fastapi import HTTPException, status
 from tortoise.exceptions import DoesNotExist
+from tortoise.expressions import F
 
 from app.config import settings
 from app.models.agency import Agency
@@ -100,8 +101,13 @@ async def delete_agency(agency: Agency) -> None:
 
 
 async def increment_calls(agency: Agency) -> Agency:
-    agency.total_calls += 1
-    await agency.save(update_fields=["total_calls"])
+    """Atomically add one to total_calls, then refresh the readable value.
+
+    A read-modify-write loses concurrent increments; the atomic SQL update
+    matches the Go original and is race-safe.
+    """
+    await Agency.filter(id=agency.id).update(total_calls=F("total_calls") + 1)
+    await agency.refresh_from_db(fields=["total_calls"])
     return agency
 
 

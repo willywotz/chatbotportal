@@ -90,12 +90,15 @@ async def test_strips_x_forwarded_and_sets_api_headers(db):
 
     _sc, _h, stream = await agent_proxy.proxy(
         agency_id=str(agency.id), method="POST",
-        headers={"X-Forwarded-For": "1.2.3.4", "X-Forwarded-Host": "x", "Accept": "*/*"},
+        headers={"X-Forwarded-For": "1.2.3.4", "X-Forwarded-Host": "x",
+                 "Host": "portal.example", "Accept": "*/*"},
         body=b"{}", transport=_upstream(handler),
     )
     await _drain(stream)
     assert not any(k.lower().startswith("x-forwarded") for k in seen)
     assert seen.get("authorization") == "Bearer up-secret"
+    # The upstream Host must come from the endpoint URL, not the portal's Host.
+    assert seen.get("host") == "upstream.test"
 
 
 async def test_upstream_5xx_logs_error_and_no_increment(db):
