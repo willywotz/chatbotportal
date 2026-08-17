@@ -838,6 +838,19 @@ direct read (file:line), not inferred.
   extra is the `created` lifecycle event. `usage` is always zero by design; `input_items` ignores its
   `order`/`limit` args (`responses/retrieve.py:57`).
 
+## 2026-08-17 — v0.1.1 released live via the new CD pipeline
+- First real CD deploy succeeded: `https://chatbotportal.opdc.ai.in.th/health` → 200 with a
+  valid Caddy-issued TLS cert. Build→GHCR→Ansible/SSH all green.
+- Three CI-only defects surfaced on the clean remote host (none reproduce locally) and were fixed:
+  1. `ansible.cfg` used `stdout_callback = yaml` (the `community.general.yaml` callback was removed
+     in community.general 12.0.0) → Ansible aborted at startup. Replaced with `result_format = yaml`.
+  2. Long first-time `docker compose pull` dropped the SSH channel (UNREACHABLE) — no keepalive.
+     Added `[ssh_connection] ssh_args = -o ServerAliveInterval=30 -o ServerAliveCountMax=20 ...`.
+  3. `compose.yaml` bind-mounts `./caddy/Caddyfile` but the playbook only copied `compose.yaml`;
+     Docker auto-created a directory at that path and caddy failed ("not a directory"). Playbook now
+     ships `caddy/Caddyfile` (and clears a stale auto-created dir) before `up`. Any other host
+     bind-mount added to compose in future must likewise be copied by the playbook.
+
 ## 2026-08-17 — Deploy via GitHub Actions + Ansible + SOPS/age (CD bootstrap + runbook)
 - Release is now continuous delivery: GitHub Actions (`release` workflow) builds images,
   pushes them to GHCR, and dispatches Ansible to deploy via SSH. No more manual docker compose;
