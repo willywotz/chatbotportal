@@ -439,7 +439,7 @@ usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package m
 - **`.github/workflows/ci.yaml`** (`name: ci`; on push to `main` / PR to `main` / manual): parallel
   jobs — backend `pytest`, frontend `tsc --noEmit` + vitest coverage. **No E2E** (removed from CI).
 - **`.github/workflows/release.yaml`** (`name: release`; on `v*` tag push / manual): self-hosted
-  runner, validates `JWT_SECRET`/`OPENROUTER_API_KEY`, writes prod `.env` (`ENV=production`), then
+  runner, validates `OPENROUTER_API_KEY`, writes prod `.env` (`ENV=production`), then
   `docker compose -f compose.yaml up -d --build --remove-orphans`. The explicit `-f` is
   load-bearing: it disables compose's automatic override merging, so `compose.override.yaml`
   never reaches prod. Releases are **tag-driven** — merging to `main` does not deploy; pushing a
@@ -774,12 +774,13 @@ drift, latent defects, and dead code that were **not** previously recorded. Each
 direct read (file:line), not inferred.
 
 **Confirmed drift**
-- **`deploy.yml` still requires + writes a dead `JWT_SECRET`.** The cookie-session migration
-  removed all JWT code from `backend/app/` (grep: zero hits for `JWT_SECRET`/`create_access_token`/
-  `decode_access_token`; `test_jwt_removed.py` asserts the settings are gone), but
-  `.github/workflows/deploy.yml` still hard-fails if `secrets.JWT_SECRET` is unset (L19) and writes
-  `JWT_SECRET=…` into the prod `.env` (L37). The backend never reads it — harmless but dead config;
-  a future cleanup should drop the check + the `.env` line.
+- **~~`release.yaml` required + wrote a dead `JWT_SECRET`~~ — RESOLVED.** The cookie-session
+  migration removed all JWT code from `backend/app/` (grep: zero hits for `JWT_SECRET`/
+  `create_access_token`/`decode_access_token`; `test_jwt_removed.py` asserts the settings are
+  gone), yet `release.yaml` still hard-failed if `secrets.JWT_SECRET` was unset and wrote
+  `JWT_SECRET=…` into the prod `.env`. The backend never read it. **Fixed:** dropped the
+  `JWT_SECRET` required-secret check and `.env` line from `release.yaml` (only
+  `OPENROUTER_API_KEY` remains). The GitHub repo secret itself is left in place (harmless).
 
 **Latent defects (verified, not yet fixed)**
 - **`PATCH /messages/{id}/rating` is unauthenticated at the handler and double-counts.**
@@ -858,6 +859,25 @@ direct read (file:line), not inferred.
   `release.yaml`).
 - Branch `fix/release-blockers-ci-cors`. Backend 846 passed / 2 skipped; frontend tsc clean,
   72 files / 431 tests — all verified green.
+
+## 2026-08-17 — JWT_SECRET dead-config removal + name/model-id doc fixes
+
+- **`release.yaml` dead `JWT_SECRET` removed.** The cookie-session migration deleted all JWT code,
+  but `release.yaml` still required the `JWT_SECRET` repo secret and wrote it into prod `.env`
+  (the backend never read it). Dropped the required-secret check + the `.env` line; only
+  `OPENROUTER_API_KEY` remains. The GitHub secret itself is left in place (harmless). The
+  `test_jwt_removed.py` regression guard is untouched.
+- **Quickstart model-id bug fixed.** `docs/quickstart.md` examples used `model="thai-citizen-guide"`
+  and documented `thai-citizen-guide-v5`/`-v4` version-pinning — but those ids are **rejected with
+  400** on the Responses API (`resolve_model` accepts only `"onechat"`; version-pinning is a chat-path
+  concept, not Responses). Copying the examples verbatim produced a 400. Fixed to `model="onechat"`
+  with an accurate Models note.
+- **Name references updated to "AI Chatbot Portal"** (the rebrand target): `README.md` title,
+  `spec/roadmap.md` title, `docs/quickstart.md` intro. The repo was renamed to `chatbotportal`.
+- **Left intentionally unchanged:** the `tcg_` API-key prefix (live contract — renaming would break
+  issued keys), `test_responses_request.py` old-id rejection test (intentional guard), and the dated
+  historical records under `docs/superpowers/plans|specs/*` (history, not living docs).
+- Branch `chore/jwt-and-name-cleanup`.
 
 ## 2026-08-02 — frontend/index.html SEO + OG rebrand
 

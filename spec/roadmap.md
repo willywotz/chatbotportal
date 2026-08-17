@@ -1,4 +1,4 @@
-# Platform Roadmap Spec — Thai Citizen Guide
+# Platform Roadmap Spec — AI Chatbot Portal
 
 Status: proposal (draft)
 Scope: what to add, what to remove, and what to consolidate to make this a
