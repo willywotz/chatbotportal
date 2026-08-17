@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict
 class MessageIn(BaseModel):
     """Message as provided when saving a conversation."""
     id: uuid.UUID | None = None
-    role: str                          # user | assistant
+    role: Literal["user", "assistant"]
     content: str
     agent_steps: list[Any] = []
     sources: list[Any] = []
@@ -35,7 +35,7 @@ class MessageResponse(BaseModel):
 
 
 class RatingUpdate(BaseModel):
-    rating: str                        # up | down
+    rating: Literal["up", "down"]
     feedback_text: str | None = None
 
 

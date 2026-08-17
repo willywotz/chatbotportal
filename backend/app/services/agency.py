@@ -48,7 +48,7 @@ async def list_agencies(
     return await qs, await qs.count()
 
 
-def _full_payload(body: AgencyCreate) -> dict:
+def _flatten_agency_payload(body: AgencyCreate) -> dict:
     """Flatten a full agency payload's nested sub-schemas into plain dicts."""
     data = body.model_dump()
     data["api_endpoints"] = [e.model_dump() for e in body.api_endpoints]
@@ -58,7 +58,7 @@ def _full_payload(body: AgencyCreate) -> dict:
 
 
 async def create_agency(body: AgencyCreate) -> Agency:
-    return await Agency.create(**_full_payload(body))
+    return await Agency.create(**_flatten_agency_payload(body))
 
 
 async def _flush_similarity_cache_best_effort() -> None:
@@ -69,7 +69,7 @@ async def _flush_similarity_cache_best_effort() -> None:
 
 
 async def replace_agency(agency: Agency, body: AgencyCreate) -> Agency:
-    await agency.update_from_dict(_full_payload(body)).save()
+    await agency.update_from_dict(_flatten_agency_payload(body)).save()
     await _flush_similarity_cache_best_effort()
     return agency
 
@@ -158,7 +158,7 @@ async def test_connection(connection_type: str, agency: Agency) -> dict[str, Any
             if isinstance(last_exc, httpx.TimeoutException)
             else str(last_exc)
         )
-        steps = [{"step": 1, "label": "TCP Connection", "status": "error", "time": elapsed}]
+        steps = [{"step": 1, "label": "TCP Connection", "status": "error", "time_ms": elapsed}]
         return _failure(protocol, error, steps, elapsed)
 
     return {
@@ -166,8 +166,8 @@ async def test_connection(connection_type: str, agency: Agency) -> dict[str, Any
         "protocol": protocol,
         "version": "-",
         "steps": [
-            {"step": 1, "label": "TCP Connection", "status": "done", "time": elapsed},
-            {"step": 2, "label": f"{method} {response.status_code} {response.reason_phrase}", "status": "done", "time": 0},
+            {"step": 1, "label": "TCP Connection", "status": "done", "time_ms": elapsed},
+            {"step": 2, "label": f"{method} {response.status_code} {response.reason_phrase}", "status": "done", "time_ms": 0},
         ],
         "latency": f"{elapsed}ms",
         "statusCode": response.status_code,

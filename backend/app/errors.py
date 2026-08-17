@@ -1,16 +1,31 @@
-"""Standard error envelope: {"error": {"code", "message", "retryable", ...}}.
+"""Standard error envelope: {"error": {"code", "message", "retryable", ...}}."""
+from enum import StrEnum
 
-Stable codes: invalid_request, unauthorized, forbidden, not_found, quota_exceeded,
-rate_limited, agency_unavailable, agency_timeout, llm_error, internal.
-"""
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-_STATUS_CODES = {
-    400: "invalid_request", 401: "unauthorized", 403: "forbidden",
-    404: "not_found", 429: "rate_limited", 500: "internal",
-    502: "agency_unavailable", 504: "agency_timeout",
+
+class ErrorCode(StrEnum):
+    INVALID_REQUEST = "invalid_request"
+    UNAUTHORIZED = "unauthorized"
+    FORBIDDEN = "forbidden"
+    NOT_FOUND = "not_found"
+    RATE_LIMITED = "rate_limited"
+    INTERNAL = "internal"
+    AGENCY_UNAVAILABLE = "agency_unavailable"
+    AGENCY_TIMEOUT = "agency_timeout"
+
+
+_STATUS_CODES: dict[int, ErrorCode] = {
+    400: ErrorCode.INVALID_REQUEST,
+    401: ErrorCode.UNAUTHORIZED,
+    403: ErrorCode.FORBIDDEN,
+    404: ErrorCode.NOT_FOUND,
+    429: ErrorCode.RATE_LIMITED,
+    500: ErrorCode.INTERNAL,
+    502: ErrorCode.AGENCY_UNAVAILABLE,
+    504: ErrorCode.AGENCY_TIMEOUT,
 }
 
 
@@ -37,7 +52,7 @@ def register_error_handlers(app: FastAPI) -> None:
         )
 
     async def _http_error(_req: Request, exc):
-        code = _STATUS_CODES.get(exc.status_code, "internal")
+        code = _STATUS_CODES.get(exc.status_code, ErrorCode.INTERNAL)
         return JSONResponse(
             status_code=exc.status_code,
             content=_envelope(code, str(exc.detail), retryable=exc.status_code == 429),
