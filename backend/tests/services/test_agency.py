@@ -127,6 +127,23 @@ async def test_increment_calls_persists_the_counter(db):
 
 
 @pytest.mark.asyncio
+async def test_increment_calls_is_atomic_across_stale_objects(db):
+    from app.models import Agency
+    from app.services.agency import increment_calls
+
+    created = await Agency.create(name="A", short_name="A", connection_type="API", total_calls=0)
+    # Two separately loaded objects, both stale at total_calls=0. A read-modify-
+    # write loses one update; the atomic SQL add must land both.
+    first = await Agency.get(id=created.id)
+    second = await Agency.get(id=created.id)
+    await increment_calls(first)
+    await increment_calls(second)
+    refreshed = await Agency.get(id=created.id)
+    assert refreshed.total_calls == 2
+    assert second.total_calls == 2  # refresh_from_db keeps the object readable
+
+
+@pytest.mark.asyncio
 async def test_run_connection_test_logs_a_connection_log_row(db):
     from app.models import Agency, ConnectionLog
     from app.services.agency import run_connection_test

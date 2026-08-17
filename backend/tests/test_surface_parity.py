@@ -118,11 +118,16 @@ async def test_user_surface_is_exactly_this(db):
         for m, p in _concrete_paths()
         if m == "GET" and p == f"/api/v1/agencies/{_SAMPLE_ID}/logo"
     }
+    # Agent-proxy is an external OneChat callback with no portal API key; it
+    # bypasses the role allowlist for every method (see _AGENT_PROXY_PATTERN).
+    agent_proxy_routes = {
+        (m, p) for m, p in _concrete_paths() if p.startswith("/api/v1/agent-proxy/")
+    }
     # Routes outside /api/v1/ (currently just GET /health) are NOT reachable: the
     # allowlist predicates only recognize /api/v1/* shapes, so a `user` token is
     # blocked here exactly as it would be on any other unrecognized path.
 
-    expected = expected_prefixes_and_exact | auth_routes | public_gets | logo_gets
+    expected = expected_prefixes_and_exact | auth_routes | public_gets | logo_gets | agent_proxy_routes
     assert reachable == expected
 
 

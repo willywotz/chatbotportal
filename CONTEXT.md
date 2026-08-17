@@ -1108,3 +1108,64 @@ direct read (file:line), not inferred.
   configured), add MinIO to docker-compose, rewrite `agencies/logo.py` store/serve, mock S3 in
   tests. All other 15-Factor factors reviewed hold (III env config, XI stdout logs, XII one-off
   seed CLI; IV backing services by URL; V build/release/run split).
+
+## 2026-08-17 — Consolidate Go services into the Python backend
+Goal: one backend language (Python), one backend service. Remove the Go `agent-proxy`
+and `mcp-server`. Spec + plan:
+`docs/superpowers/specs/2026-08-17-agent-proxy-mcp-backend-consolidation-design.md`,
+`docs/superpowers/plans/2026-08-17-agent-proxy-mcp-backend-consolidation.md`.
+Note: the Python backend already serves MCP at `/mcp` (`app/mcp/server.py`), so the Go
+`mcp-server` is a duplicate — it is removed, not rewritten. Only the proxy is new Python code.
+
+- Task 1 (done): `app/services/agent_proxy.py` — port of the Go `agent-proxy/handler.go`.
+  It checks the id is a UUID (else 400), loads the agency (else 404), clones the request
+  headers, removes every `X-Forwarded*` header, sets the agency `api_headers`, injects the
+  W3C trace context, and forwards the body to the agency `endpoint_url` with an
+  `httpx.AsyncClient` at `AGENCY_CHAT_TIMEOUT` (180 s). It streams the answer back with the
+  upstream status and headers. After the stream ends it counts the call
+  (`increment_calls`, 2xx only) and always writes one `ConnectionLog` row
+  (`action="proxy"`, `connection_type="API"`, status, latency, bounded request/response
+  body). An upstream connection error or timeout gives 502 and an error log.
+  EDA note: the log write and the counter are direct service calls, not domain events
+  (they match the three existing `ConnectionLog.create` writers). TDD: 8 tests pass.
+
+- Task 2 (done): route + registration + auth bypass. `app/routers/agent_proxy.py` — a thin
+  route `ALL /api/v1/agent-proxy/{agency_id}` that reads the request, calls the service, and
+  returns a `StreamingResponse` with the upstream status and headers (hop-by-hop headers
+  removed). Registered under `/api/v1` in `app/main.py`. Because this route is an external
+  OneChat callback (no portal API key), it must pass the role chokepoint: `app/auth/
+  dependencies.py` adds an anchored, single-segment bypass
+  (`^/api/v1/agent-proxy/[^/]+$`) that skips ONLY the role allowlist. The surface-parity test
+  now enumerates the new route from the live route table. TDD: router 2, service 8, parity
+  32 pass; full suite 849 pass / 6 skip.
+
+- Task 3 (done): `app/mcp/server.py` `_agent_proxy_endpoint` now builds the callback at
+  `/api/v1/agent-proxy/{id}` (was `/agent-proxy/{id}`). The scheme, `TRACE_URL_PROBE`, and
+  trace-query behavior are unchanged. Because nginx already sends `/api/*` to the backend,
+  no new nginx rule is needed. TDD: `tests/test_trace_url_probe.py` 5 pass; full suite 850.
+
+- Task 4 (done): removed the Go services. Deleted `agent-proxy/` and `mcp-server/`. In
+  `docker-compose.yaml` removed both service blocks, their four build-cache/module volumes,
+  and their `depends_on` entries (in `backend` and `nginx`). In `nginx/routes.conf` removed
+  the `location /agent-proxy/` and `location ^~ /mcp-v2` blocks and the matching comment
+  lines. `/mcp` (the Python MCP mount) and the `/api` catch-all (which now serves the proxy)
+  stay. `docker compose config` is valid; the backend suite is 850 pass / 6 skip.
+- Result: the system now has one backend language (Python) and one backend service. The proxy
+  is `app/routers/agent_proxy.py` + `app/services/agent_proxy.py` at
+  `/api/v1/agent-proxy/{agency_id}`; MCP stays at `/mcp` via `app/mcp/server.py`. `/mcp-v2` is
+  dropped. No frontend change. This branch is local only (not pushed/merged).
+
+- Final review + fixes (done): a whole-branch review found and fixed four parity issues that
+  the per-task reviews could not see across files:
+  1. Trace continuation: the `?traceparent` query fallback only wrapped the `/mcp` mount, not
+     the main app, so OneChat's header-dropping callback broke the trace on the proxy route.
+     Fix: `app/main.py` now also exposes `asgi_app = QueryTraceparentASGI(app)` and the
+     `backend/Dockerfile` serves `app.main:asgi_app`, so query→header promotion runs before
+     OTel extraction for every main-app route (the same pattern the `/mcp` mount already used).
+  2. `total_calls` was a non-atomic read-modify-write (lost-update race). Fix: `increment_calls`
+     now uses an atomic `F("total_calls") + 1` update, then refreshes the object.
+  3. The incoming `Host` header was forwarded to the agency. Fix: `_upstream_headers` now also
+     drops `host`, `content-length`, `connection`, and `transfer-encoding`.
+  4. The connection-log `latency_ms` now measures time-to-headers (as the Go proxy did), not
+     time-to-last-byte, so a long stream does not inflate the recorded latency.
+  All covered by new tests. Full backend suite 852 pass / 6 skip. Branch is local only.

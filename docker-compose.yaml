@@ -83,60 +83,6 @@ services:
       - backend-uv-cache:/root/.cache/uv
       - agency-uploads:/app/uploads
 
-  agent-proxy:
-    build:
-      context: ./agent-proxy
-      target: production
-    restart: unless-stopped
-    environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-chatbot}:${POSTGRES_PASSWORD:-chatbot_secret}@${POSTGRES_HOST:-postgres}:5432/${POSTGRES_DB:-chatbot}
-    depends_on:
-      postgres:
-        condition: service_healthy
-        restart: true
-      jaeger:
-        condition: service_started
-    networks:
-      - chatbot-network
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
-      interval: 15s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
-    volumes:
-      - agent-proxy-go-modules:/go/pkg/mod
-      - agent-proxy-go-build-cache:/root/.cache/go-build
-
-  mcp-server:
-    build:
-      context: ./mcp-server
-      target: production
-    restart: unless-stopped
-    environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-chatbot}:${POSTGRES_PASSWORD:-chatbot_secret}@${POSTGRES_HOST:-postgres}:5432/${POSTGRES_DB:-chatbot}
-      TRACE_URL_PROBE: ${TRACE_URL_PROBE:-}
-    depends_on:
-      postgres:
-        condition: service_healthy
-        restart: true
-      postgres-init:
-        condition: service_completed_successfully
-        restart: true
-      jaeger:
-        condition: service_started
-    networks:
-      - chatbot-network
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
-      interval: 15s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
-    volumes:
-      - mcp-server-go-modules:/go/pkg/mod
-      - mcp-server-go-build-cache:/root/.cache/go-build
-
   frontend:
     build:
       context: ./frontend
@@ -176,9 +122,6 @@ services:
       backend:
         condition: service_healthy
         restart: true
-      agent-proxy:
-        condition: service_healthy
-        restart: true
       jaeger:
         condition: service_started
     networks:
@@ -216,10 +159,6 @@ volumes:
   postgres_data:
   backend-uv-cache:
   agency-uploads:
-  agent-proxy-go-modules:
-  agent-proxy-go-build-cache:
-  mcp-server-go-modules:
-  mcp-server-go-build-cache:
   frontend-pnpm-store:
   letsencrypt:
   acme-challenge:
