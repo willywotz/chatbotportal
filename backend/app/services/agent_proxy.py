@@ -21,8 +21,6 @@ from app.config import settings
 from app.models import Agency, ConnectionLog
 from app.services import agency as agency_service
 
-_HOP_BY_HOP = {"content-length", "content-encoding", "transfer-encoding", "connection"}
-
 
 def _is_uuid(value: str) -> bool:
     try:

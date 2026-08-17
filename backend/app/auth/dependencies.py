@@ -56,6 +56,11 @@ _PUBLIC_PREFIX = "/api/v1/public"
 # authenticated user's attached JWT doesn't 403 the fetch.
 _AGENCY_LOGO_GET_PATTERN = re.compile(r"^/api/v1/agencies/[^/]+/logo$")
 
+# Agent-proxy is an external OneChat callback, not a portal-user request. It
+# carries no portal API key, so it must bypass the role allowlist for every
+# method — the same "no portal-role auth" contract the Go agent-proxy had.
+_AGENT_PROXY_PATTERN = re.compile(r"^/api/v1/agent-proxy/[^/]+$")
+
 # Read-only ops dashboards a `staff` role may view: Dashboard, Executive,
 # Agency Health, Usage Heatmap, Usage Analytics, Feedback. The write side of
 # each page (e.g. POST /executive-summary/regenerate) stays admin-only, and a
@@ -251,6 +256,8 @@ async def enforce_role_allowlist(conn: HTTPConnection) -> None:
     method = conn.scope["method"]
     path = conn.scope["path"]
     if _is_public_get(method, path):
+        return
+    if _AGENT_PROXY_PATTERN.match(path):
         return
     role = await _resolve_role(conn)
     # An unresolvable credential (missing/invalid/expired/inactive) passes

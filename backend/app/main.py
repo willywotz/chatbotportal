@@ -44,6 +44,7 @@ from app.services.rate_limit import close_limiter_client
 from app.mcp.server import mcp
 from app.auth.dependencies import enforce_role_allowlist
 from app.routers import agencies, audit_log, conversations, messages, dashboard, feedback, auth, chat, connection_logs, api_key, executive_summary, insight, popular_questions, public_status, users, settings as settings_router
+from app.routers import agent_proxy
 from app.routers import llm as llm_router
 from app.routers import openai_conversations
 from app.routers import responses
@@ -157,6 +158,7 @@ app.include_router(public_status.router, prefix="/api/v1")
 app.include_router(settings_router.router, prefix="/api/v1")
 app.include_router(audit_log.router, prefix="/api/v1")
 app.include_router(llm_router.router, prefix="/api/v1")
+app.include_router(agent_proxy.router, prefix="/api/v1")
 
 # ---------------------------------------------------------------------------
 # MCP transport — intentionally outside the role chokepoint
