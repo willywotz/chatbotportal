@@ -1,0 +1,33 @@
+- name: Deploy chatbotportal
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Ensure deploy directory exists
+      ansible.builtin.file:
+        path: "{{ deploy_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Render environment file
+      ansible.builtin.template:
+        src: templates/env.j2
+        dest: "{{ deploy_dir }}/.env"
+        mode: "0600"
+
+    - name: Copy compose file
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../compose.yaml"
+        dest: "{{ deploy_dir }}/compose.yaml"
+        mode: "0644"
+
+    - name: Pull images and start the stack
+      community.docker.docker_compose_v2:
+        project_src: "{{ deploy_dir }}"
+        pull: always
+        remove_orphans: true
+        state: present
+
+    - name: Prune dangling images
+      ansible.builtin.command: docker image prune -f
+      changed_when: false
