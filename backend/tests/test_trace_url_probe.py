@@ -61,3 +61,9 @@ def test_no_traceparent_when_span_inactive():
     url = _agent_proxy_endpoint(request, "11111111-1111-4111-8111-111111111111")
 
     assert "?" not in url
+
+
+def test_endpoint_uses_api_v1_agent_proxy_path():
+    request = _request({"x-forwarded-host": "example.com", "x-forwarded-proto": "https"})
+    url = _agent_proxy_endpoint(request, "11111111-1111-4111-8111-111111111111")
+    assert "/api/v1/agent-proxy/11111111-1111-4111-8111-111111111111" in url
