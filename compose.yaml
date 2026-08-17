@@ -39,6 +39,7 @@ services:
       -c "CREATE EXTENSION IF NOT EXISTS vector;"
 
   backend:
+    image: ghcr.io/willywotz/chatbotportal:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       target: production
@@ -70,6 +71,7 @@ services:
       - agency-uploads:/app/uploads
 
   frontend:
+    image: ghcr.io/willywotz/chatbotportal-web:${IMAGE_TAG:-latest}
     build:
       context: ./frontend
       target: production

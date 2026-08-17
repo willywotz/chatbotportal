@@ -1,0 +1,3 @@
+/.ansible/
+/keys.txt
+/deploy_key*

@@ -1,0 +1,3 @@
+creation_rules:
+  - path_regex: group_vars/.*/secrets\.sops\.ya?ml$
+    age: age1d3war6th9w0y8p3xn9g4te4kn25ld6p5xvmpvxcfkkw0ac8aq5lsy0u2ym
