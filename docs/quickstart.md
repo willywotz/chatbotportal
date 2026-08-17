@@ -61,63 +61,8 @@ the externally published port is controlled by `EXTERNAL_HTTP_PORT` in the envir
 |---------|----------|
 | Local dev (`docker compose up`) | `http://localhost:${EXTERNAL_HTTP_PORT}` — if the variable is unset the port is not bound; set it (e.g. `EXTERNAL_HTTP_PORT=8080`) or use the deployed gateway origin. |
 | Deployed | Your deployment's origin (e.g. `https://chat.example.com`) |
-| Shared dev tunnel | `https://<random>.trycloudflare.com` — printed on startup by the `tunnel-url` service. Random per restart; see "Sharing a dev environment" below. |
-
 All REST endpoints are under `/api/v1`. The examples below use
 `BASE_URL=http://localhost:8080` as a placeholder.
-
-### Sharing a dev environment
-
-`docker compose up` opens a Cloudflare Quick Tunnel and prints the public URL:
-
-```
-=== DEV TUNNEL: https://certificates-text-respected-dad.trycloudflare.com ===
-```
-
-After `docker compose up -d`, or once the tunnel has restarted and minted a new
-hostname, re-print it with:
-
-```bash
-docker compose run --rm --no-deps tunnel-url
-```
-
-`--no-deps` matters: without it Compose restarts `cloudflared` and changes the very
-URL you asked for.
-
-**The URL is public and unauthenticated.** `POST /api/v1/chat` and
-`POST /api/v1/chat/stream` accept unauthenticated requests (they use
-`get_current_user_optional`), and every call spends real money against your
-`OPENROUTER_API_KEY`. A leaked link means someone else's traffic on your balance,
-not just a privacy problem. Beyond that, anyone with the link reaches the whole
-dev gateway — including `/jaeger`, `/docs`, `/redoc`, and `/openapi.json`. The
-hostname is random, unguessable, unindexed, and dies with the container, but it is
-not access control. Do not point it at data you would not hand to the recipient,
-and do not paste it anywhere public. If a tunnel link ever leaks, rotate
-`OPENROUTER_API_KEY` immediately, and consider setting a spend cap on the key so
-an anonymous leak is bounded in cost. If you need a hardened share, use a named
-Cloudflare Tunnel with Access policies instead — a different feature, not set up
-here.
-
-The URL changes on every tunnel restart, so it is unsuitable for webhooks or OAuth
-redirect URIs.
-
-**Troubleshooting.** `cloudflared` tracks the `latest` image tag, but `docker
-compose up` does not re-pull on its own, so a machine can sit on a months-old
-build and drift from a teammate's. If the tunnel fails to connect, refresh it:
-
-```bash
-docker compose pull cloudflared && docker compose up -d cloudflared
-```
-
-**"Blocked request. This host is not allowed."** The running `frontend` image
-predates the `allowedHosts` setting in `frontend/vite.config.ts` — editing that
-file does not affect an already-running container, since the dev override only
-syncs `frontend/src` and `docker compose up` does not rebuild an existing image.
-Rebuild it:
-
-```bash
-docker compose up -d --build frontend
-```
 
 ---
 

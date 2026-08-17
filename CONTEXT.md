@@ -30,7 +30,6 @@ All traffic enters through **nginx** on one port; services talk over the `chatbo
 |---|---|---|
 | **nginx** | nginx | Reverse proxy. HTTP on `EXTERNAL_HTTP_PORT`, TLS on `EXTERNAL_HTTPS_PORT`. Routing in `nginx/routes.conf`. |
 | **backend** | Python 3.12 · FastAPI · Tortoise ORM · FastMCP | REST API (`/api/v1`), MCP server (`/mcp`), scheduler, auth. Port 8080. |
-| **agent-proxy** | Go 1.26 · pgx · OTel | Reverse-proxy from backend → agency endpoints; logs connection attempts. Port 8080. |
 | **frontend** | React 18 · Vite 5 · TS · shadcn/ui | SPA admin + public portal. Port 8080. |
 | **postgres** | pgvector/pgvector:pg16 | Shared DB (backend). Extensions: `pg_trgm`, `fuzzystrmatch`, `vector` (created by `postgres-init`). |
 | **jaeger** | jaegertracing/jaeger:2.18.0 | OTLP tracing sink (`jaeger:4317`), UI proxied at `/jaeger/`. |
@@ -41,7 +40,6 @@ All traffic enters through **nginx** on one port; services talk over the `chatbo
   (`/api/v1/responses` also serves a **WebSocket**: an exact-match location adds the
   `$connection_upgrade` map and a 3700s read timeout, since the app holds sockets for up to
   60 min — the shared 300s timeout would kill an idle one long before the cap.)
-- `/agent-proxy/` → `agent-proxy:8080`
 - `/jaeger/` → `jaeger:16686`
 - `/` (everything else) → `frontend:8080` (SPA)
 
@@ -55,38 +53,6 @@ a missing certificate and local dev stays plain HTTP. It then watches hourly and
 issuance/renewal. `/.well-known/acme-challenge/` is served from the `acme-challenge` volume the
 certbot container writes to, and is the one path exempt from the redirect. First issuance is a
 one-off `certbot certonly` — see `docs/tls.md`.
-
-`docker-compose.override.yaml` adds dev watch/rebuild rules per service, plus the dev tunnel below.
-
-**Dev tunnel (`docker-compose.override.yaml`, dev only — never deployed).** `cloudflared` runs an
-always-on Cloudflare **Quick Tunnel** to `nginx:8080`, publishing the whole gateway on a random
-`https://<words>.trycloudflare.com` URL for sharing a running dev stack. Outbound-only, so no port
-is published and no Cloudflare account or DNS record is involved; TLS terminates at Cloudflare and
-nginx still serves plain HTTP. The hostname is **random per restart**, so it is read back at
-runtime from cloudflared's metrics server (`--metrics 0.0.0.0:2000`, container-internal) rather
-than configured: `scripts/tunnel-url.sh` polls `/quicktunnel` and prints the URL, and the one-shot
-`tunnel-url` sidecar runs it at startup. Re-print on demand with
-`docker compose run --rm --no-deps tunnel-url` (`--no-deps` — otherwise Compose restarts
-`cloudflared` and changes the URL you asked for).
-
-Both tunnel images track **`latest` on purpose**: services in `docker-compose.yaml` stay pinned
-because they ship, but dev-override services do not, and `cloudflared` in particular is a client of
-a moving remote service whose old clients Cloudflare deprecates server-side. Trade-off: `up` does
-not re-pull, so machines drift — `docker compose pull cloudflared` when it misbehaves.
-
-⚠️ **The tunnel URL is public and unauthenticated.** The sharpest consequence is billable, not
-informational: `/api/v1/chat` and `/api/v1/chat/stream` use `get_current_user_optional`
-(`app/routers/chat.py`), so **anonymous callers can drive the LLM on your `OPENROUTER_API_KEY`** —
-a leaked link means someone else's traffic on your balance. They are also **unthrottled**: there is
-no per-user rate limit or spend quota, so a leaked link's traffic is bounded only by whatever spend
-cap you set on the OpenRouter key. It also exposes the read-only surface
-(`/jaeger`, `/docs`, `/redoc`, `/openapi.json`). Random and unguessable is not access control; keep
-a spend cap on the OpenRouter key and rotate it if a link escapes. See `docs/quickstart.md`
-§ "Sharing a dev environment".
-
-`frontend/vite.config.ts` sets `server.allowedHosts: [".trycloudflare.com"]` — **required**, since
-Vite 5.4.12+ rejects unknown Host headers; without it every tunnelled request returns
-`Blocked request`. Leading dot = domain-suffix match, so it survives the hostname changing.
 
 ## Request flow (chat)
 
@@ -471,9 +437,8 @@ usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package m
 
 - **Branches**: `main` = prod (protected, **PR-only**, deploys to prod), `dev` = dev env.
   Branch off `dev` → PR into `dev`; promote via PR `dev` → `main`. Never push `main` directly.
-- **`.github/workflows/test.yml`** (on PR / manual): parallel jobs — backend `pytest` (with redis
-  service), agent-proxy `go build && go test`, frontend `tsc --noEmit` + vitest coverage, and
-  `scripts` (`./scripts/tunnel-url_test.sh`). **No E2E** (removed from CI).
+- **`.github/workflows/test.yml`** (on PR / manual): parallel jobs — backend `pytest`,
+  frontend `tsc --noEmit` + vitest coverage. **No E2E** (removed from CI).
 - **`.github/workflows/deploy.yml`** (merged PR to `main` / manual): self-hosted runner, validates
   `JWT_SECRET`/`OPENROUTER_API_KEY`, writes prod `.env` (`ENV=production`), then
   `docker compose up -d --build --remove-orphans`. Deploy does **not** depend on the test job.
@@ -575,11 +540,9 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   A follow-up code↔spec reconciliation (2026-07-24) found **zero wire divergences** — the layer
   passes all 49 responses tests and conforms to the contract; the only change was deleting the
   dead `ResponseAccumulator.failed_event()` (unreferenced; `_failed` is used directly).
-- **Editing `frontend/vite.config.ts` does not affect a running stack.** The dev override's
-  `develop.watch` syncs only `frontend/src`, and `docker compose up` will not rebuild an existing
-  image — so config changes silently do nothing until `docker compose up -d --build frontend`.
-  This is what made the tunnel serve `Blocked request` despite `allowedHosts` being correct in
-  source; a unit test would not have caught it.
+- **Editing `frontend/vite.config.ts` does not affect a running stack.** `docker compose up`
+  will not rebuild an existing image, so config changes silently do nothing until
+  `docker compose up -d --build frontend`.
 - **Frontend tests cannot use the `node` environment, and cannot import `vite.config.ts`.**
   `vitest.config.ts` applies `setupFiles: ["./src/test/setup.ts"]` to every file in that file's own
   resolved environment, and `setup.ts` unconditionally touches `window` — so
@@ -587,9 +550,7 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   instead breaks differently: jsdom's realm does not share `Uint8Array` with Node's, so importing
   `vite` crashes esbuild's cross-realm invariant, and jsdom's `URL` ignores a `file://` base, so
   `new URL(..., import.meta.url)` + `readFileSync` fails too. Root cause is `jsdom@20` under Node
-  24. A regression test for `allowedHosts` was dropped for this reason (covered by the tunnel smoke
-  check instead); fixing `setup.ts` to tolerate a missing `window` is deferred to its own `chore/`
-  branch.
+  24; fixing `setup.ts` to tolerate a missing `window` is deferred to its own `chore/` branch.
 - **Chat text-scale control (A / A / A).** `TextScaleProvider` + `useTextScale`
   (`frontend/src/shared/hooks/useTextScale.tsx`) hold a persisted `small|normal|large` preference
   (localStorage key `chat-text-scale`), wrapped once around the router in `App.tsx`. The
@@ -652,14 +613,15 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   `docs/superpowers/specs/2026-07-26-persist-agent-steps-design.md`; plan:
   `docs/superpowers/plans/2026-07-26-persist-agent-steps.md`.
 - **MCP `endpoint_url` scheme behind Cloudflare.** `_fetch_agencies` rewrites every `API` agency's
-  `endpoint_url` to `<scheme>://<X-Forwarded-Host>/agent-proxy/<id>`. It used `request.url.scheme`,
-  which is `http` in this deployment: the whole chain (cloudflared → nginx → backend) speaks plain
-  HTTP, and nginx overwrites `X-Forwarded-Proto` with its own `$scheme` (= http). The only header
-  carrying the browser's real scheme is Cloudflare's `cf-visitor` (`{"scheme":"https"}`), so clients
-  were handed an `http://` proxy URL that a https origin rejects. `_external_scheme(request)`
-  (`app/mcp/server.py`) now resolves scheme as **cf-visitor → X-Forwarded-Proto → connection
-  scheme**. Covered by `tests/test_mcp_endpoint_scheme.py`. Also dropped the debug `print`s that were
-  dumping full request headers (incl. `Authorization`) to stdout on every call.
+  `endpoint_url` to `<scheme>://<X-Forwarded-Host>/api/v1/agent-proxy/{agency_id}`. It used
+  `request.url.scheme`, which is `http` in this deployment: the whole chain (Cloudflare → nginx →
+  backend) speaks plain HTTP, and nginx overwrites `X-Forwarded-Proto` with its own `$scheme`
+  (= http). The only header carrying the browser's real scheme is Cloudflare's `cf-visitor`
+  (`{"scheme":"https"}`), so clients were handed an `http://` proxy URL that a https origin rejects.
+  `_external_scheme(request)` (`app/mcp/server.py`) now resolves scheme as **cf-visitor →
+  X-Forwarded-Proto → connection scheme**. Covered by `tests/test_mcp_endpoint_scheme.py`. Also
+  dropped the debug `print`s that were dumping full request headers (incl. `Authorization`) to
+  stdout on every call.
 - **Ephemeral users hidden from admin user list.** Anonymous public-portal visitors are persisted
   as `User.is_ephemeral = True` accounts. `list_users` (`app/routers/users.py`, `GET /users`) now
   bases its queryset on `User.filter(is_ephemeral=False)` so temp-users never appear in the admin
@@ -766,22 +728,13 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   `hasFilters`, and cleared by `resetFilters`. Spec:
   `docs/superpowers/specs/2026-07-28-hide-test-connection-logs-design.md`; plan:
   `docs/superpowers/plans/2026-07-28-hide-test-connection-logs.md`.
-- **Deploy build-cache: persist layer cache + incremental Vite.** Deploy runs
-  (`docker compose up -d --build`, ~112-145s) occasionally spiked because BuildKit
-  `--mount=type=cache` dirs (uv/go-mod/pnpm/go-build) are builder-local and get wiped by
-  `docker system prune`/GC/daemon restart → cold dependency reinstall. Fix 1: new deploy-only
-  overlay `docker-compose.cache.yaml` (layered by the Deploy workflow only, never local
-  `docker compose up`, whose default driver can't export local cache) adds
-  `cache_from`/`cache_to type=local,dest=${BUILDCACHE_DIR:-/opt/deploy-buildcache}/<svc>,mode=max`
-  per built service. `deploy.yml` now creates an idempotent container-driver buildx builder
-  (`docker buildx create --name deploy --driver docker-container`), sets `BUILDCACHE_DIR`,
-  `COMPOSE_BAKE=true`, `BUILDX_BUILDER=deploy`, and passes `-f docker-compose.cache.yaml`.
-  Unchanged lockfiles → dep-install *layer* restored from the host dir even on a cold builder,
-  so no reinstall. Fix 2: `frontend/Dockerfile` builder adds
-  `--mount=type=cache,target=/app/node_modules/.vite` to `pnpm run build` (minor — Vite
-  production/Rollup builds don't cache incrementally without a plugin; the real frontend win is
-  Fix 1 skipping `pnpm install`). One-time runner prereq is auto-handled by the workflow step;
-  cache lives under `$HOME/deploy-buildcache`. Not yet validated on the self-hosted runner.
+- **Deploy build-cache (partially reverted).** A deploy-only `docker-compose.cache.yaml`
+  overlay + a container-driver buildx builder were added to persist BuildKit layer cache across
+  `docker system prune`/GC/daemon restarts. That overlay and its `deploy.yml` wiring were later
+  removed (the persistent-host-cache complexity was not worth it); deploy now runs a plain
+  `docker compose -f docker-compose.yaml up -d --build`. What remains is the per-build
+  `--mount=type=cache` in each Dockerfile (e.g. `frontend/Dockerfile`'s
+  `--mount=type=cache,target=/app/node_modules/.vite`), which is builder-local and still in use.
 
 ## Full-read audit findings (2026-08-02)
 
@@ -1209,3 +1162,25 @@ LLM-provider rate limiting to Postgres. Spec + plan:
 - CI cleanup: the dangling `agent-proxy` job in `.github/workflows/test.yml`
   (left over from the prior Go consolidation, which deleted the `agent-proxy/`
   directory) is removed in this branch so CI no longer fails on it.
+
+## 2026-08-17 — Finish deploy-config cleanup (remove dev tunnel + build-cache docs)
+Follow-up to `a7bf3ae` ("remove build cache and override configurations from
+deployment"), which deleted `docker-compose.cache.yaml`, `docker-compose.override.yaml`,
+and their `deploy.yml` wiring but left the docs and scripts behind. This commit finishes
+the removal:
+
+- Delete `scripts/tunnel-url.sh` and `scripts/tunnel-url_test.sh` (orphaned — their only
+  caller, the `tunnel-url` sidecar in the override, is gone).
+- Remove the `scripts` job from `.github/workflows/test.yml` (it ran `tunnel-url_test.sh`).
+- Remove `server.allowedHosts: [".trycloudflare.com"]` from `frontend/vite.config.ts`
+  (the Quick Tunnel it allowed is gone).
+- Trim `docs/quickstart.md` (drop the "Shared dev tunnel" row and the
+  "Sharing a dev environment" section) and `CONTEXT.md` (drop the dev-tunnel section, the
+  stale CI line that named the redis service + agent-proxy + scripts job, and the
+  override/`develop.watch` gotcha; rewrite the build-cache changelog entry to record the
+  revert).
+
+Result: local `docker compose up` no longer auto-merges dev overrides (no dev build
+targets, no file-watch hot-reload, no Cloudflare Quick Tunnel). Historical design docs
+under `docs/superpowers/` still reference the override and are left as-is (historical
+record).
