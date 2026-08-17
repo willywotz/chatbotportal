@@ -69,7 +69,7 @@ async def _resolve(purpose: str) -> _Resolved:
     route = await LlmRoute.filter(purpose=purpose, enabled=True).first()
     if route is None:
         raise LlmError(f"no enabled route for purpose {purpose!r}", kind="config")
-    provider = await route.provider  # lazy FK load
+    provider = await route.provider
     if not provider.enabled:
         raise LlmError(f"provider {provider.name!r} is disabled", provider=provider.name, kind="config")
     resolved = _Resolved(

@@ -29,7 +29,6 @@ _CONNECTION_IDENTITY_FIELDS = frozenset(
 
 
 async def get_agency_or_404(agency_id: UUID) -> Agency:
-    """Return one agency or raise 404."""
     try:
         return await Agency.get(id=agency_id)
     except DoesNotExist:
@@ -39,7 +38,6 @@ async def get_agency_or_404(agency_id: UUID) -> Agency:
 async def list_agencies(
     *, status_filter: str, connection_type: str | None, search: str | None
 ) -> tuple[list[Agency], int]:
-    """Return agencies matching the given filters, plus the total count."""
     qs = Agency.all()
     if status_filter != "all":
         qs = qs.filter(status=status_filter)

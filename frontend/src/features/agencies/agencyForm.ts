@@ -4,10 +4,6 @@ import type { Agency, AgencyLifecycleStatus, ApiEndpoint, ResponseField, ApiHead
 
 import { agencySchema } from "./agencySchema";
 
-// ---------------------------------------------------------------------------
-// Form state shape
-// ---------------------------------------------------------------------------
-
 export interface AgencyFormState {
   name: string;
   shortName: string;
@@ -37,10 +33,6 @@ export interface AgencyFormState {
   mcpToolName: string;
 }
 
-// ---------------------------------------------------------------------------
-// Default form state
-// ---------------------------------------------------------------------------
-
 export const DEFAULT_FORM_STATE: AgencyFormState = {
   name: "",
   shortName: "",
@@ -66,10 +58,6 @@ export const DEFAULT_FORM_STATE: AgencyFormState = {
   dispatchTimeoutS: "",
   mcpToolName: "",
 };
-
-// ---------------------------------------------------------------------------
-// Build form defaults from an existing Agency
-// ---------------------------------------------------------------------------
 
 export function agencyToFormState(agency: Agency): AgencyFormState {
   return {
@@ -100,10 +88,6 @@ export function agencyToFormState(agency: Agency): AgencyFormState {
     mcpToolName: agency.mcpToolName ?? "",
   };
 }
-
-// ---------------------------------------------------------------------------
-// Wizard step model
-// ---------------------------------------------------------------------------
 
 export type WizardStepId = "general" | "connection" | "test" | "routing" | "review";
 
@@ -177,10 +161,6 @@ export function parseIntOrNull(raw: string): number | null {
   return Number.isNaN(n) ? null : n;
 }
 
-// ---------------------------------------------------------------------------
-// Build partial Agency payload for onSave
-// ---------------------------------------------------------------------------
-
 export function buildSavePayload(
   state: AgencyFormState,
   parsedPayload: Record<string, unknown> | null,
@@ -219,10 +199,6 @@ export function buildSavePayload(
   return base;
 }
 
-// ---------------------------------------------------------------------------
-// Parse expectedPayload JSON string → object or null
-// ---------------------------------------------------------------------------
-
 export function parseExpectedPayload(raw: string): {
   value: Record<string, unknown> | null;
   error: boolean;
@@ -235,10 +211,6 @@ export function parseExpectedPayload(raw: string): {
     return { value: null, error: true };
   }
 }
-
-// ---------------------------------------------------------------------------
-// Protocol info labels
-// ---------------------------------------------------------------------------
 
 export const PROTOCOL_INFO: Record<string, string> = {
   MCP: "Model Context Protocol — มาตรฐานการเชื่อมต่อ AI กับเครื่องมือภายนอก รองรับ tools/list, tools/call, resources/read",

@@ -44,7 +44,6 @@ describe("HealthPage error and retry", () => {
 
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
 
-    // Restore successful handler before clicking retry
     server.resetHandlers();
 
     await userEvent.click(screen.getByRole("button", { name: /ลองอีกครั้ง/ }));

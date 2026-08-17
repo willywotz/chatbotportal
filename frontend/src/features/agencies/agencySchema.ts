@@ -1,9 +1,5 @@
 import { z } from "zod";
 
-// ---------------------------------------------------------------------------
-// Reusable sub-schemas
-// ---------------------------------------------------------------------------
-
 const apiHeaderSchema = z.object({
   name: z.string().min(1, "Header name is required").refine((v) => v.trim().length > 0, {
     message: "Header name cannot be blank",
@@ -21,10 +17,6 @@ const positiveIntOptional = z
     return Number.isNaN(n) ? undefined : n;
   })
   .pipe(z.number().int().positive().optional());
-
-// ---------------------------------------------------------------------------
-// Agency form schema
-// ---------------------------------------------------------------------------
 
 export const agencySchema = z.object({
   name: z

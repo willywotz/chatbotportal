@@ -17,7 +17,6 @@ import app.main as main
 
 
 def _streamable_route(starlette_app):
-    """Return the Streamable-HTTP endpoint route (mounted at path '/')."""
     for route in starlette_app.routes:
         if getattr(route, "path", None) == "/":
             return route
@@ -25,7 +24,6 @@ def _streamable_route(starlette_app):
 
 
 def test_mcp_app_is_stateless():
-    """The /mcp app must be built with stateless_http=True (no GET stream)."""
     route = _streamable_route(main.mcp_app)
     assert route.methods is not None, (
         "Streamable-HTTP route allows all methods (GET included) — the app is "

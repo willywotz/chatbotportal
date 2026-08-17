@@ -15,7 +15,6 @@ export default function ChatPage() {
   const { data: popularQuestions } = usePublicPopularQuestions();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Detect if SSE streaming is active (has pipeline steps but not done)
   const isStreaming = isTyping && streamingState.pipelineSteps.length > 0 && !streamingState.done;
 
   useEffect(() => {

@@ -50,7 +50,6 @@ describe("ConnectionLogsTable error state", () => {
     const retryBtn = screen.getByRole("button", { name: /ลองอีกครั้ง/ });
     expect(retryBtn).toBeInTheDocument();
 
-    // Restore a successful handler before retrying
     server.use(http.get("*/api/v1/connection-logs", () => HttpResponse.json(EMPTY_LOGS)));
     await userEvent.click(retryBtn);
 

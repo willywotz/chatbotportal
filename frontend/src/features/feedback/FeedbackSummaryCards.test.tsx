@@ -31,7 +31,6 @@ describe("FeedbackSummaryCards", () => {
     );
     renderCards();
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
-    // Should not be stuck showing skeletons
     expect(screen.queryByText("Feedback ทั้งหมด")).not.toBeInTheDocument();
   });
 });

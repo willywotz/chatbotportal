@@ -1,4 +1,3 @@
-"""Admin-only view of the audit trail."""
 from fastapi import APIRouter, Depends, Query
 
 from app.auth.dependencies import require_admin

@@ -21,12 +21,10 @@ class LLMProviderBase(BaseModel):
 
 
 class LLMProviderCreate(LLMProviderBase):
-    """Request body for creating a new LLM provider."""
     pass
 
 
 class LLMProviderUpdate(BaseModel):
-    """Request body for partial update of an LLM provider (all fields optional)."""
     name: str | None = None
     base_url: str | None = None
     api_key: str | None = None
@@ -59,6 +57,5 @@ class LLMProviderResponse(BaseModel):
 
 
 class LLMProviderListResponse(BaseModel):
-    """Paginated list of LLM providers."""
     data: list[LLMProviderResponse]
     total: int

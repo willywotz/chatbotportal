@@ -9,7 +9,6 @@ export function generateExecutiveReport(data: ExecutiveData) {
     year: 'numeric', month: 'long', day: 'numeric',
   });
 
-  // Cover
   doc.setFillColor(30, 90, 170);
   doc.rect(0, 0, pageWidth, 70, 'F');
   doc.setTextColor(255, 255, 255);
@@ -23,7 +22,6 @@ export function generateExecutiveReport(data: ExecutiveData) {
   doc.setTextColor(0, 0, 0);
   let y = 90;
 
-  // KPI Section
   doc.setFontSize(16);
   doc.text('Key Performance Indicators', 14, y);
   y += 8;
@@ -52,7 +50,6 @@ export function generateExecutiveReport(data: ExecutiveData) {
 
   y = (doc as any).lastAutoTable.finalY + 14;
 
-  // Agency Scorecard
   doc.setFontSize(16);
   doc.text('Agency Performance Scorecard', 14, y);
   y += 8;
@@ -76,7 +73,6 @@ export function generateExecutiveReport(data: ExecutiveData) {
 
   y = (doc as any).lastAutoTable.finalY + 14;
 
-  // Top Issues
   if (y > 230) { doc.addPage(); y = 20; }
   doc.setFontSize(16);
   doc.text('Top Citizen Inquiries', 14, y);
@@ -104,7 +100,6 @@ export function generateExecutiveReport(data: ExecutiveData) {
   );
   doc.text(briefLines, 14, 34);
 
-  // Footer on every page
   const pageCount = doc.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);

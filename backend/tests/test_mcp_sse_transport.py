@@ -18,7 +18,6 @@ def _route_paths(starlette_app) -> set[str]:
 
 
 def test_sse_route_is_not_exposed():
-    """The root-level GET /sse handler must not exist."""
     assert "/sse" not in _route_paths(main.app)
 
 
@@ -32,6 +31,5 @@ def test_messages_mount_is_not_exposed():
 
 
 def test_sse_transport_symbols_removed():
-    """The SSE handler/transport module globals must be gone."""
     assert not hasattr(main, "_sse_handler")
     assert not hasattr(main, "_sse_transport")

@@ -1,8 +1,3 @@
-"""
-Data access for message rating. Kept separate from the router so the ORM
-queries (and the agency-metric side effects) can be unit-tested directly.
-"""
-
 from __future__ import annotations
 
 import uuid
@@ -41,7 +36,7 @@ async def update_rating(message_id: uuid.UUID, body: RatingUpdate) -> Message:
                     agency.rating_down += 1
                 await agency.save(update_fields=["rating_up", "rating_down"])
             except DoesNotExist:
-                continue  # If agency not found, skip updating its metrics
+                continue
 
     await msg.save(update_fields=update_fields)
     return msg

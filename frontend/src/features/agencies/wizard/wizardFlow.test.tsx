@@ -31,7 +31,6 @@ describe("wizard connection step — URL validation", () => {
     const user = userEvent.setup();
     renderWizard();
 
-    // Pass general step
     await user.type(screen.getByLabelText("ชื่อหน่วยงาน"), "ทดสอบ");
     await user.type(screen.getByLabelText("ชื่อย่อ"), "ทส.");
     await user.click(screen.getByRole("button", { name: /ถัดไป/ }));
@@ -60,16 +59,13 @@ describe("wizard full flow (API agency)", () => {
     const user = userEvent.setup();
     renderWizard();
 
-    // Step 1 — general
     await user.type(screen.getByLabelText("ชื่อหน่วยงาน"), "กรมศุลกากร");
     await user.type(screen.getByLabelText("ชื่อย่อ"), "ศก.");
     await user.click(screen.getByRole("button", { name: /ถัดไป/ }));
 
-    // Step 2 — connection (API default)
     await user.type(screen.getByLabelText("Endpoint URL"), "https://customs.example/api/chat");
     await user.click(screen.getByRole("button", { name: /ถัดไป/ }));
 
-    // Draft was persisted on leaving step 2
     await waitFor(() => expect(mockAgencies.some((a) => a.name === "กรมศุลกากร")).toBe(true));
     const created = mockAgencies.find((a) => a.name === "กรมศุลกากร")!;
     expect(created.status).toBe("draft");
@@ -79,12 +75,10 @@ describe("wizard full flow (API agency)", () => {
     await waitFor(() => expect(screen.getByText(/ผ่านการทดสอบ Conformance/)).toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: /ถัดไป/ }));
 
-    // Step 4 — routing
     await user.type(screen.getByLabelText(/Router hint/), "คำถามภาษีนำเข้า");
     await user.type(screen.getByLabelText(/Priority/), "2");
     await user.click(screen.getByRole("button", { name: /ถัดไป/ }));
 
-    // Step 5 — review shows entered data, then activate
     expect(screen.getByText("กรมศุลกากร")).toBeInTheDocument();
     expect(screen.getByText("https://customs.example/api/chat")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /เปิดใช้งาน/ }));
@@ -106,7 +100,6 @@ describe("wizard full flow (API agency)", () => {
     await user.type(screen.getByLabelText("Endpoint URL"), "https://land.example/api");
     await user.click(screen.getByRole("button", { name: /ถัดไป/ }));
 
-    // Skip the test step without running conformance
     await user.click(screen.getByRole("button", { name: /ถัดไป/ }));
     await user.click(screen.getByRole("button", { name: /ถัดไป/ }));
 

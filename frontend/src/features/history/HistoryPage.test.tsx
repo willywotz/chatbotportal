@@ -45,10 +45,8 @@ describe("HistoryPage server-side filtering", () => {
 
     renderPage();
 
-    // Wait for initial load
     await waitFor(() => expect(screen.getByText("Conversation 1")).toBeInTheDocument());
 
-    // Open date picker
     const dateBtn = screen.getByRole("button", { name: /เลือกช่วงวันที่/ });
     await userEvent.click(dateBtn);
 
@@ -78,18 +76,14 @@ describe("HistoryPage server-side filtering", () => {
 
     renderPage();
 
-    // Shows server-returned total (25 items = 3 pages)
     await waitFor(() => expect(screen.getByText("Conversation 1")).toBeInTheDocument());
 
-    // Should see pagination since total=25 > PAGE_SIZE=10
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "2" })).toBeInTheDocument(),
     );
 
-    // Page 1 is active, click page 2
     await userEvent.click(screen.getByRole("button", { name: "2" }));
 
-    // Should have requested page=2
     await waitFor(() => expect(captured.some((q) => q.includes("page=2"))).toBe(true));
   });
 
@@ -107,7 +101,6 @@ describe("HistoryPage server-side filtering", () => {
 
     renderPage();
 
-    // Pagination label should reflect server total of 35
     await waitFor(() =>
       expect(screen.getByText(/จาก 35 รายการ/)).toBeInTheDocument(),
     );
@@ -162,7 +155,6 @@ describe("HistoryPage server-side filtering", () => {
     renderPage();
     await waitFor(() => expect(screen.getByText("Conversation 1")).toBeInTheDocument());
 
-    // On initial load without date range, no date params
     expect(captured[0]).not.toHaveProperty("date_from");
     expect(captured[0]).not.toHaveProperty("date_to");
   });

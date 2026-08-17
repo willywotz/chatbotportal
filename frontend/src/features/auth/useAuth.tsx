@@ -9,10 +9,6 @@ import {
 import { api } from "@/shared/lib/apiClient";
 import { type Role } from "@/features/auth/roles";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
 export interface AuthUser {
   id: string;
   email: string;
@@ -33,10 +29,6 @@ interface AuthContextType {
   ensureSession: () => Promise<void>;
 }
 
-// ---------------------------------------------------------------------------
-// Context
-// ---------------------------------------------------------------------------
-
 const AuthContext = createContext<AuthContextType>({
   user: null,
   isAdmin: false,
@@ -47,10 +39,6 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export const useAuth = () => useContext(AuthContext);
-
-// ---------------------------------------------------------------------------
-// Provider
-// ---------------------------------------------------------------------------
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);

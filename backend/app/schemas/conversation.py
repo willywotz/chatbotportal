@@ -7,10 +7,6 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict
 
 
-# ---------------------------------------------------------------------------
-# Message schemas
-# ---------------------------------------------------------------------------
-
 class MessageIn(BaseModel):
     """Message as provided when saving a conversation."""
     id: uuid.UUID | None = None
@@ -42,10 +38,6 @@ class RatingUpdate(BaseModel):
     rating: str                        # up | down
     feedback_text: str | None = None
 
-
-# ---------------------------------------------------------------------------
-# Conversation schemas
-# ---------------------------------------------------------------------------
 
 class SaveConversationRequest(BaseModel):
     """Body for POST /conversations — mirrors save-conversation edge function."""
@@ -90,10 +82,6 @@ class HistoryResponse(BaseModel):
     response_time: int
 
 
-# ---------------------------------------------------------------------------
-# Dashboard schemas
-# ---------------------------------------------------------------------------
-
 class DashboardStats(BaseModel):
     total_questions: int
     today_questions: int
@@ -122,10 +110,6 @@ class DashboardResponse(BaseModel):
     data: dict
     response_time: int
 
-
-# ---------------------------------------------------------------------------
-# Feedback schemas
-# ---------------------------------------------------------------------------
 
 class DailyTrendItem(BaseModel):
     date: str

@@ -1,16 +1,3 @@
-"""
-Admin user-management routes. Every endpoint requires an authenticated admin.
-
-Endpoints
----------
-  GET    /users                 List/search users (filters: search, role, status)
-  POST   /users                 Create a user with an initial password
-  GET    /users/{id}            Get a single user
-  PATCH  /users/{id}            Update display_name and/or role
-  POST   /users/{id}/deactivate Soft-delete: set is_active=False
-  POST   /users/{id}/activate   Set is_active=True
-"""
-
 from __future__ import annotations
 
 import uuid

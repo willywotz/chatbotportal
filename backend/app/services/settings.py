@@ -1,7 +1,3 @@
-"""
-Data access for admin-editable runtime settings, backed by the `settings` table.
-"""
-
 from __future__ import annotations
 
 from app.config import SECRET_FIELD_NAMES

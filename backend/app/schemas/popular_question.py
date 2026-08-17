@@ -22,7 +22,6 @@ class PopularQuestionCreate(BaseModel):
 
 
 class PopularQuestionUpdate(BaseModel):
-    """Request body for partial update (all fields optional)."""
     text: str | None = None
     agency_id: uuid.UUID | None = None
     pinned: bool | None = None

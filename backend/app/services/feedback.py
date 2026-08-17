@@ -1,8 +1,3 @@
-"""
-Business logic for the feedback dashboard: agency low-rated answers and the
-overall satisfaction stats aggregate.
-"""
-
 from __future__ import annotations
 
 from datetime import timedelta

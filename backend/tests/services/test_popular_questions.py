@@ -19,8 +19,6 @@ def _fake_llm_result(content: str) -> LlmResult:
     )
 
 
-# ── normalize_text_key ──────────────────────────────────────────────────────
-
 class TestNormalizeTextKey:
     def test_collapses_internal_whitespace(self):
         assert pq_service.normalize_text_key("ทำบัตร   ประชาชน  ใหม่") == "ทำบัตร ประชาชน ใหม่"
@@ -39,8 +37,6 @@ class TestNormalizeTextKey:
         b = pq_service.normalize_text_key("ทำบัตรประชาชนใหม่ ต้องใช้อะไรบ้าง")
         assert a == b
 
-
-# ── published_questions ─────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_published_excludes_hidden(db):
@@ -118,10 +114,6 @@ async def test_published_resolves_agency(db):
     assert by_text["with agency"]["agency"] == {"id": str(ag.id), "name": "กรมการปกครอง", "logo": "🏛️"}
     assert by_text["no agency"]["agency"] is None
 
-
-# ── regenerate ───────────────────────────────────────────────────────────────
-
-# ── _ask_llm JSON extraction robustness ─────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_ask_llm_parses_markdown_fenced_json(monkeypatch):
@@ -396,10 +388,6 @@ async def test_regenerate_no_agency_when_reply_has_none(db, monkeypatch):
     row = await PopularQuestion.get(text_key=pq_service.normalize_text_key("คำถามไม่มีหน่วยงาน"))
     assert row.agency_id is None
 
-
-# ── seed_popular_questions ──────────────────────────────────────────────────
-
-# ── create_question / update_question / delete_question / list_questions ────
 
 @pytest.mark.asyncio
 async def test_create_question_persists_manual_source(db):

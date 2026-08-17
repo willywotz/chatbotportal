@@ -1,4 +1,3 @@
-"""Business logic for connection-log listing, detail lookup, and aggregate stats."""
 from __future__ import annotations
 
 import uuid
@@ -53,7 +52,7 @@ async def list_logs(
     if agency_id:
         try:
             agency_uuid = uuid.UUID(agency_id)
-            await Agency.get(id=agency_uuid)  # Check if agency exists
+            await Agency.get(id=agency_uuid)
             qs = qs.filter(agency_id=agency_uuid)
         except (ValueError, DoesNotExist):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid agency ID")

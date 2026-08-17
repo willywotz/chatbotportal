@@ -1,11 +1,3 @@
-"""
-Dashboard stats route — port of the Supabase `dashboard-stats` edge function.
-
-Endpoint
---------
-  GET  /dashboard/stats
-"""
-
 import time
 
 from fastapi import APIRouter, Depends

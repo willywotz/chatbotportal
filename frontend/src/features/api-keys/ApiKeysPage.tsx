@@ -27,7 +27,6 @@ export default function ApiKeysPage() {
     queryFn: listAPIKeys,
   });
 
-  // Create
   const [createOpen, setCreateOpen] = useState(false);
   const [createName, setCreateName] = useState("");
   const [createExpiresInDays, setCreateExpiresInDays] = useState("");
@@ -53,7 +52,6 @@ export default function ApiKeysPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // Revoke
   const revokeMutation = useMutation({
     mutationFn: (id: string) => revokeAPIKey(id),
     onSuccess: () => {
@@ -72,7 +70,6 @@ export default function ApiKeysPage() {
     [revokeMutation],
   );
 
-  // Edit
   const [editTarget, setEditTarget] = useState<APIKey | null>(null);
   const [editName, setEditName] = useState("");
   const editMutation = useMutation({
@@ -90,7 +87,6 @@ export default function ApiKeysPage() {
     setEditName(key.name);
   }, []);
 
-  // Delete
   const [deleteTarget, setDeleteTarget] = useState<APIKey | null>(null);
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteAPIKey(id),

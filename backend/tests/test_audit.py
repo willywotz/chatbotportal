@@ -27,5 +27,4 @@ async def test_record_audit_never_raises_on_failure(db, monkeypatch):
     async def boom(*a, **k):
         raise RuntimeError("db down")
     monkeypatch.setattr(AuditLog, "create", boom)
-    # Should not raise:
     await record_audit(None, "agency.update", object_type="agency", object_id="x")

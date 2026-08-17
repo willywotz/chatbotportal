@@ -73,18 +73,10 @@ async def _route_response(route: LlmRoute) -> LLMRouteResponse:
     )
 
 
-# ---------------------------------------------------------------------------
-# Purposes
-# ---------------------------------------------------------------------------
-
 @router.get("/purposes", dependencies=[Depends(require_admin)], summary="List known LLM purposes")
 async def list_purposes():
     return {"data": list(KNOWN_PURPOSES)}
 
-
-# ---------------------------------------------------------------------------
-# Providers
-# ---------------------------------------------------------------------------
 
 @router.get(
     "/providers",
@@ -147,10 +139,6 @@ async def delete_provider(provider_id: uuid.UUID, user: User = Depends(require_a
     await record_audit(user, "llm_provider.delete", object_type="llm_provider", object_id=provider_id)
     invalidate()
 
-
-# ---------------------------------------------------------------------------
-# Routes
-# ---------------------------------------------------------------------------
 
 @router.get(
     "/routes",

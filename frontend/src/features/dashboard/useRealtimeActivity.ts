@@ -25,7 +25,6 @@ export function useRealtimeActivity() {
   const bucketsRef = useRef(buckets);
   bucketsRef.current = buckets;
 
-  // Track which conversation IDs we've already seen
   const seenIdsRef = useRef<Set<string>>(new Set());
 
   function initBuckets(): ActivityBucket[] {
@@ -40,7 +39,6 @@ export function useRealtimeActivity() {
     return d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   }
 
-  // Shift buckets every BUCKET_SECONDS
   useEffect(() => {
     const interval = setInterval(() => {
       setBuckets((prev) => {
@@ -62,7 +60,6 @@ export function useRealtimeActivity() {
 
     setEvents((prev) => [event, ...prev].slice(0, MAX_EVENTS));
 
-    // Increment the last activity bucket
     setBuckets((prev) => {
       const updated = [...prev];
       updated[updated.length - 1] = {
@@ -73,7 +70,6 @@ export function useRealtimeActivity() {
     });
   }, []);
 
-  // Poll for new conversations every POLL_INTERVAL_MS
   useEffect(() => {
     let isFirstPoll = true;
 

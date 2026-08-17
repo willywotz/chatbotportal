@@ -42,7 +42,6 @@ async def resolve_conversation(
     conversation: str | None,
     cache: dict[str, str] | None = None,
 ) -> tuple[str, bool]:
-    """Return (conversation_id, is_continuation)."""
     resolved: str | None = None
 
     if previous_response_id:

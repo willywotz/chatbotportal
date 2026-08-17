@@ -9,10 +9,6 @@ import {
   buildGenericErrorMessage,
 } from './chatHelpers';
 
-// ---------------------------------------------------------------------------
-// Module mocks
-// ---------------------------------------------------------------------------
-
 vi.mock('@/features/chat/chatApi', () => ({
   sendChatQueryWS: vi.fn(),
   sendChatQuerySSE: vi.fn(),
@@ -37,14 +33,9 @@ const mockSendChatQuery = sendChatQuery as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // Default: neither WS nor SSE used (fallback path not needed for most tests)
   mockSendWS.mockResolvedValue(false);
   mockSendSSE.mockResolvedValue(false);
 });
-
-// ---------------------------------------------------------------------------
-// B6 — handleRate rollback on failure
-// ---------------------------------------------------------------------------
 
 describe('handleRate', () => {
   it('keeps the optimistic rating when updateMessageRating succeeds', async () => {
@@ -52,7 +43,6 @@ describe('handleRate', () => {
 
     const { result } = renderHook(() => useChat());
 
-    // Plant a message with no rating
     const msgId = 'msg-1';
     act(() => {
       // Directly inject a message by triggering send won't work easily;
@@ -82,23 +72,15 @@ describe('handleRate', () => {
       await result.current.handleRate('ghost-id', 'down');
     });
 
-    // updateMessageRating was called and returned false
     expect(mockUpdateRating).toHaveBeenCalledWith('ghost-id', 'down', undefined);
-    // messages list unchanged (no ghost entries added)
     expect(result.current.messages).toHaveLength(0);
   });
 });
 
-// ---------------------------------------------------------------------------
-// B7 — unmount aborts in-flight SSE
-// ---------------------------------------------------------------------------
-
 describe('unmount cleanup', () => {
   it('calls abort() on abortRef when the hook unmounts', async () => {
-    // Spy on AbortController.abort
     const abortSpy = vi.spyOn(AbortController.prototype, 'abort');
 
-    // Make SSE hang forever so abortRef stays set
     mockSendSSE.mockImplementation(
       () => new Promise(() => { /* never resolves */ })
     );
@@ -113,17 +95,12 @@ describe('unmount cleanup', () => {
       await Promise.resolve();
     });
 
-    // Unmount — the cleanup effect should call abort()
     unmount();
 
     expect(abortSpy).toHaveBeenCalled();
     abortSpy.mockRestore();
   });
 });
-
-// ---------------------------------------------------------------------------
-// Task 8 — sync (non-SSE) branch tolerates the unified chat envelope
-// ---------------------------------------------------------------------------
 
 describe('sync fallback response mapping (unified envelope)', () => {
   it('falls back to summary and agency_name when answer/agency/title are absent', async () => {
@@ -153,10 +130,6 @@ describe('sync fallback response mapping (unified envelope)', () => {
     ]);
   });
 });
-
-// ---------------------------------------------------------------------------
-// B8/S1 — error state decision logic (pure, via chatHelpers)
-// ---------------------------------------------------------------------------
 
 describe('B8/S1 — error + no answer produces an error bubble (pure logic)', () => {
   it('applyErrorEvent leaves answer null and sets done=true with errors', () => {
@@ -190,15 +163,10 @@ describe('B8/S1 — error + no answer produces an error bubble (pure logic)', ()
     const withAnswer = { ...INITIAL_STREAMING_STATE, answer: 'partial answer', done: true, errors: [{ agency: '', name: '', errorType: 'SSE' as const, message: 'minor' }] };
     const aiMsg = buildAiMessageFromState(withAnswer);
     expect(aiMsg).not.toBeNull();
-    // finalizeStreaming will use aiMsg branch, not the error branch
     const shouldShowError = !aiMsg && withAnswer.done && withAnswer.errors.length > 0;
     expect(shouldShowError).toBe(false);
   });
 });
-
-// ---------------------------------------------------------------------------
-// SSE idle timeout → connection-lost bubble
-// ---------------------------------------------------------------------------
 
 describe('SSE idle timeout routes to connection-lost bubble', () => {
   it('shows buildConnectionLostMessage() when SSE returns true but state.done is false', async () => {
@@ -223,7 +191,6 @@ describe('SSE idle timeout routes to connection-lost bubble', () => {
   });
 
   it('does NOT show connection-lost bubble when SSE error event fires (generic error branch)', async () => {
-    // Simulate SSE error event: calls onError which sets state.done = true
     mockSendSSE.mockImplementation(async (_req, callbacks) => {
       callbacks.onError?.({ message: 'backend exploded', code: 500 });
       return true;
@@ -240,16 +207,11 @@ describe('SSE idle timeout routes to connection-lost bubble', () => {
     await waitFor(() => {
       const aiMessages = result.current.messages.filter((m) => m.role === 'assistant');
       expect(aiMessages).toHaveLength(1);
-      // Generic error bubble, NOT connection-lost bubble
       expect(aiMessages[0].content).toBe(expectedGenericContent);
       expect(aiMessages[0].content).not.toBe(connectionLostContent);
     });
   });
 });
-
-// ---------------------------------------------------------------------------
-// Public return shape — confirm API is unchanged
-// ---------------------------------------------------------------------------
 
 describe('useChat public return shape', () => {
   it('exposes the expected keys', () => {

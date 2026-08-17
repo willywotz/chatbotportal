@@ -7,10 +7,6 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 
-# ---------------------------------------------------------------------------
-# Sub-schemas
-# ---------------------------------------------------------------------------
-
 class ApiEndpoint(BaseModel):
     method: str = Field(..., examples=["GET", "POST"])
     path: str = Field(..., examples=["/search"])
@@ -29,10 +25,6 @@ class ApiHeader(BaseModel):
     description: str = Field(default="")
 
 
-# ---------------------------------------------------------------------------
-# Agency schemas
-# ---------------------------------------------------------------------------
-
 class AgencyHealthEmbed(BaseModel):
     state: str  # up | degraded | down | unknown
     uptime_24h: float | None = None
@@ -50,7 +42,6 @@ class AgencyBase(BaseModel):
     data_scope: list[str] = []
     color: str | None = None
 
-    # Connection
     endpoint_url: str | None = None
     auth_method: str | None = None
     auth_header: str | None = None
@@ -58,14 +49,12 @@ class AgencyBase(BaseModel):
     api_key_name: str | None = None
     request_format: str | None = None
 
-    # Schema / spec
     api_endpoints: list[ApiEndpoint] = []
     response_schema: list[ResponseField] = []
     api_spec_raw: str | None = None
     expected_payload: dict[str, Any] | None = None
     api_headers: list[ApiHeader] | None = None
 
-    # Routing controls
     priority: int | None = None
     router_hint: str = ""
     dispatch_timeout_s: int | None = None
@@ -73,12 +62,10 @@ class AgencyBase(BaseModel):
 
 
 class AgencyCreate(AgencyBase):
-    """Request body for creating a new agency."""
     pass
 
 
 class AgencyUpdate(BaseModel):
-    """Request body for partial update of an agency (all fields optional)."""
     name: str | None = None
     short_name: str | None = None
     logo: str | None = None
@@ -105,7 +92,6 @@ class AgencyUpdate(BaseModel):
 
 
 class AgencyResponse(AgencyBase):
-    """Response schema — includes server-generated fields."""
     id: uuid.UUID
     total_calls: int
     created_at: datetime
@@ -118,7 +104,6 @@ class AgencyResponse(AgencyBase):
 
 
 class AgencyListResponse(BaseModel):
-    """Paginated list of agencies."""
     data: list[AgencyResponse]
     total: int
 
@@ -152,10 +137,6 @@ class McpToolInfo(BaseModel):
 class McpDiscoverResponse(BaseModel):
     tools: list[McpToolInfo]
 
-
-# ---------------------------------------------------------------------------
-# Summary schema used by MCP resource (lightweight)
-# ---------------------------------------------------------------------------
 
 class AgencySummary(BaseModel):
     id: uuid.UUID

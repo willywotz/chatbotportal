@@ -31,7 +31,6 @@ export function exportToCsv(conversations: HistoryItem[], filename = 'chat-histo
 export function exportToPdf(conversations: HistoryItem[], filename = 'chat-history.pdf') {
   const doc = new jsPDF({ orientation: 'landscape' });
 
-  // Title
   doc.setFontSize(16);
   doc.text('Chat History', 14, 18);
   doc.setFontSize(9);

@@ -26,7 +26,6 @@ async def test_public_agencies_display_fields_only(db):
             "status": "active",
         }
     ]
-    # No internal fields leak.
     assert "endpoint_url" not in rows[0]
 
 

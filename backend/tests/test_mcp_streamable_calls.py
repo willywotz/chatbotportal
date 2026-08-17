@@ -63,8 +63,6 @@ def _transport(url: str) -> StreamableHttpTransport:
 
 @pytest.mark.asyncio
 async def test_repeated_list_agency_calls_have_no_session_error():
-    """list_agency is called many times — within one session and across fresh
-    sessions — and every call must return cleanly with no session error."""
     root = Starlette(routes=[Mount("/mcp", app=main.mcp_app)], lifespan=_mcp_lifespan)
     port = _free_port()
     server = uvicorn.Server(
@@ -80,7 +78,6 @@ async def test_repeated_list_agency_calls_have_no_session_error():
         assert server.started, "loopback MCP server did not start"
 
         async with asyncio.timeout(30):
-            # Many calls reusing a single session.
             async with Client(_transport(url)) as client:
                 for _ in range(_CALLS):
                     result = await client.call_tool("list_agency", {})

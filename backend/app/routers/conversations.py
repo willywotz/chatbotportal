@@ -22,10 +22,6 @@ from app.services import conversation as conversation_service
 router = APIRouter(prefix="/history", tags=["History"])
 
 
-# ---------------------------------------------------------------------------
-# Save conversation  (mirrors save-conversation edge function)
-# ---------------------------------------------------------------------------
-
 @router.post(
     "",
     summary="Save conversation with messages",
@@ -35,10 +31,6 @@ async def save_conversation(body: SaveConversationRequest, user: User | None = D
     conv = await conversation_service.create_conversation(body, user)
     return {"success": True, "conversationId": str(conv.id)}
 
-
-# ---------------------------------------------------------------------------
-# List / history  (mirrors chat-history edge function)
-# ---------------------------------------------------------------------------
 
 @router.get("", summary="List conversations (history)")
 async def list_conversations(
@@ -83,10 +75,6 @@ async def list_conversations(
         response_time=int((time.time() - start) * 1000),
     )
 
-
-# ---------------------------------------------------------------------------
-# Get single conversation with messages
-# ---------------------------------------------------------------------------
 
 @router.get("/{conversation_id}", summary="Get conversation with messages")
 async def get_conversation(conversation_id: uuid.UUID, user: User = Depends(get_current_user)) -> dict:
@@ -136,10 +124,6 @@ async def get_conversation_messages(conversation_id: uuid.UUID, user: User = Dep
         for m in messages
     ]
 
-
-# ---------------------------------------------------------------------------
-# Delete conversation (cascade to messages via DB FK)
-# ---------------------------------------------------------------------------
 
 @router.delete("/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete conversation")
 async def delete_conversation(conversation_id: uuid.UUID, user: User = Depends(get_current_user)) -> None:

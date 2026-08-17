@@ -1,4 +1,3 @@
-"""Translate an OpenAI Responses request into portal turn parameters."""
 from typing import Any
 
 from app.services.responses.errors import ResponsesApiError

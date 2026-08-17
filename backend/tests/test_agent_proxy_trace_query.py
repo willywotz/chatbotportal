@@ -38,7 +38,7 @@ async def test_query_traceparent_promoted_to_upstream_header(db, monkeypatch):
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post(
             f"/api/v1/agent-proxy/{agency.id}?traceparent={_QUERY_TRACEPARENT}",
-            content=json.dumps({"query": "hi"}),  # no traceparent header
+            content=json.dumps({"query": "hi"}),
         )
 
     assert resp.status_code == 200

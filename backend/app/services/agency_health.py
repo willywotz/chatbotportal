@@ -49,7 +49,7 @@ async def embedded_health(agency_id: UUID, reset_at: datetime | None = None) -> 
     failures = sum(1 for r in rows if r["status"] != "success")
     uptime = round((total - failures) / total * 100, 1)
     avg_latency = round(sum(r["latency_ms"] for r in rows) / total)
-    last = rows[-1]  # ascending by created_at
+    last = rows[-1]
     if last["status"] != "success":
         state = "down"
     elif uptime < settings.HEALTH_DEGRADED_UPTIME_PCT:

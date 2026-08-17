@@ -37,7 +37,7 @@ async def test_change_password_wrong_current(db):
         )
     assert exc.value.status_code == 400
     await user.refresh_from_db()
-    assert verify_password("oldsecret", user.hashed_password)  # unchanged
+    assert verify_password("oldsecret", user.hashed_password)
 
 
 @pytest.mark.asyncio

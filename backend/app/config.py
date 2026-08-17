@@ -47,9 +47,9 @@ class Settings(BaseSettings):
     # ── Session cookie auth ──────────────────────────────────────────────────
     SESSION_COOKIE_NAME: str = "session_id"
     AUTH_COOKIE_SECURE: bool = True
-    SESSION_TTL_MINUTES: int = 60 * 24 * 7          # 7 days
+    SESSION_TTL_MINUTES: int = 60 * 24 * 7
     SESSION_REFRESH_BELOW_MINUTES: int = 60 * 24 * 3  # re-rotate below ~half TTL
-    SESSION_ROTATE_GRACE_SECONDS: int = 60  # old sid stays valid this long after rotation
+    SESSION_ROTATE_GRACE_SECONDS: int = 60
 
     # ── LLM / OpenRouter ────────────────────────────────────────────────────
     OPENROUTER_API_KEY: str = ""

@@ -73,7 +73,6 @@ describe('sendChatQuerySSE — idle timeout', () => {
   it('cancels the reader and does NOT call onError when stream hangs past STREAM_IDLE_TIMEOUT_MS', async () => {
     server.use(makeHangingSSEHandler(sseChunk('step', { step: 'thinking' })));
 
-    // Spy on ReadableStreamDefaultReader.prototype.cancel to detect stream teardown
     const cancelSpy = vi.spyOn(ReadableStreamDefaultReader.prototype, 'cancel');
 
     const onError = vi.fn();
@@ -84,15 +83,12 @@ describe('sendChatQuerySSE — idle timeout', () => {
       { onStep, onError },
     );
 
-    // Let the first step event arrive (flush microtasks/promises)
     await vi.advanceTimersByTimeAsync(0);
 
-    // Advance past the idle timeout
     await vi.advanceTimersByTimeAsync(STREAM_IDLE_TIMEOUT_MS + 1);
 
     await promise;
 
-    // The step event was received before the hang
     expect(onStep).toHaveBeenCalledTimes(1);
     // Idle timeout does NOT call onError — routes to connection-lost via !state.done
     expect(onError).not.toHaveBeenCalled();

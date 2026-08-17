@@ -15,7 +15,6 @@ def _find_route(path: str, method: str):
 
 
 def test_regenerate_route_requires_admin():
-    """POST /executive-summary/regenerate must depend on require_admin."""
     from app.auth.dependencies import require_admin
 
     route = _find_route("/executive-summary/regenerate", "POST")
@@ -24,7 +23,6 @@ def test_regenerate_route_requires_admin():
 
 
 def test_get_route_is_not_admin_gated():
-    """The public GET stays public (unchanged behaviour)."""
     from app.auth.dependencies import require_admin
 
     route = _find_route("/executive-summary", "GET")
@@ -34,7 +32,6 @@ def test_get_route_is_not_admin_gated():
 
 @pytest.mark.asyncio
 async def test_regenerate_endpoint_returns_new_brief():
-    """The handler regenerates and returns the fresh brief content + metadata."""
     from app.routers import executive_summary as router_module
 
     brief = MagicMock()

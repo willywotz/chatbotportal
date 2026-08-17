@@ -17,7 +17,7 @@ from app.routers.conversations import (
 
 
 async def _anonymous_conversation() -> Conversation:
-    return await Conversation.create(title="t", status="active")  # user_id left NULL
+    return await Conversation.create(title="t", status="active")
 
 
 async def test_non_admin_denied_read_of_anonymous_conversation(db):

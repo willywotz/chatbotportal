@@ -83,7 +83,6 @@ describe("ConnectionTab", () => {
     await user.type(input, "https://rd-new.example/api/chat");
     await user.click(screen.getByRole("button", { name: /บันทึก/ }));
     expect(await screen.findByText(/จะทำให้หน่วยงานกลับเป็น Draft/)).toBeInTheDocument();
-    // not saved until confirmed
     expect(mockAgencies.find((a) => a.id === ACTIVE_ID)!.endpoint_url).not.toBe(
       "https://rd-new.example/api/chat",
     );
@@ -152,10 +151,8 @@ describe("ConnectionTab", () => {
   it("does not disable save button for entirely empty header rows", async () => {
     const user = userEvent.setup();
     render(wrap(<ConnectionTab agency={activeAgency()} />));
-    // activeAgency has a valid URL, adding an empty header row should not block
     const addBtn = screen.getByRole("button", { name: /เพิ่ม header/ });
     await user.click(addBtn);
-    // Save button should still be enabled (empty row is not an error)
     expect(screen.getByRole("button", { name: /บันทึก/ })).not.toBeDisabled();
   });
 

@@ -1,5 +1,3 @@
-"""Golden questions and eval results endpoints."""
-
 import uuid
 
 from fastapi import APIRouter, Depends, Query, status

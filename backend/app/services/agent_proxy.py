@@ -51,7 +51,7 @@ def _upstream_headers(incoming: Mapping[str, str], api_headers: list[dict] | Non
         name = header.get("name")
         if name:
             headers[name] = header.get("value", "")
-    inject(headers)  # W3C trace context
+    inject(headers)
     return headers
 
 

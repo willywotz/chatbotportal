@@ -48,7 +48,6 @@ async def test_stream_persists_summary_and_references():
 
 @pytest.mark.usefixtures("db")
 async def test_stream_degrades_silently_without_summary():
-    """v4 mode / upstream summary failure: empty fields, everything else unchanged."""
     cid = str(uuid.uuid4())
     asst_id = await _persist(
         _plan(cid), answer_data={"answer": "คำตอบ", "sections": [], "errors": []},
@@ -74,8 +73,6 @@ async def test_blank_summary_is_stored_as_none():
     msg = await Message.get(id=asst_id)
     assert msg.summary is None
 
-
-# ─── thread_name → conversation title ────────────────────────────────────────
 
 from app.config import settings
 from app.models.conversation import Conversation
@@ -136,8 +133,6 @@ async def test_long_thread_name_is_truncated():
     assert len(conv.title) == settings.TITLE_MAX_LENGTH
 
 
-# ─── similarity-cache replay ─────────────────────────────────────────────────
-
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -148,7 +143,6 @@ from app.services.chat import stream as turn_stream
 
 @pytest.mark.usefixtures("db")
 async def test_cached_replay_emits_summary_and_references():
-    """A cache hit must look identical to a live v5 turn."""
     conv = await Conversation.create(status="success")
     user_msg = await Message.create(conversation=conv, role="user", content="q")
     asst_msg = await Message.create(

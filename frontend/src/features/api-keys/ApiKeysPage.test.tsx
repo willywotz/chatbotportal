@@ -6,10 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ApiKeysPage from "./ApiKeysPage";
 import type { APIKey, CreatedAPIKey } from "./apiKeyApi";
 
-// ---------------------------------------------------------------------------
-// Mocks
-// ---------------------------------------------------------------------------
-
 const mockListAPIKeys = vi.fn();
 const mockCreateAPIKey = vi.fn();
 const mockUpdateAPIKey = vi.fn();
@@ -23,10 +19,6 @@ vi.mock("@/features/api-keys/apiKeyApi", () => ({
   revokeAPIKey: (...args: unknown[]) => mockRevokeAPIKey(...args),
   deleteAPIKey: (...args: unknown[]) => mockDeleteAPIKey(...args),
 }));
-
-// ---------------------------------------------------------------------------
-// Fixtures
-// ---------------------------------------------------------------------------
 
 const makeKey = (overrides: Partial<APIKey> = {}): APIKey => ({
   id: "key-1",
@@ -46,10 +38,6 @@ const makeCreatedKey = (overrides: Partial<CreatedAPIKey> = {}): CreatedAPIKey =
   ...overrides,
 });
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -58,10 +46,6 @@ function renderPage() {
     </QueryClientProvider>,
   );
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe("ApiKeysPage create button", () => {
   beforeEach(() => {
@@ -137,7 +121,6 @@ describe("ApiKeysPage create flow", () => {
     mockListAPIKeys.mockResolvedValue([]);
     const created = makeCreatedKey({ id: "new-1", name: "My New Key" });
     mockCreateAPIKey.mockResolvedValue(created);
-    // After invalidation, return the new key in the list
     mockListAPIKeys.mockResolvedValueOnce([]).mockResolvedValue([makeKey({ id: "new-1", name: "My New Key" })]);
 
     renderPage();
@@ -150,7 +133,6 @@ describe("ApiKeysPage create flow", () => {
 
     await waitFor(() => expect(mockCreateAPIKey).toHaveBeenCalledWith({ name: "My New Key" }));
 
-    // Reveal dialog appears
     expect(await screen.findByText("สร้าง API Key เรียบร้อย")).toBeInTheDocument();
     expect(screen.getByText("sk-test-abc-FULL-SECRET-KEY")).toBeInTheDocument();
     expect(screen.getByText(/คัดลอก API Key นี้ไว้ทันที/)).toBeInTheDocument();
@@ -274,7 +256,6 @@ describe("ApiKeysPage delete flow", () => {
     expect(screen.getByText(/ลบ API Key "Key To Delete"/)).toBeInTheDocument();
     expect(screen.getByText(/ไม่สามารถย้อนกลับได้/)).toBeInTheDocument();
 
-    // Confirm button is present and not disabled
     const allBtns = screen.getAllByRole("button");
     const confirmBtn = allBtns.find(
       (b) => b.textContent?.trim() === "ลบ" && !b.hasAttribute("aria-label"),

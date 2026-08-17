@@ -13,10 +13,6 @@ export {
   HEALTH_DOT_CLASS as AGENCY_HEALTH_DOT_CLASS,
 } from "@/features/agencies/lifecycle";
 
-// ---------------------------------------------------------------------------
-// Agency health-monitoring (HealthPage) — status: 'healthy' | 'degraded' | 'down'
-// ---------------------------------------------------------------------------
-
 export type AgencyHealthStatus = "healthy" | "degraded" | "down";
 
 export const HEALTH_STATUS_LABEL: Record<AgencyHealthStatus, string> = {
@@ -30,10 +26,6 @@ export const HEALTH_STATUS_COLOR: Record<AgencyHealthStatus, string> = {
   degraded: "hsl(35 90% 55%)",
   down: "hsl(0 70% 55%)",
 };
-
-// ---------------------------------------------------------------------------
-// Public status page — status: 'active' | 'maintenance' | 'disabled'
-// ---------------------------------------------------------------------------
 
 export type PublicAgencyStatus = "active" | "maintenance" | "disabled";
 
@@ -51,10 +43,6 @@ export const PUBLIC_STATUS_VARIANT: Record<
   maintenance: "secondary",
   disabled: "destructive",
 };
-
-// ---------------------------------------------------------------------------
-// API key status
-// ---------------------------------------------------------------------------
 
 export type APIKeyStatus = "active" | "expired" | "revoked";
 

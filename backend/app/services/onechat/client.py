@@ -27,7 +27,6 @@ def resolve_version(requested: str | None = None) -> str:
 
 
 class OneChatError(Exception):
-    """A non-2xx response or transport failure from onechat."""
 
     def __init__(self, status_code: int, message: str):
         self.status_code = status_code

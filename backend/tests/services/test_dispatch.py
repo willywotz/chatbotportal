@@ -6,8 +6,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 
-# ── Pure helper tests ────────────────────────────────────────────────────────
-
 class TestBuildApiHeaders:
     def test_default_content_type(self):
         from app.services.chat.dispatch import build_api_headers
@@ -302,8 +300,6 @@ class TestExtractMcpText:
         text = extract_mcp_text(result)
         assert isinstance(text, str)
 
-
-# ── Async dispatch tests ─────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_dispatch_api_200_returns_ok():

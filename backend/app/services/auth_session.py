@@ -1,4 +1,3 @@
-"""Opaque server-side session store backed by Postgres (Session model)."""
 from datetime import timedelta
 
 from app.config import settings

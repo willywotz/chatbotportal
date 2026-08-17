@@ -25,7 +25,6 @@ Send = Callable[[dict], Awaitable[None]]
 
 
 class WsSession:
-    """One WebSocket connection's state: the caller and its recent responses."""
 
     def __init__(self, user: User | None):
         self.user = user
