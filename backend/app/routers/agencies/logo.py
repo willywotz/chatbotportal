@@ -12,14 +12,13 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
-from tortoise.exceptions import DoesNotExist
 
 from app.auth.dependencies import require_admin
 from app.config import settings
-from app.models.agency import Agency
 from app.models.user import User
 from app.routers.agencies._utils import _with_health
 from app.schemas.agency import AgencyResponse
+from app.services import agency as agency_service
 
 logger = logging.getLogger(__name__)
 
@@ -63,10 +62,7 @@ async def upload_agency_logo(
     file: UploadFile = File(...),
     _: User = Depends(require_admin),
 ):
-    try:
-        agency = await Agency.get(id=agency_id)
-    except DoesNotExist:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
+    agency = await agency_service.get_agency_or_404(agency_id)
 
     validator = _MAGIC_VALIDATORS.get(file.content_type)
     if validator is None:
@@ -92,8 +88,7 @@ async def upload_agency_logo(
     path.write_bytes(data)
     path.chmod(0o644)
 
-    agency.logo = f"/api/v1/agencies/{agency_id}/logo?v={digest}"
-    await agency.save(update_fields=["logo", "updated_at"])
+    agency = await agency_service.update_logo(agency, f"/api/v1/agencies/{agency_id}/logo?v={digest}")
     return await _with_health(agency)
 
 

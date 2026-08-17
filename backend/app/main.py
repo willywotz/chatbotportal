@@ -47,7 +47,7 @@ from app.routers import agencies, audit_log, conversations, messages, dashboard,
 from app.routers import llm as llm_router
 from app.routers import openai_conversations
 from app.routers import responses
-from app.routers.seed import _run_seed_admin, _run_seed_agencies
+from app.services.seed import run_seed_admin, run_seed_agencies
 from app.services.popular_questions import seed_popular_questions
 from app.scheduler import start_scheduler, stop_scheduler
 from app.trace_util import QueryTraceparentASGI
@@ -89,8 +89,8 @@ mcp_app = mcp.http_app(path="/", stateless_http=True)
 async def lifespan(app: FastAPI):
     await init_db()
     await load_settings_from_db()
-    await _run_seed_admin()
-    await _run_seed_agencies()
+    await run_seed_admin()
+    await run_seed_agencies()
     # await seed_popular_questions()
     await start_scheduler()
 

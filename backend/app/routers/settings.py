@@ -1,7 +1,6 @@
 import json
 
 from fastapi import APIRouter, Depends
-from tortoise.exceptions import IntegrityError
 
 from app.auth.dependencies import require_admin
 from app.config import (
@@ -9,9 +8,7 @@ from app.config import (
     SECRET_FIELD_NAMES,
     settings,
     load_settings_from_db,
-    _deserialize,
 )
-from app.models.setting import Setting
 from app.models.user import User
 from app.schemas.settings import (
     SettingFieldOut,
@@ -19,6 +16,7 @@ from app.schemas.settings import (
     SettingsResponse,
     SettingsUpdateRequest,
 )
+from app.services import settings as settings_service
 from app.services.audit import record_audit
 from app.services.cache_flush import flush_similarity_cache
 
@@ -63,8 +61,7 @@ def _serialize_default(key: str) -> str:
 
 @router.get("/settings", response_model=SettingsResponse, dependencies=[Depends(require_admin)])
 async def list_settings():
-    db_rows = await Setting.all()
-    db_map = {r.key: r for r in db_rows}
+    db_map = await settings_service.fetch_db_settings()
 
     groups = []
     for group_name, keys in SETTINGS_GROUPS.items():
@@ -100,9 +97,9 @@ async def update_settings(body: SettingsUpdateRequest, user: User = Depends(requ
             continue
         if item.key in SECRET_FIELD_NAMES and item.value == MASK:
             continue
-        await Setting.update_or_create(
-            key=item.key,
-            defaults={"value": item.value, "updated_by": user.email, "is_secret": item.key in SECRET_FIELD_NAMES, "group": _group_for_key(item.key), "field_type": _field_type_for(settings.model_fields[item.key].annotation)},
+        await settings_service.upsert_setting(
+            item.key, item.value, user.email, _group_for_key(item.key),
+            _field_type_for(settings.model_fields[item.key].annotation),
         )
         updated_keys.append(item.key)
     await load_settings_from_db()

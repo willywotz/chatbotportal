@@ -1,11 +1,9 @@
-from datetime import timedelta
-
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from app.auth.dependencies import get_current_user
-from app.auth.security import generate_api_key, hash_api_key
 from app.models.user import User, UserAPIKey
+from app.services import api_key as api_key_service
 from app.services.audit import record_audit
 from app.utils import now
 
@@ -59,50 +57,30 @@ def _resp(k: UserAPIKey) -> APIKeyResponse:
 
 @router.get("/", summary="List API keys for the current user")
 async def list_api_keys(user: User = Depends(get_current_user)) -> list[APIKeyResponse]:
-    result = await UserAPIKey.filter(user_id=user.id).order_by("-created_at").all()
+    result = await api_key_service.list_for_user(user.id)
     return [_resp(k) for k in result]
 
 
 @router.post("/", summary="Create a new API key")
 async def create_api_key(body: CreateAPIKeyRequest, user: User = Depends(get_current_user)) -> CreatedAPIKeyResponse:
-    if body.expires_in_days is not None and body.expires_in_days <= 0:
-        raise HTTPException(status_code=400, detail="expires_in_days must be positive")
-    expires_at = now() + timedelta(days=body.expires_in_days) if body.expires_in_days else None
-    raw = generate_api_key()
-    new_key = await UserAPIKey.create(
-        user_id=user.id, name=body.name,
-        key_hash=hash_api_key(raw), key_prefix=raw[:12],
-        expires_at=expires_at,
-    )
+    new_key, raw = await api_key_service.create(user.id, body.name, body.expires_in_days)
     return CreatedAPIKeyResponse(**_resp(new_key).model_dump(), key=raw)
 
 
 @router.patch("/{key_id}", summary="Rename an API key")
 async def update_api_key(key_id: str, body: UpdateAPIKeyRequest, user: User = Depends(get_current_user)) -> APIKeyResponse:
-    key = await UserAPIKey.filter(id=key_id, user_id=user.id).first()
-    if not key:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API key not found")
-    key.name = body.name
-    await key.save()
+    key = await api_key_service.rename(key_id, user.id, body.name)
     return _resp(key)
 
 
 @router.delete("/{key_id}", summary="Delete an API key")
 async def delete_api_key(key_id: str, user: User = Depends(get_current_user)) -> dict:
-    key = await UserAPIKey.filter(id=key_id, user_id=user.id).first()
-    if not key:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API key not found")
-    await key.delete()
+    await api_key_service.delete(key_id, user.id)
     return {"detail": "API key deleted"}
 
 
 @router.post("/{key_id}/revoke", summary="Revoke an API key (keeps it for audit; stops it working)")
 async def revoke_api_key(key_id: str, user: User = Depends(get_current_user)) -> APIKeyResponse:
-    key = await UserAPIKey.filter(id=key_id, user_id=user.id).first()
-    if not key:
-        raise HTTPException(status_code=404, detail="API key not found")
-    if key.revoked_at is None:
-        key.revoked_at = now()
-        await key.save(update_fields=["revoked_at"])
+    key = await api_key_service.revoke(key_id, user.id)
     await record_audit(user, "api_key.revoke", object_type="api_key", object_id=key_id)
     return _resp(key)

@@ -11,21 +11,13 @@ Endpoints
 
 import time
 import uuid
-from datetime import datetime, timedelta
 
-from fastapi import APIRouter, HTTPException, Query, status, Depends
+from fastapi import APIRouter, Depends, Query, status
+
 from app.auth.dependencies import get_current_user, get_current_user_optional
 from app.models.user import User
-from tortoise.exceptions import DoesNotExist
-
-from app.models.conversation import Conversation, Message
-from app.schemas.conversation import (
-    ConversationResponse,
-    HistoryItem,
-    HistoryResponse,
-    SaveConversationRequest,
-)
-from app.utils import now
+from app.schemas.conversation import HistoryItem, HistoryResponse, SaveConversationRequest
+from app.services import conversation as conversation_service
 
 router = APIRouter(prefix="/history", tags=["History"])
 
@@ -40,36 +32,7 @@ router = APIRouter(prefix="/history", tags=["History"])
     status_code=status.HTTP_201_CREATED,
 )
 async def save_conversation(body: SaveConversationRequest, user: User | None = Depends(get_current_user_optional)) -> dict:
-    # Create conversation record
-    conv = await Conversation.create(
-        title=body.title or "สนทนาใหม่",
-        preview=body.preview or "",
-        agencies=body.agencies,
-        status=body.status,
-        message_count=len(body.messages),
-        response_time=body.response_time,
-        user_id=user.id if user else None,
-    )
-
-    # Bulk-insert messages
-    if body.messages:
-        msg_rows = []
-        for m in body.messages:
-            msg_rows.append(
-                Message(
-                    id=m.id or uuid.uuid4(),
-                    conversation_id=conv.id,
-                    role=m.role,
-                    content=m.content,
-                    agent_steps=m.agent_steps or [],
-                    sources=m.sources or [],
-                    rating=m.rating,
-                    feedback_text=m.feedback_text,
-                    user_id=user.id if user else None,
-                )
-            )
-        await Message.bulk_create(msg_rows, ignore_conflicts=True)
-
+    conv = await conversation_service.create_conversation(body, user)
     return {"success": True, "conversationId": str(conv.id)}
 
 
@@ -89,36 +52,15 @@ async def list_conversations(
 ) -> HistoryResponse:
     start = time.time()
 
-    qs = Conversation.filter(deleted_at=None)
-
-    if not user.is_admin:
-        qs = qs.filter(user_id=user.id)
-
-    if search:
-        qs = qs.filter(title__icontains=search)
-
-    if filter_agency:
-        qs = qs.filter(agencies__contains=filter_agency)
-
-    if date_from:
-        try:
-            qs = qs.filter(created_at__gte=datetime.strptime(date_from, "%Y-%m-%d"))
-        except ValueError:
-            raise HTTPException(status_code=400, detail="date_from must be YYYY-MM-DD")
-
-    if date_to:
-        try:
-            end = datetime.strptime(date_to, "%Y-%m-%d") + timedelta(days=1)
-            qs = qs.filter(created_at__lt=end)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="date_to must be YYYY-MM-DD")
-
-    total = await qs.count()
-
-    page_qs = qs.order_by("-created_at")
-    if page_size is not None:
-        page_qs = page_qs.offset((page - 1) * page_size).limit(page_size)
-    convs = await page_qs
+    convs, total = await conversation_service.list_conversations(
+        user=user,
+        search=search,
+        filter_agency=filter_agency,
+        date_from=date_from,
+        date_to=date_to,
+        page=page,
+        page_size=page_size,
+    )
 
     items = [
         HistoryItem(
@@ -148,16 +90,7 @@ async def list_conversations(
 
 @router.get("/{conversation_id}", summary="Get conversation with messages")
 async def get_conversation(conversation_id: uuid.UUID, user: User = Depends(get_current_user)) -> dict:
-    conv = await Conversation.get_or_none(id=conversation_id, deleted_at=None)
-    if conv is None:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    if str(conv.user_id) != str(user.id) and not user.is_admin:
-        raise HTTPException(status_code=403, detail="Forbidden")
-
-    messages = await Message.filter(
-        conversation_id=conversation_id, deleted_at=None
-    ).order_by("created_at")
-
+    conv, messages = await conversation_service.get_conversation_with_messages(conversation_id, user)
     return {
         "id": str(conv.id),
         "title": conv.title,
@@ -186,16 +119,7 @@ async def get_conversation(conversation_id: uuid.UUID, user: User = Depends(get_
 
 @router.get("/{conversation_id}/messages", summary="Get messages for a conversation")
 async def get_conversation_messages(conversation_id: uuid.UUID, user: User = Depends(get_current_user)) -> list[dict]:
-    conv = await Conversation.get_or_none(id=conversation_id, deleted_at=None)
-    if conv is None:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    if str(conv.user_id) != str(user.id) and not user.is_admin:
-        raise HTTPException(status_code=403, detail="Forbidden")
-
-    messages = await Message.filter(
-        conversation_id=conversation_id, deleted_at=None
-    ).order_by("created_at")
-
+    messages = await conversation_service.get_conversation_messages(conversation_id, user)
     return [
         {
             "id": str(m.id),
@@ -219,10 +143,4 @@ async def get_conversation_messages(conversation_id: uuid.UUID, user: User = Dep
 
 @router.delete("/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete conversation")
 async def delete_conversation(conversation_id: uuid.UUID, user: User = Depends(get_current_user)) -> None:
-    try:
-        conv = await Conversation.get(id=conversation_id)
-    except DoesNotExist:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    if str(conv.user_id) != str(user.id) and not user.is_admin:
-        raise HTTPException(status_code=403, detail="Forbidden")
-    await conv.delete()
+    await conversation_service.delete_conversation(conversation_id, user)

@@ -1034,3 +1034,23 @@ direct read (file:line), not inferred.
   `.env.example` (DEBUG | INFO | WARNING | ERROR, default INFO).
 - Smoke test: `LOG_LEVEL=DEBUG` sets the root level to 10 and logs print to stdout. Full
   backend suite 750 pass / 6 skip.
+
+## 2026-08-17 — Clean Architecture across all routers (parallel worktree refactor)
+- Goal: no router builds an ORM queryset; every router calls a service that owns the data model.
+- Ran 7 file-disjoint batches as parallel, worktree-isolated builder agents (TDD each):
+  agencies (crud/golden/lifecycle/logo), language-model (llm), conversations+messages,
+  openai_conversations, analytics (feedback/insight/popular_questions), account
+  (api_key/settings/auth), logs+status (connection_logs/audit_log/public_status).
+- New service modules: `agency_golden`, `connection_log`, `public_status`, `conversation`,
+  `message`, `feedback`, `api_key`, `settings`, `seed`, `analytics/usage`, `analytics/heatmap`,
+  `llm/admin`, `openai/conversations`; extended `agency`, `agency_lifecycle`, `audit`,
+  `popular_questions`, `user`. Routers now only orchestrate (parse, call service, audit, map).
+- Also moved `seed.py` data-seeding helpers into `app/services/seed.py` (startup + router import it).
+- Result: every one of the 24 routers now has zero direct ORM calls. Behavior identical
+  (same routes, status codes, error messages, response shapes).
+- Consolidation: main copied each batch's scoped files from its worktree and merged the four
+  files two workstreams touched (`auth.py`, `services/user.py`, `tests/test_users_service.py`,
+  `llm.py`) so the earlier `/auth/anonymous` and `/language-model` renames are preserved.
+- Full backend suite: 835 pass / 6 skip (was 750 before this pass; +85 new service tests).
+- Deferred (user choice): 15-Factor uploads-to-object-storage and seed-to-CLI; event-driven
+  audit outbox.

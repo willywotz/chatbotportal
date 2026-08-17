@@ -15,8 +15,6 @@ Endpoints
 
 from __future__ import annotations
 
-from uuid import uuid4
-
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from app.auth.dependencies import get_current_user, get_current_user_non_ephemeral
 from app.config import settings
@@ -24,12 +22,10 @@ from app.models.user import User
 from pydantic import BaseModel, EmailStr
 
 from app.auth.security import verify_password
-from app.services.auth_session import create_session, delete_session
-from app.services.user import hash_new_password
+from app.services import user as user_service
+from app.services.auth_session import create_session, delete_session, resolve_session
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
-
-_UNUSABLE_PASSWORD = "!"  # anon users never authenticate with a password
 
 
 # ---------------------------------------------------------------------------
@@ -68,7 +64,7 @@ def _user_dict(user: User) -> dict:
 
 @router.post("/login", summary="Sign in and start a session")
 async def login(body: LoginRequest, response: Response) -> dict:
-    user = await User.filter(email=body.email, is_active=True).first()
+    user = await user_service.get_active_by_email(body.email)
 
     if not user or not verify_password(body.password, user.hashed_password):
         raise HTTPException(
@@ -109,16 +105,12 @@ async def logout(request: Request, response: Response) -> dict:
 async def create_anonymous_session(request: Request, response: Response) -> dict:
     sid = request.cookies.get(settings.SESSION_COOKIE_NAME)
     if sid:
-        from app.services.auth_session import resolve_session
         user_id = await resolve_session(sid)
         if user_id:
-            user = await User.filter(id=user_id, is_active=True).first()
+            user = await user_service.get_active_by_id(user_id)
             if user:
                 return {"user": _user_dict(user)}
-    user = await User.create(
-        email=f"anon-{uuid4().hex}@ephemeral.local",
-        is_ephemeral=True, role="user", hashed_password=_UNUSABLE_PASSWORD,
-    )
+    user = await user_service.create_anonymous()
     session_id = await create_session(str(user.id))
     response.set_cookie(
         settings.SESSION_COOKIE_NAME, session_id, httponly=True,
@@ -166,6 +158,6 @@ async def change_password(
     if not verify_password(body.current_password, user.hashed_password):
         raise HTTPException(status_code=400, detail="รหัสผ่านปัจจุบันไม่ถูกต้อง")
 
-    user.hashed_password = hash_new_password(body.new_password)
+    user.hashed_password = user_service.hash_new_password(body.new_password)
     await user.save(update_fields=["hashed_password"])
     return {"message": "เปลี่ยนรหัสผ่านสำเร็จ"}

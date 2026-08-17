@@ -19,6 +19,8 @@ from app.config import settings
 from app.models.user import User
 from app.schemas.user import Role, UserCreate, UserUpdate
 
+_ANONYMOUS_PASSWORD_PLACEHOLDER = "!"  # anon users never authenticate with a password
+
 
 def hash_new_password(password: str) -> str:
     """Validate a plaintext password and return its bcrypt hash."""
@@ -129,3 +131,19 @@ async def activate(user: User) -> None:
     """Reactivate a soft-deleted user."""
     user.is_active = True
     await user.save(update_fields=["is_active"])
+
+
+async def get_active_by_email(email: str) -> User | None:
+    return await User.filter(email=email, is_active=True).first()
+
+
+async def get_active_by_id(user_id: uuid.UUID | str) -> User | None:
+    return await User.filter(id=user_id, is_active=True).first()
+
+
+async def create_anonymous() -> User:
+    """Create an ephemeral, password-less user for an anonymous session."""
+    return await User.create(
+        email=f"anon-{uuid.uuid4().hex}@ephemeral.local",
+        is_ephemeral=True, role="user", hashed_password=_ANONYMOUS_PASSWORD_PLACEHOLDER,
+    )

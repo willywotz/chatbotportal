@@ -12,7 +12,6 @@ import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from tortoise.exceptions import DoesNotExist
 
 from app.auth.dependencies import require_admin
 from app.models import LlmProvider, LlmRoute
@@ -33,6 +32,7 @@ from app.schemas.llm_route import (
 )
 from app.services.audit import record_audit
 from app.services.llm import KNOWN_PURPOSES, invalidate, ping
+from app.services.llm import admin as llm_admin
 
 logger = logging.getLogger(__name__)
 
@@ -59,12 +59,12 @@ def _provider_response(provider: LlmProvider) -> LLMProviderResponse:
 
 
 async def _route_response(route: LlmRoute) -> LLMRouteResponse:
-    provider = await route.provider
+    provider_name = await llm_admin.route_provider_name(route)
     return LLMRouteResponse(
         id=route.id,
         purpose=route.purpose,
         provider_id=route.provider_id,
-        provider_name=provider.name,
+        provider_name=provider_name,
         model=route.model,
         timeout_override=route.timeout_override,
         enabled=route.enabled,
@@ -93,7 +93,7 @@ async def list_purposes():
     summary="List LLM providers",
 )
 async def list_providers():
-    providers = await LlmProvider.all()
+    providers = await llm_admin.list_providers()
     return LLMProviderListResponse(data=[_provider_response(p) for p in providers], total=len(providers))
 
 
@@ -104,7 +104,7 @@ async def list_providers():
     summary="Create LLM provider",
 )
 async def create_provider(body: LLMProviderCreate, user: User = Depends(require_admin)):
-    provider = await LlmProvider.create(**body.model_dump())
+    provider = await llm_admin.create_provider(body.model_dump())
     await record_audit(user, "llm_provider.create", object_type="llm_provider", object_id=provider.id)
     invalidate()
     return _provider_response(provider)
@@ -117,10 +117,7 @@ async def create_provider(body: LLMProviderCreate, user: User = Depends(require_
     summary="Get LLM provider by ID",
 )
 async def get_provider(provider_id: uuid.UUID):
-    try:
-        provider = await LlmProvider.get(id=provider_id)
-    except DoesNotExist:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider not found")
+    provider = await llm_admin.get_provider(provider_id)
     return _provider_response(provider)
 
 
@@ -130,16 +127,11 @@ async def get_provider(provider_id: uuid.UUID):
     summary="Partial update LLM provider",
 )
 async def update_provider(provider_id: uuid.UUID, body: LLMProviderUpdate, user: User = Depends(require_admin)):
-    try:
-        provider = await LlmProvider.get(id=provider_id)
-    except DoesNotExist:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider not found")
-
     update_data = body.model_dump(exclude_unset=True)
     if update_data.get("api_key") in (None, MASK):
         update_data.pop("api_key", None)
 
-    await provider.update_from_dict(update_data).save()
+    provider = await llm_admin.update_provider(provider_id, update_data)
     await record_audit(user, "llm_provider.update", object_type="llm_provider", object_id=provider.id)
     invalidate()
     return _provider_response(provider)
@@ -151,15 +143,7 @@ async def update_provider(provider_id: uuid.UUID, body: LLMProviderUpdate, user:
     summary="Delete LLM provider",
 )
 async def delete_provider(provider_id: uuid.UUID, user: User = Depends(require_admin)):
-    try:
-        provider = await LlmProvider.get(id=provider_id)
-    except DoesNotExist:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider not found")
-
-    if await LlmRoute.filter(provider_id=provider_id).exists():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="provider in use by routes")
-
-    await provider.delete()
+    await llm_admin.delete_provider(provider_id)
     await record_audit(user, "llm_provider.delete", object_type="llm_provider", object_id=provider_id)
     invalidate()
 
@@ -175,7 +159,7 @@ async def delete_provider(provider_id: uuid.UUID, user: User = Depends(require_a
     summary="List LLM routes",
 )
 async def list_routes():
-    routes = await LlmRoute.all()
+    routes = await llm_admin.list_routes()
     data = [await _route_response(r) for r in routes]
     return LLMRouteListResponse(data=data, total=len(data))
 
@@ -187,12 +171,7 @@ async def list_routes():
     summary="Create LLM route",
 )
 async def create_route(body: LLMRouteCreate, user: User = Depends(require_admin)):
-    if not await LlmProvider.filter(id=body.provider_id).exists():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider not found")
-    if await LlmRoute.filter(purpose=body.purpose).exists():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="route for purpose already exists")
-
-    route = await LlmRoute.create(**body.model_dump())
+    route = await llm_admin.create_route(body.model_dump())
     await record_audit(user, "llm_route.create", object_type="llm_route", object_id=route.id)
     invalidate()
     return await _route_response(route)
@@ -219,10 +198,7 @@ async def test_route(purpose: str):
     summary="Get LLM route by ID",
 )
 async def get_route(route_id: uuid.UUID):
-    try:
-        route = await LlmRoute.get(id=route_id)
-    except DoesNotExist:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Route not found")
+    route = await llm_admin.get_route(route_id)
     return await _route_response(route)
 
 
@@ -232,22 +208,8 @@ async def get_route(route_id: uuid.UUID):
     summary="Partial update LLM route",
 )
 async def update_route(route_id: uuid.UUID, body: LLMRouteUpdate, user: User = Depends(require_admin)):
-    try:
-        route = await LlmRoute.get(id=route_id)
-    except DoesNotExist:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Route not found")
-
     update_data = body.model_dump(exclude_unset=True)
-
-    if update_data.get("provider_id") is not None:
-        if not await LlmProvider.filter(id=update_data["provider_id"]).exists():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider not found")
-
-    if update_data.get("purpose") is not None:
-        if await LlmRoute.filter(purpose=update_data["purpose"]).exclude(id=route_id).exists():
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="route for purpose already exists")
-
-    await route.update_from_dict(update_data).save()
+    route = await llm_admin.update_route(route_id, update_data)
     await record_audit(user, "llm_route.update", object_type="llm_route", object_id=route.id)
     invalidate()
     return await _route_response(route)
@@ -259,11 +221,6 @@ async def update_route(route_id: uuid.UUID, body: LLMRouteUpdate, user: User = D
     summary="Delete LLM route",
 )
 async def delete_route(route_id: uuid.UUID, user: User = Depends(require_admin)):
-    try:
-        route = await LlmRoute.get(id=route_id)
-    except DoesNotExist:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Route not found")
-
-    await route.delete()
+    await llm_admin.delete_route(route_id)
     await record_audit(user, "llm_route.delete", object_type="llm_route", object_id=route_id)
     invalidate()

@@ -8,12 +8,22 @@ tombstone — its ``text_key`` blocks the same question from being regenerated.
 import json
 import logging
 import re
+import uuid
 from datetime import timedelta
+
+from fastapi import HTTPException, status
+from tortoise.exceptions import DoesNotExist, IntegrityError
 
 from app.config import settings
 from app.models.agency import Agency
 from app.models.conversation import Message
 from app.models.popular_question import PopularQuestion, PopularQuestionSource
+from app.schemas.popular_question import (
+    PopularQuestionAgency,
+    PopularQuestionCreate,
+    PopularQuestionResponse,
+    PopularQuestionUpdate,
+)
 from app.utils import clean_agency_ids, now
 
 logger = logging.getLogger(__name__)
@@ -217,6 +227,79 @@ async def _ask_llm(samples: list[dict]) -> list[dict]:
     except (LlmError, json.JSONDecodeError, ValueError, TypeError, AttributeError) as e:
         logger.error("popular questions LLM call failed: %s", e)
         return []
+
+
+async def to_response(pq: PopularQuestion) -> PopularQuestionResponse:
+    agency = await pq.agency if pq.agency_id else None
+    return PopularQuestionResponse(
+        id=pq.id,
+        text=pq.text,
+        agency=PopularQuestionAgency(id=agency.id, name=agency.name, logo=agency.logo) if agency else None,
+        source=pq.source,
+        pinned=pq.pinned,
+        hidden=pq.hidden,
+        sort_order=pq.sort_order,
+        score=pq.score,
+        created_at=pq.created_at,
+        updated_at=pq.updated_at,
+    )
+
+
+async def list_questions() -> list[PopularQuestion]:
+    return await PopularQuestion.all().prefetch_related("agency")
+
+
+async def get_question_or_404(question_id: uuid.UUID) -> PopularQuestion:
+    try:
+        return await PopularQuestion.get(id=question_id)
+    except DoesNotExist:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Popular question not found")
+
+
+async def create_question(body: PopularQuestionCreate) -> PopularQuestion:
+    if body.agency_id is not None and not await Agency.filter(id=body.agency_id).exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
+
+    text = body.text.strip()
+    try:
+        return await PopularQuestion.create(
+            text=text,
+            text_key=normalize_text_key(text),
+            agency_id=body.agency_id,
+            source=PopularQuestionSource.manual,
+            pinned=body.pinned,
+            hidden=body.hidden,
+            sort_order=body.sort_order,
+        )
+    except IntegrityError:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="a question with this text already exists")
+
+
+async def update_question(question_id: uuid.UUID, body: PopularQuestionUpdate) -> PopularQuestion:
+    pq = await get_question_or_404(question_id)
+
+    if body.agency_id is not None and not await Agency.filter(id=body.agency_id).exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
+
+    update_data = body.model_dump(exclude_unset=True)
+    if update_data.get("text") is not None:
+        new_text = update_data["text"].strip()
+        update_data["text"] = new_text
+        if new_text != pq.text:
+            update_data["text_key"] = normalize_text_key(new_text)
+            if pq.source == PopularQuestionSource.auto:
+                update_data["source"] = PopularQuestionSource.manual
+
+    try:
+        await pq.update_from_dict(update_data).save()
+    except IntegrityError:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="a question with this text already exists")
+    return pq
+
+
+async def delete_question(question_id: uuid.UUID) -> None:
+    pq = await get_question_or_404(question_id)
+    await pq.delete()
 
 
 async def seed_popular_questions() -> int:

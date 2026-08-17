@@ -2,7 +2,7 @@
 understands hex."""
 import re
 
-from app.routers.seed import DEFAULT_AGENCIES
+from app.services.seed import DEFAULT_AGENCIES
 
 _HEX_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 
