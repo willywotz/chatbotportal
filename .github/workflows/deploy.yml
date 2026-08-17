@@ -37,19 +37,5 @@ jobs:
             echo "OPENROUTER_API_KEY=$OPENROUTER_API_KEY"
           } > .env
 
-      - name: Prepare persistent build cache
-        run: |
-          echo "BUILDCACHE_DIR=$HOME/deploy-buildcache" >> "$GITHUB_ENV"
-          docker buildx inspect deploy >/dev/null 2>&1 \
-            || docker buildx create --name deploy --driver docker-container --bootstrap
-          mkdir -p "$HOME/deploy-buildcache"/{backend,agent-proxy,frontend}
-
       - name: Build and deploy
-        env:
-          COMPOSE_BAKE: "true"
-          BUILDX_BUILDER: deploy
-        run: >
-          docker compose
-          -f docker-compose.yaml
-          -f docker-compose.cache.yaml
-          up -d --build --remove-orphans
+        run: docker compose -f docker-compose.yaml up -d --build --remove-orphans
