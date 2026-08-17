@@ -1206,7 +1206,6 @@ LLM-provider rate limiting to Postgres. Spec + plan:
 - Deploy note: no Aerich migration was generated. `init_db()` runs
   `Tortoise.generate_schemas(safe=True)`, so production startup auto-creates the
   `sessions` and `rate_limit_counters` tables.
-- Out of scope: the `agent-proxy` job in `.github/workflows/test.yml` is a
-  pre-existing dangling CI job (the `agent-proxy/` directory was deleted in the
-  prior consolidation). It is not part of this change and will fail CI until it
-  is removed.
+- CI cleanup: the dangling `agent-proxy` job in `.github/workflows/test.yml`
+  (left over from the prior Go consolidation, which deleted the `agent-proxy/`
+  directory) is removed in this branch so CI no longer fails on it.
