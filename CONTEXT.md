@@ -24,35 +24,34 @@ admin/analytics/auth surface.
 
 ## Services (docker-compose.yaml)
 
-All traffic enters through **nginx** on one port; services talk over the `chatbot-network`.
+All traffic enters through **caddy** on ports 80/443; services talk over the `chatbot-network`.
 
 | Service | Tech | Role |
 |---|---|---|
-| **nginx** | nginx | Reverse proxy. HTTP on `EXTERNAL_HTTP_PORT`, TLS on `EXTERNAL_HTTPS_PORT`. Routing in `nginx/routes.conf`. |
+| **caddy** | Caddy 2 | Reverse proxy + TLS terminator. HTTP on `EXTERNAL_HTTP_PORT`, HTTPS on `EXTERNAL_HTTPS_PORT`. Routing in `caddy/Caddyfile`. Obtains + renews the Let's Encrypt cert itself. |
 | **backend** | Python 3.12 · FastAPI · Tortoise ORM · FastMCP | REST API (`/api/v1`), MCP server (`/mcp`), scheduler, auth. Port 8080. |
 | **frontend** | React 18 · Vite 5 · TS · shadcn/ui | SPA admin + public portal. Port 8080. |
 | **postgres** | pgvector/pgvector:pg16 | Shared DB (backend). Extensions: `pg_trgm`, `fuzzystrmatch`, `vector` (created by `postgres-init`). |
 | **jaeger** | jaegertracing/jaeger:2.18.0 | OTLP tracing sink (`jaeger:4317`), UI proxied at `/jaeger/`. |
-| **certbot** | certbot/certbot | Renews the Let's Encrypt cert every 12h over the HTTP-01 webroot. No-op until one is issued. |
 
-**nginx routing (`nginx/routes.conf`, single source of truth):**
+**caddy routing (`caddy/Caddyfile`, single source of truth):**
 - `/api`, `/sse`, `/messages`, `/mcp`, `/docs`, `/redoc`, `/openapi.json` → `backend:8080`
-  (`/api/v1/responses` also serves a **WebSocket**: an exact-match location adds the
-  `$connection_upgrade` map and a 3700s read timeout, since the app holds sockets for up to
+  (`/api/v1/responses` also serves a **WebSocket**: a `path` matcher gives it its own
+  `handle` block with a 3700s read/write timeout, since the app holds sockets for up to
   60 min — the shared 300s timeout would kill an idle one long before the cap.)
-- `/jaeger/` → `jaeger:16686`
+- `/jaeger/*` → `jaeger:16686`
 - `/` (everything else) → `frontend:8080` (SPA)
 
-`nginx/routes.conf` is included by both the HTTP server (`nginx/default.conf`, :8080) and the TLS server
-(`nginx/tls.conf.template`, :8443) so the two can never drift.
+`caddy/Caddyfile` is one site block; the routing contract and TLS live in the same file, so the
+HTTP and HTTPS paths can never drift.
 
-**TLS (`docs/tls.md`)** is opt-in via `CERT_DOMAIN` (prod: `chatbotportal.opdc.ai.in.th`) and
-self-enabling: `nginx/tls.sh` runs from the image's `/docker-entrypoint.d/` and writes the TLS
-server block plus an HTTPS redirect **only once a cert exists**, so nginx never fails to start on
-a missing certificate and local dev stays plain HTTP. It then watches hourly and reloads on
-issuance/renewal. `/.well-known/acme-challenge/` is served from the `acme-challenge` volume the
-certbot container writes to, and is the one path exempt from the redirect. First issuance is a
-one-off `certbot certonly` — see `docs/tls.md`.
+**TLS (`docs/tls.md`)** is opt-in via `CERT_DOMAIN` (prod: `chatbotportal.opdc.ai.in.th`):
+`SITE_ADDRESS` (sourced from `CERT_DOMAIN`) drives the listen mode — empty = plain HTTP on `:80`
+(local dev, no cert); a hostname = Caddy auto-issues a cert, serves `:443`, and `301`-redirects
+`:80`→`:443`. Caddy manages the full cert lifecycle itself (HTTP-01/TLS-ALPN), so there is no
+`certbot` container, no `certonly` run, and no renewal loop — certs renew at ~30 days and Caddy
+reloads them on its own. State persists in the `caddy_data` volume. Caddy sets `X-Forwarded-Proto`
+to the real incoming scheme automatically (no nginx `$scheme` overwrite). See `docs/tls.md`.
 
 ## Request flow (chat)
 
@@ -355,7 +354,7 @@ usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package m
 `pnpm --frozen-lockfile`; stray `bun.lock`/`package-lock.json` are not authoritative).
 
 - **API layer** (`shared/lib/apiClient.ts`): axios, base URL `VITE_API_BASE_URL` (defaults to
-  `window.location.origin` → same-origin via nginx). Request interceptor attaches JWT from
+  `window.location.origin` → same-origin via caddy). Request interceptor attaches JWT from
   `localStorage['auth_token']`; response interceptor unwraps the `{error:{message}}` envelope
   (with legacy `detail` fallback).
 - **Auth**: `features/auth/useAuth` + `ProtectedRoute`. Public routes: `/`, `/about`,
@@ -710,7 +709,7 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   `ws_origin_allowed`); the HTTP allowlist is unchanged (`scope["method"]`/`scope["path"]`).
   Regression test wires the global dep onto a WS route like `app.main`. Also: `ws_origin_allowed`
   now accepts same-origin handshakes (`Origin` host:port == `Host`), so a same-origin WS
-  through nginx works without listing the exact origin. Per request, CORS is now wide-open:
+  through caddy works without listing the exact origin. Per request, CORS is now wide-open:
   `CORS_ORIGINS` defaults to `["*"]` (Starlette reflects any origin with credentials) and the
   `assert_production_config` wildcard guard was removed — `"*"` also short-circuits the WS
   Origin gate. Residual cross-site risk is mitigated by `SameSite=Lax` session cookies and
