@@ -38,7 +38,8 @@ git tag v0.2.0 && git push --tags
 release.yaml  (ubuntu-latest)
   ├─ job build
   │    docker buildx backend + frontend
-  │    push ghcr.io/willywotz/chatbotportal-{backend,frontend}
+  │    push ghcr.io/willywotz/chatbotportal       (backend)
+  │         ghcr.io/willywotz/chatbotportal-web   (frontend)
   │         tags: v0.2.0  +  <sha>   (public)
   └─ job deploy  (needs: build)
        ├─ install ansible + sops + age
@@ -87,7 +88,8 @@ secrets never land on disk.
 - `external_http_port: 80`, `external_https_port: 443`, `external_postgres_port: 5432`
 - `cors_origins` (derived from `cert_domain`)
 - `env: production`
-- `image_repo: ghcr.io/willywotz/chatbotportal`
+- `backend_image: ghcr.io/willywotz/chatbotportal`
+- `frontend_image: ghcr.io/willywotz/chatbotportal-web`
 - `deploy_dir: /opt/chatbotportal`
 
 **GitHub Actions secrets** (3 total):
@@ -105,11 +107,11 @@ local use only:
 
 ```yaml
 backend:
-  image: ghcr.io/willywotz/chatbotportal-backend:${IMAGE_TAG:-latest}
+  image: ghcr.io/willywotz/chatbotportal:${IMAGE_TAG:-latest}
   build: { context: ./backend, target: production }
 
 frontend:
-  image: ghcr.io/willywotz/chatbotportal-frontend:${IMAGE_TAG:-latest}
+  image: ghcr.io/willywotz/chatbotportal-web:${IMAGE_TAG:-latest}
   build: { context: ./frontend, target: production }
 ```
 
