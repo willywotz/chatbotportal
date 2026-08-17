@@ -26,6 +26,23 @@ export interface ConnectionLogParams {
   includeTest?: boolean;
 }
 
+// Query-key factory: the full key list + a partial prefix for invalidation.
+// Callers that invalidate (e.g. after a connection test) use `list(agencyId)`
+// so every matching list cache entry is dropped regardless of its filters.
+export const connectionLogKeys = {
+  list: (agencyId?: string): unknown[] => ['connection-logs', agencyId ?? null],
+  listAll: (params: ConnectionLogParams = {}): unknown[] => [
+    'connection-logs',
+    params.agencyId ?? null,
+    params.page ?? null,
+    params.limit ?? null,
+    params.search ?? null,
+    params.status ?? null,
+    params.connectionType ?? null,
+    params.includeTest ?? false,
+  ],
+};
+
 async function fetchConnectionLogs(params: ConnectionLogParams = {}): Promise<ConnectionLogResponse> {
   const qs = new URLSearchParams();
   if (params.page) qs.set('page', String(params.page));
@@ -41,7 +58,7 @@ async function fetchConnectionLogs(params: ConnectionLogParams = {}): Promise<Co
 
 export function useConnectionLogs(params: ConnectionLogParams = {}) {
   return useQuery({
-    queryKey: ['connection-logs', params.agencyId ?? null, params.page ?? null, params.limit ?? null, params.search ?? null, params.status ?? null, params.connectionType ?? null, params.includeTest ?? false],
+    queryKey: connectionLogKeys.listAll(params),
     queryFn: () => fetchConnectionLogs(params),
     refetchInterval: REFETCH.normal,
     placeholderData: (prev) => prev,

@@ -20,7 +20,7 @@ describe("ConnectionTestResult", () => {
           latency: "42ms",
           status_code: 405,
           status_text: "Method Not Allowed",
-          steps: [{ step: 1, label: "TCP Connection", status: "done", time: 42 }],
+          steps: [{ step: 1, label: "TCP Connection", status: "done", timeMs: 42 }],
         }}
       />,
     );

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, axiosInstance } from '@/shared/lib/apiClient';
 import { REFETCH, STALE_TIME } from '@/shared/constants/query';
+import { connectionLogKeys } from '@/features/connection-logs/useConnectionLogs';
 import type { Agency } from '@/shared/types';
 import type {
   AgencyLifecycleStatus,
@@ -156,7 +157,7 @@ export function useTestConnection() {
       return await api.get<TestResult>(`/api/v1/agencies/${agencyId}/test`);
     },
     onSuccess: (_data, variables) => {
-      qc.invalidateQueries({ queryKey: ['connection-logs', variables.agencyId] }); // matches ['connection-logs', agencyId, ...rest]
+      qc.invalidateQueries({ queryKey: connectionLogKeys.list(variables.agencyId) });
     },
   });
 }

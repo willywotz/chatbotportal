@@ -5,7 +5,7 @@ interface TestStep {
   step: number;
   label: string;
   status: string;  // "done" | "error"
-  time: number;    // ms
+  timeMs: number;
 }
 
 interface AgentCardInfo {
@@ -88,7 +88,7 @@ export function ConnectionTestResult({ result, loading }: Props) {
                   ? <AlertTriangle className="h-3 w-3 text-destructive" />
                   : <Circle className="h-3 w-3 text-muted-foreground" />}
             <span className="text-foreground">{s.label}</span>
-            <span className="ml-auto text-muted-foreground">{s.time}ms</span>
+            <span className="ml-auto text-muted-foreground">{s.timeMs}ms</span>
           </div>
         ))}
       </div>

@@ -1,5 +1,5 @@
 import uuid
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
@@ -24,8 +24,8 @@ router = APIRouter()
 class TestStep(BaseModel):
     step: int
     label: str
-    status: str   # "done" | "error"
-    time: int     # milliseconds
+    status: Literal["done", "error"]
+    time_ms: int
 
 
 class AgentCardInfo(BaseModel):
@@ -36,7 +36,7 @@ class AgentCardInfo(BaseModel):
 
 class TestConnectionResponse(BaseModel):
     success: bool
-    protocol: str          # "REST API" | "MCP" | "A2A" | "UNKNOWN"
+    protocol: Literal["REST API", "MCP", "A2A", "UNKNOWN"]
     version: str
     steps: list[TestStep]
     latency: str           # e.g. "142ms"

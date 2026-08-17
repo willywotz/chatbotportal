@@ -90,7 +90,7 @@ class Settings(BaseSettings):
     HEALTH_DEGRADED_UPTIME_PCT: float = 95.0
     CONNECTION_LOG_BODY_MAX_CHARS: int = 4096
     CONNECTION_LOG_RETENTION_DAYS: int = 90
-    EVAL_INTERVAL_HOURS: int = 168  # weekly
+    EVAL_INTERVAL_HOURS: int = 7 * 24
 
     # ── Executive summary ────────────────────────────────────────────────────
     BRIEF_REGEN_INTERVAL_HOURS: int = 24

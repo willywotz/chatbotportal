@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -26,7 +26,7 @@ class ApiHeader(BaseModel):
 
 
 class AgencyHealthEmbed(BaseModel):
-    state: str  # up | degraded | down | unknown
+    state: Literal["up", "degraded", "down", "unknown"]
     uptime_24h: float | None = None
     avg_latency_ms_24h: int | None = None
     last_check_at: datetime | None = None
