@@ -36,7 +36,7 @@ from app.services.llm import KNOWN_PURPOSES, invalidate, ping
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/llm", tags=["LLM Admin"])
+router = APIRouter(prefix="/language-model", tags=["Language Model Admin"])
 
 
 def _provider_response(provider: LlmProvider) -> LLMProviderResponse:

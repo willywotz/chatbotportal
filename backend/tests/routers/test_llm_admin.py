@@ -16,9 +16,9 @@ from app.models.user import User
 from app.routers.settings import MASK
 from app.services.llm import KNOWN_PURPOSES
 
-_PROVIDERS = "/api/v1/llm/providers"
-_ROUTES = "/api/v1/llm/routes"
-_PURPOSES = "/api/v1/llm/purposes"
+_PROVIDERS = "/api/v1/language-model/providers"
+_ROUTES = "/api/v1/language-model/routes"
+_PURPOSES = "/api/v1/language-model/purposes"
 
 
 def _admin():

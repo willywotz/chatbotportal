@@ -1010,3 +1010,19 @@ direct read (file:line), not inferred.
   (no bus/queue/outbox; `record_audit` is the natural first event seam).
 - Priority: Clean Architecture first (low risk, one router per commit), then 15-Factor infra,
   then EDA via an audit outbox only when a consumer needs it.
+
+## 2026-08-17 — Actual refactor: Clean Architecture (users) + route naming (llm)
+- Clean Architecture: moved all ORM access out of `backend/app/routers/users.py` into
+  `backend/app/services/user.py`. New service functions: `list_users`, `get_user_or_404`,
+  `apply_update`, `deactivate`, `activate`. The router now only orchestrates (call service,
+  record audit, map to schema) and builds no querysets. TDD: added 4 service tests first
+  (red), implemented (green). All 33 user tests pass; full backend suite 750 pass / 6 skip.
+- Route naming rule: renamed API prefix `/api/v1/llm` -> `/api/v1/language-model` (handler
+  tag "Language Model Admin"). Updated the backend test and the two frontend API clients
+  (`llmProviderApi.ts`, `llmRouteApi.ts`). Frontend llm tests pass (11).
+- Kept `/mcp/discover` (MCP = Model Context Protocol, a protocol proper noun like HTTP/URL;
+  "discover" is already full english) and `/api-keys` (API is the standard full term, not a
+  short form). Frontend SPA paths (`/llm-settings`) are browser routes, not API routes — out
+  of scope for the rule.
+- Note: an auto-commit git hook is active; it commits on its own and previously swept in
+  unrelated pre-existing dirty files. Flagged for the user.
