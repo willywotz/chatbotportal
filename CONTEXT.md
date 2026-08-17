@@ -510,6 +510,14 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
 
 ## Conventions & gotchas
 
+- **Comment policy — minimal, WHY not WHAT.** A full comment/docstring audit
+  (`docs/superpowers/plans/2026-08-17-comment-cleanup.md`) categorized every comment across
+  `backend/` + `frontend/` as NOISE (remove), KEEP (essential — explains WHY), or REFACTOR (code is
+  unclear; fix the code to self-document). KEEP is the rule here: comments explain security
+  invariants, external-service quirks (OneChat, Cloudflare), regulatory reasons (PDPA), async/ORM
+  hazards, and deliberate `withinlazy:` simplifications. Do not add comments that restate the
+  code/function name, narrate the next assertion, or mark sections the names already group. Closed
+  value-sets belong in `Literal[…]` types, not `# a | b | c` comments.
 - **Popular-questions agency mapping is grounded in real turn data, not LLM name-guessing.**
   `services/popular_questions.regenerate()` no longer asks the LLM to guess an agency *name* and
   match it via `name__iexact` (unreliable). Each turn already stores the real `agency_ids` on the
