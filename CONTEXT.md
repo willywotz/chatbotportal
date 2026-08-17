@@ -847,6 +847,10 @@ direct read (file:line), not inferred.
   (`SOPS_AGE_KEY`, `SSH_PRIVATE_KEY`, `SSH_KNOWN_HOSTS`), host preparation (deploy user,
   Docker + Compose), GHCR package publicity, and secret editing with SOPS. Rollback: Actions
   → release → enter older tag.
+- `CORS_ORIGINS` in `deploy/group_vars/all/main.yml` is a native YAML list rendered through
+  `| to_json` in `env.j2` — a plain JSON-looking string gets coerced by Ansible into a Python
+  list and stringified with single quotes, which pydantic-settings rejects as invalid JSON and
+  the backend crash-loops at import. Keep list vars native + `to_json`, never quoted-JSON strings.
 
 ## 2026-08-17 — Release-readiness fixes (CI red + stale env docs)
 
