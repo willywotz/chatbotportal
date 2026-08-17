@@ -55,7 +55,7 @@ jobs:
           pipx install ansible-core
           sudo apt-get update
           sudo apt-get install -y age
-          SOPS_VERSION=v3.9.4
+          SOPS_VERSION=v3.13.3
           curl -sSL "https://github.com/getsops/sops/releases/download/${SOPS_VERSION}/sops-${SOPS_VERSION}.linux.amd64" -o /usr/local/bin/sops
           sudo chmod +x /usr/local/bin/sops
       - name: Install Ansible collections
