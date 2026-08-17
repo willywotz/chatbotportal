@@ -1097,3 +1097,14 @@ direct read (file:line), not inferred.
   6 skip.
 - This is the minimal real EDA seam. Grow it by adding events/consumers as needs appear
   (the repo's YAGNI rule); a broker only when a second service must consume the stream.
+
+## 2026-08-17 — 15-Factor VI: deliberate exception (agency-logo uploads on a volume)
+- Decision (user): keep agency-logo uploads on the local-disk Docker volume (`UPLOAD_DIR`)
+  for the current single-node deployment. Do NOT add object storage yet.
+- Why: true statelessness needs a shared S3-compatible store, which means a new backing
+  service (MinIO container + credentials) and the `boto3` dependency — an infrastructure and
+  ops decision, not a code change. YAGNI until a second replica or a multi-node deploy needs it.
+- Upgrade path when needed: make the storage backend env-selectable (disk default, S3 when
+  configured), add MinIO to docker-compose, rewrite `agencies/logo.py` store/serve, mock S3 in
+  tests. All other 15-Factor factors reviewed hold (III env config, XI stdout logs, XII one-off
+  seed CLI; IV backing services by URL; V build/release/run split).
