@@ -504,6 +504,6 @@ rtk git commit -m "docs(trace): add Jaeger cross-service verification runbook"
 
 ## Post-implementation
 
-- [ ] Update `context.md` and commit (repo rule).
+- [ ] Update `CONTEXT.md` and commit (repo rule).
 - [ ] Run full backend suite: `cd backend && rtk pytest` and agent-proxy: `cd agent-proxy && rtk go test ./...`.
 - [ ] Open PR from `feat/otel-cross-service-trace`.

@@ -13,7 +13,7 @@
 - TDD mandatory: failing test → confirm fail → minimal code → confirm pass → commit. One behavior per test.
 - Google style (Python/TS); clean minimal code; imports sorted by path; American English.
 - **`rtk pytest` cannot spawn in this environment** — run backend tests with `.venv/bin/pytest <path>` from `backend/`. Frontend: `rtk vitest run <path>` from `frontend/` (works), else `./node_modules/.bin/vitest run`.
-- Orchestrator (Main) owns git/commits/context.md; builders do NOT commit.
+- Orchestrator (Main) owns git/commits/CONTEXT.md; builders do NOT commit.
 - Session cookie: `HttpOnly; Secure=<AUTH_COOKIE_SECURE>; SameSite=Lax; Path=/; Max-Age=SESSION_TTL_MINUTES*60`. Cookie name `settings.SESSION_COOKIE_NAME` (default `"session_id"`).
 - CSRF: SameSite=Lax only (same-origin app). No CSRF token.
 - **JWT is removed** — no `create_access_token`/`decode_access_token`/`JWT_*` after Task 8.
@@ -824,16 +824,16 @@ def test_jwt_settings_removed():
 
 ---
 
-## Task 11: Integration — full suites, surface parity, context.md
+## Task 11: Integration — full suites, surface parity, CONTEXT.md
 
-**Files:** Modify `backend/tests/test_surface_parity.py`, `context.md`.
+**Files:** Modify `backend/tests/test_surface_parity.py`, `CONTEXT.md`.
 
 - [ ] **Step 1:** Add `("POST", "/api/v1/auth/logout")` to the surface-parity expected set (it's an auth route reachable by all). Run `.venv/bin/pytest tests/test_surface_parity.py -v`.
 - [ ] **Step 2:** Full backend suite `cd backend && .venv/bin/pytest -q` — green.
 - [ ] **Step 3:** Full frontend suite `cd frontend && rtk vitest run` — green; `./node_modules/.bin/tsc --noEmit` clean.
 - [ ] **Step 4:** Manual smoke (per `/run`, if runnable): login → response sets `session_id` cookie, body has no token; an authenticated GET works with only the cookie; `/responses` without an API key → 401; logout clears the cookie.
-- [ ] **Step 5:** Update `context.md`: browser auth is now an opaque Redis session cookie (`session_id`, HttpOnly/Secure/SameSite=Lax, sliding re-rotate near expiry); JWT removed; API-key is the machine channel; `/responses`+`/conversations` require auth (no ephemeral users); frontend is header-free (`withCredentials`); new files `services/auth_session.py`, `middleware/session_refresh.py`; new settings. Note this is Phase A; C (anon `/chat` session) and D (WS cookie + WS-default) follow.
-- [ ] **Step 6: Commit** — `docs: update context.md for cookie session auth (Phase A)`
+- [ ] **Step 5:** Update `CONTEXT.md`: browser auth is now an opaque Redis session cookie (`session_id`, HttpOnly/Secure/SameSite=Lax, sliding re-rotate near expiry); JWT removed; API-key is the machine channel; `/responses`+`/conversations` require auth (no ephemeral users); frontend is header-free (`withCredentials`); new files `services/auth_session.py`, `middleware/session_refresh.py`; new settings. Note this is Phase A; C (anon `/chat` session) and D (WS cookie + WS-default) follow.
+- [ ] **Step 6: Commit** — `docs: update CONTEXT.md for cookie session auth (Phase A)`
 
 ---
 

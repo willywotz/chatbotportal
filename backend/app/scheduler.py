@@ -12,6 +12,8 @@ from app.services.agency import test_connection
 from app.services.agency_reconcile import reconcile_statuses
 from app.services.analytics import regenerate_weekly_brief
 from app.services.evaluation import run_evaluation
+from app.services.event_consumers import register_consumers
+from app.services.events import dispatch_pending
 from app.services.popular_questions import regenerate as regenerate_popular_questions
 from app.services.log_sanitize import sanitize_body
 from app.utils import generate_uuid, now
@@ -108,6 +110,8 @@ async def purge_old_connection_logs() -> int:
 async def start_scheduler() -> None:
     global sem
     sem = asyncio.Semaphore(settings.AGENCY_CHAT_CONCURRENCY)
+    register_consumers()  # wire domain-event consumers before the dispatcher runs
+    scheduler.add_job(dispatch_pending, IntervalTrigger(seconds=settings.EVENT_DISPATCH_INTERVAL_SECONDS))
     spawn_logged(agency_chat_test(), name="agency_chat_test:startup")
     spawn_logged(regenerate_brief_job(), name="regenerate_brief_job:startup")
     scheduler.add_job(agency_chat_test, IntervalTrigger(minutes=settings.HEALTH_CHECK_INTERVAL_MINUTES))

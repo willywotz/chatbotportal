@@ -198,7 +198,7 @@ with a 422, so the removal cannot silently regress through role assignment.
 
 ## Documentation to update
 
-- `context.md` — the "Auth & RBAC" section (roles list, chokepoint description) and the `User` /
+- `CONTEXT.md` — the "Auth & RBAC" section (roles list, chokepoint description) and the `User` /
   `Relationship` rows in the data-model table.
 - `docs/adr/0002-agency-edit-connection-demote.md` — its "Edit tab is gated on `!isReadOnly`
   (admin + agency_owner); backend ReBAC still limits agency_owner to their own agencies" note is

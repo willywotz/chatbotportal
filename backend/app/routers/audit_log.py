@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from app.auth.dependencies import require_admin
 from app.models import AuditLog
 from app.models.user import User
+from app.services import audit as audit_service
 
 router = APIRouter(prefix="/audit-log", tags=["Audit"])
 
@@ -29,15 +30,9 @@ async def list_audit_log(
     offset: int = 0,
     _admin: User = None,
 ) -> dict:
-    qs = AuditLog.all()
-    if action:
-        qs = qs.filter(action=action)
-    if object_type:
-        qs = qs.filter(object_type=object_type)
-    if actor:
-        qs = qs.filter(actor_email__icontains=actor)
-    total = await qs.count()
-    rows = await qs.order_by("-created_at").offset(offset).limit(limit)
+    rows, total = await audit_service.list_audit_log(
+        action=action, object_type=object_type, actor=actor, limit=limit, offset=offset,
+    )
     return {"data": [_row(a) for a in rows], "total": total}
 
 

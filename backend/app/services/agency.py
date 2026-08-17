@@ -1,13 +1,114 @@
 import json as _json
+import logging
 import time
 from typing import Any
+from uuid import UUID
 
 import httpx
+from fastapi import HTTPException, status
+from tortoise.exceptions import DoesNotExist
 
 from app.config import settings
 from app.models.agency import Agency
+from app.models.connection_log import ConnectionLog
+from app.schemas.agency import AgencyCreate, AgencyUpdate
+from app.services.cache_flush import flush_similarity_cache
+from app.services.log_sanitize import sanitize_body
+from app.utils import now
+
+logger = logging.getLogger(__name__)
 
 _PROTOCOL = {"API": "REST API", "MCP": "MCP", "A2A": "A2A"}
+
+# Fields that identify *how* an agency is reached. Changing any of these on a
+# live agency invalidates its conformance battery, so it must be re-vetted.
+_CONNECTION_IDENTITY_FIELDS = frozenset(
+    {"connection_type", "endpoint_url", "api_headers", "expected_payload", "mcp_tool_name"}
+)
+
+
+async def get_agency_or_404(agency_id: UUID) -> Agency:
+    """Return one agency or raise 404."""
+    try:
+        return await Agency.get(id=agency_id)
+    except DoesNotExist:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
+
+
+async def list_agencies(
+    *, status_filter: str, connection_type: str | None, search: str | None
+) -> tuple[list[Agency], int]:
+    """Return agencies matching the given filters, plus the total count."""
+    qs = Agency.all()
+    if status_filter != "all":
+        qs = qs.filter(status=status_filter)
+    if connection_type:
+        qs = qs.filter(connection_type=connection_type.upper())
+    if search:
+        qs = qs.filter(name__icontains=search)
+    return await qs, await qs.count()
+
+
+def _full_payload(body: AgencyCreate) -> dict:
+    """Flatten a full agency payload's nested sub-schemas into plain dicts."""
+    data = body.model_dump()
+    data["api_endpoints"] = [e.model_dump() for e in body.api_endpoints]
+    data["response_schema"] = [f.model_dump() for f in body.response_schema]
+    data["api_headers"] = [h.model_dump() for h in body.api_headers] if body.api_headers else []
+    return data
+
+
+async def create_agency(body: AgencyCreate) -> Agency:
+    return await Agency.create(**_full_payload(body))
+
+
+async def _flush_similarity_cache_best_effort() -> None:
+    try:
+        await flush_similarity_cache()
+    except Exception:
+        logger.exception("failed to flush similarity cache after agency update")
+
+
+async def replace_agency(agency: Agency, body: AgencyCreate) -> Agency:
+    await agency.update_from_dict(_full_payload(body)).save()
+    await _flush_similarity_cache_best_effort()
+    return agency
+
+
+async def update_agency(agency: Agency, body: AgencyUpdate) -> Agency:
+    update_data = body.model_dump(exclude_unset=True)
+
+    for field in ("api_endpoints", "response_schema", "api_headers"):
+        if update_data.get(field) is not None:
+            update_data[field] = [e.model_dump() if hasattr(e, "model_dump") else e for e in update_data[field]]
+
+    connection_changed = any(
+        field in update_data and update_data[field] != getattr(agency, field)
+        for field in _CONNECTION_IDENTITY_FIELDS
+    )
+    if connection_changed and agency.status in ("active", "maintenance"):
+        update_data["status"] = "draft"
+        update_data["conformance_report"] = None
+
+    await agency.update_from_dict(update_data).save()
+    await _flush_similarity_cache_best_effort()
+    return agency
+
+
+async def delete_agency(agency: Agency) -> None:
+    await agency.delete()
+
+
+async def increment_calls(agency: Agency) -> Agency:
+    agency.total_calls += 1
+    await agency.save(update_fields=["total_calls"])
+    return agency
+
+
+async def update_logo(agency: Agency, logo_url: str) -> Agency:
+    agency.logo = logo_url
+    await agency.save(update_fields=["logo", "updated_at"])
+    return agency
 
 
 def _failure(protocol: str, error: str, steps: list[dict] | None = None, latency_ms: int = 0) -> dict[str, Any]:
@@ -70,6 +171,33 @@ async def test_connection(connection_type: str, agency: Agency) -> dict[str, Any
         "server": response.headers.get("server", "unknown"),
         "contentType": response.headers.get("content-type", "unknown").split(";")[0],
     }
+
+
+async def run_connection_test(agency: Agency) -> dict[str, Any]:
+    """Probe `agency`, persist the reset baseline, auto-recover a rule-set
+    maintenance agency on success, and record a ConnectionLog row."""
+    agency.stats_reset_at = now()
+    raw = await test_connection(agency.connection_type, agency)
+
+    update_fields = ["stats_reset_at", "updated_at"]
+    if raw["success"] and agency.status == "maintenance" and agency.auto_maintenance:
+        agency.status = "active"
+        agency.auto_maintenance = False
+        update_fields += ["status", "auto_maintenance"]
+    await agency.save(update_fields=update_fields)
+
+    latency_ms = int(raw["latency"].replace("ms", ""))
+    status_code = raw.get("statusCode")
+    detail = sanitize_body(raw.get("error") or (f"HTTP {status_code}" if status_code else raw["protocol"]))
+    await ConnectionLog.create(
+        agency=agency,
+        action="test",
+        connection_type=agency.connection_type,
+        status="success" if raw["success"] else "error",
+        latency_ms=latency_ms,
+        detail=detail,
+    )
+    return raw
 
 
 async def parse_spec(spec_text: str) -> dict[str, Any]:

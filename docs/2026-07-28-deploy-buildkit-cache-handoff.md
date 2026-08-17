@@ -25,7 +25,7 @@ Two fixes:
    real frontend win is Fix 1 skipping `pnpm install`.
 
 Files: `docker-compose.cache.yaml` (new), `.github/workflows/deploy.yml`,
-`frontend/Dockerfile`, `context.md`.
+`frontend/Dockerfile`, `CONTEXT.md`.
 
 ## Baseline (pre-change deploy totals)
 

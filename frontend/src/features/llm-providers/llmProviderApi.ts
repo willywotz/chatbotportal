@@ -17,10 +17,10 @@ export interface LlmProvider {
 export type LlmProviderInput = Omit<LlmProvider, "id">;
 
 export const listProviders = () =>
-  api.get<{ data: LlmProvider[]; total: number }>("/api/v1/llm/providers");
+  api.get<{ data: LlmProvider[]; total: number }>("/api/v1/language-model/providers");
 export const createProvider = (b: LlmProviderInput) =>
-  api.post<LlmProvider>("/api/v1/llm/providers", b);
+  api.post<LlmProvider>("/api/v1/language-model/providers", b);
 export const updateProvider = (id: string, b: Partial<LlmProviderInput>) =>
-  api.patch<LlmProvider>(`/api/v1/llm/providers/${id}`, b);
+  api.patch<LlmProvider>(`/api/v1/language-model/providers/${id}`, b);
 export const deleteProvider = (id: string) =>
-  api.delete(`/api/v1/llm/providers/${id}`);
+  api.delete(`/api/v1/language-model/providers/${id}`);

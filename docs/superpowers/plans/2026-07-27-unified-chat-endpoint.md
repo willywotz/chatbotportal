@@ -1001,10 +1001,10 @@ rtk git commit -m "feat(fe): map unified chat envelope in useChat and agencyApi"
 
 ---
 
-## Task 9: Integration verification, context.md, docker
+## Task 9: Integration verification, CONTEXT.md, docker
 
 **Files:**
-- Modify: `context.md`
+- Modify: `CONTEXT.md`
 
 **Interfaces:** none.
 
@@ -1022,15 +1022,15 @@ Start the stack, then confirm all three transports against `/api/v1/chat`:
 - `curl -sN -X POST .../api/v1/chat -d '{"query":"บัตรหาย","model":"onechat-v2"}'` → JSON with `data.agencies` (v2 shape, no `answer`).
 - A WebSocket client to `/api/v1/chat` sending `{"query":"บัตรหาย"}` → `{"event":"answer"}` … `{"event":"done"}`.
 
-- [ ] **Step 3: Update `context.md`**
+- [ ] **Step 3: Update `CONTEXT.md`**
 
 Record: the three chat routes are now one `/chat` path (POST JSON/SSE + WS); `/chat/external` and `/chat/stream` removed; `model` selects OneChat v1–v5 (`onechat-vN`, default v5); new modules `services/chat/model.py`, `aggregate.py`, `ws.py`; new settings `CHAT_WS_MAX_CONNECTIONS`/`CHAT_WS_MAX_DURATION_SECONDS`; frontend migrated.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-rtk git add context.md
-rtk git commit -m "docs: update context.md for unified chat endpoint"
+rtk git add CONTEXT.md
+rtk git commit -m "docs: update CONTEXT.md for unified chat endpoint"
 ```
 
 ---
@@ -1045,7 +1045,7 @@ rtk git commit -m "docs: update context.md for unified chat endpoint"
 - WS mirrors responses.py (cap, header auth, deadline, one-in-flight) → Task 5. ✓
 - Frontend (chatApi, useChat, agencyApi) → Tasks 7–8. ✓
 - TDD test list + obsolete-test cleanup → Tasks 4–8. ✓
-- context.md + commits → Task 9 (project rule). ✓
+- CONTEXT.md + commits → Task 9 (project rule). ✓
 
 **Placeholder scan:** No TBD/TODO; every code step has real code. The only judgment call is the surface-parity WebSocket-route adjustment (Task 6 Step 4), which gives a concrete rule to follow against actual output.
 

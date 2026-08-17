@@ -93,7 +93,7 @@ def _is_shared_write(method: str, path: str) -> bool:
     own-history management, and the self/auth endpoints. Everything else is
     a privileged write.
     """
-    if path.startswith("/api/v1/auth/"):  # all auth endpoints — each guards itself internally
+    if path.startswith("/api/v1/authentication/"):  # all auth endpoints — each guards itself internally
         return True
     if method == "POST" and path == "/api/v1/chat":
         return True

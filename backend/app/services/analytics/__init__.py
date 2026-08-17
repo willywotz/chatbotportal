@@ -10,10 +10,14 @@ from app.services.analytics.brief import (
 )
 from app.services.analytics.dashboard import get_dashboard_stats
 from app.services.analytics.health import get_agency_health
+from app.services.analytics.heatmap import get_usage_heatmap
+from app.services.analytics.usage import usage_summary
 
 __all__ = [
     "get_dashboard_stats",
     "get_agency_health",
     "get_executive_summary",
+    "get_usage_heatmap",
     "regenerate_weekly_brief",
+    "usage_summary",
 ]

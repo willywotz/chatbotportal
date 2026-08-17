@@ -9,5 +9,5 @@ class Purpose(StrEnum):
     POPULAR_QUESTIONS = "popular_questions"
 
 
-# Serialized string values, kept for the /llm/purposes endpoint and any list use.
+# Serialized string values, kept for the /language-model/purposes endpoint and any list use.
 KNOWN_PURPOSES = tuple(p.value for p in Purpose)

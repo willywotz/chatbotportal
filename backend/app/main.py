@@ -13,6 +13,16 @@ REST API is served under /api/v1
 """
 
 import logging
+import os
+import sys
+
+# 15-Factor XI: treat logs as an event stream. Send every app log to stdout at
+# a level taken from the environment (LOG_LEVEL); the platform captures stdout.
+logging.basicConfig(
+    stream=sys.stdout,
+    level=os.getenv("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
 
 class EndpointFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
@@ -33,11 +43,11 @@ from app.middleware.session_refresh import SessionRefreshMiddleware
 from app.services.rate_limit import close_limiter_client
 from app.mcp.server import mcp
 from app.auth.dependencies import enforce_role_allowlist
-from app.routers import agencies, audit_log, conversations, messages, dashboard, feedback, auth, seed, chat, connection_logs, api_key, executive_summary, insight, popular_questions, public_status, users, settings as settings_router
+from app.routers import agencies, audit_log, conversations, messages, dashboard, feedback, auth, chat, connection_logs, api_key, executive_summary, insight, popular_questions, public_status, users, settings as settings_router
 from app.routers import llm as llm_router
 from app.routers import openai_conversations
 from app.routers import responses
-from app.routers.seed import _run_seed_admin, _run_seed_agencies
+from app.services.seed import run_seed_admin, run_seed_agencies
 from app.services.popular_questions import seed_popular_questions
 from app.scheduler import start_scheduler, stop_scheduler
 from app.trace_util import QueryTraceparentASGI
@@ -79,8 +89,8 @@ mcp_app = mcp.http_app(path="/", stateless_http=True)
 async def lifespan(app: FastAPI):
     await init_db()
     await load_settings_from_db()
-    await _run_seed_admin()
-    await _run_seed_agencies()
+    await run_seed_admin()
+    await run_seed_agencies()
     # await seed_popular_questions()
     await start_scheduler()
 
@@ -130,7 +140,6 @@ app.add_middleware(SessionRefreshMiddleware)
 
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
-# app.include_router(seed.router, prefix="/api/v1")
 app.include_router(agencies.router, prefix="/api/v1")
 app.include_router(conversations.router, prefix="/api/v1")
 app.include_router(messages.router, prefix="/api/v1")

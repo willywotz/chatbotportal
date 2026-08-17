@@ -1,6 +1,6 @@
 # Project Context — AI Chatbot Portal (Thai Citizen Guide)
 
-> Primary orientation doc for this repo. Loaded into every session via `CLAUDE.md` (`@context.md`).
+> Primary orientation doc for this repo. Loaded into every session via `CLAUDE.md` (`@CONTEXT.md`).
 > Keep it current: **after any completed code change, update this file, commit, and (on merge to `main`) rebuild docker compose.**
 
 ## What this is
@@ -538,7 +538,7 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   an `agency_id` back. The returned id is resolved **only** against the set of agencies actually
   fed (`agency_by_id` from `valid_ids`) — hallucinated, unknown, empty, *or real-but-unfed* ids all
   resolve to `None`. Churn/dedupe/tombstone/public-shape logic unchanged.
-- After any completed code change: **update this `context.md`, then commit**; on merge to `main`,
+- After any completed code change: **update this `CONTEXT.md`, then commit**; on merge to `main`,
   **rebuild docker compose**.
 - **Multi-task work → create a branch first** (`feat/`, `fix/`, `chore/`, `refactor/`); never commit
   multi-step work to `main`. Do **not** use claude worktree.
@@ -987,3 +987,124 @@ direct read (file:line), not inferred.
 - `HistoryPage.tsx` maps `getPaginationRange(safePage, totalPages)`, rendering `…` spans for
   ellipsis markers; prev/next chevrons unchanged. Added a regression test asserting ≤7 number
   buttons + ellipsis for a 339-item total. `tsc` clean; full suite 431/431 pass.
+
+## 2026-08-17 — Full english API route name (auth anonymous session)
+- Rule compliance: API endpoint routes must use full english names, no short form or alias.
+- Renamed route `POST /api/v1/auth/anon` → `POST /api/v1/auth/anonymous`; handler `anon` →
+  `create_anonymous_session` (`backend/app/routers/auth.py`).
+- Updated the caller `frontend/src/features/auth/useAuth.tsx` (`ensureSession`) and all tests:
+  `backend/tests/routers/test_auth_anon.py`, `backend/tests/test_surface_parity.py`,
+  `frontend/src/features/auth/useAuth.test.tsx`.
+- Left unchanged: internal ephemeral-user email prefix `anon-<uuid>` (data value, not a route);
+  historical design docs under `docs/superpowers/` (records of past work). Acronym prefixes
+  (`/llm`, `/mcp`, `/api-keys`) and OpenAI-compatible surfaces (`/responses`, `/conversations`)
+  kept — standard technical terms / external-contract compatibility.
+- Backend auth+parity tests pass (7); frontend auth test passes (6).
+
+## 2026-08-17 — Methodology compliance gap report
+- Wrote `docs/assessment-methodology-compliance-2026-08-17.md`: scores the code against
+  Clean Architecture, 15-Factor, and event-driven architecture. No code change.
+- Findings: Clean Architecture = Partial (writes use services, reads build ORM querysets in
+  routers; all 26 routers import `app.models`). 15-Factor = Partial (strong env config; gaps:
+  local-disk uploads `UPLOAD_DIR`, no central log config, seed as HTTP routes). EDA = Gap
+  (no bus/queue/outbox; `record_audit` is the natural first event seam).
+- Priority: Clean Architecture first (low risk, one router per commit), then 15-Factor infra,
+  then EDA via an audit outbox only when a consumer needs it.
+
+## 2026-08-17 — Actual refactor: Clean Architecture (users) + route naming (llm)
+- Clean Architecture: moved all ORM access out of `backend/app/routers/users.py` into
+  `backend/app/services/user.py`. New service functions: `list_users`, `get_user_or_404`,
+  `apply_update`, `deactivate`, `activate`. The router now only orchestrates (call service,
+  record audit, map to schema) and builds no querysets. TDD: added 4 service tests first
+  (red), implemented (green). All 33 user tests pass; full backend suite 750 pass / 6 skip.
+- Route naming rule: renamed API prefix `/api/v1/llm` -> `/api/v1/language-model` (handler
+  tag "Language Model Admin"). Updated the backend test and the two frontend API clients
+  (`llmProviderApi.ts`, `llmRouteApi.ts`). Frontend llm tests pass (11).
+- Kept `/mcp/discover` (MCP = Model Context Protocol, a protocol proper noun like HTTP/URL;
+  "discover" is already full english) and `/api-keys` (API is the standard full term, not a
+  short form). Frontend SPA paths (`/llm-settings`) are browser routes, not API routes — out
+  of scope for the rule.
+- Note: an auto-commit git hook is active; it commits on its own and previously swept in
+  unrelated pre-existing dirty files. Flagged for the user.
+
+## 2026-08-17 — 15-Factor XI: logs as a stdout event stream
+- `backend/app/main.py`: added `logging.basicConfig(stream=sys.stdout, level=LOG_LEVEL, ...)`
+  at import time. Every app log now goes to stdout; the platform captures the stream.
+- `backend/app/config.py`: added `LOG_LEVEL` setting (env-driven, Factor III). Documented in
+  `.env.example` (DEBUG | INFO | WARNING | ERROR, default INFO).
+- Smoke test: `LOG_LEVEL=DEBUG` sets the root level to 10 and logs print to stdout. Full
+  backend suite 750 pass / 6 skip.
+
+## 2026-08-17 — Clean Architecture across all routers (parallel worktree refactor)
+- Goal: no router builds an ORM queryset; every router calls a service that owns the data model.
+- Ran 7 file-disjoint batches as parallel, worktree-isolated builder agents (TDD each):
+  agencies (crud/golden/lifecycle/logo), language-model (llm), conversations+messages,
+  openai_conversations, analytics (feedback/insight/popular_questions), account
+  (api_key/settings/auth), logs+status (connection_logs/audit_log/public_status).
+- New service modules: `agency_golden`, `connection_log`, `public_status`, `conversation`,
+  `message`, `feedback`, `api_key`, `settings`, `seed`, `analytics/usage`, `analytics/heatmap`,
+  `llm/admin`, `openai/conversations`; extended `agency`, `agency_lifecycle`, `audit`,
+  `popular_questions`, `user`. Routers now only orchestrate (parse, call service, audit, map).
+- Also moved `seed.py` data-seeding helpers into `app/services/seed.py` (startup + router import it).
+- Result: every one of the 24 routers now has zero direct ORM calls. Behavior identical
+  (same routes, status codes, error messages, response shapes).
+- Consolidation: main copied each batch's scoped files from its worktree and merged the four
+  files two workstreams touched (`auth.py`, `services/user.py`, `tests/test_users_service.py`,
+  `llm.py`) so the earlier `/auth/anonymous` and `/language-model` renames are preserved.
+- Full backend suite: 835 pass / 6 skip (was 750 before this pass; +85 new service tests).
+- Deferred (user choice): 15-Factor uploads-to-object-storage and seed-to-CLI; event-driven
+  audit outbox.
+
+## 2026-08-17 — Full english route name: /auth → /authentication
+- Renamed API prefix `/api/v1/auth` → `/api/v1/authentication` ("auth" is a short form of the
+  ordinary word "authentication"). Updated the router prefix/tag, the allowlist chokepoint
+  `app/auth/dependencies.py` (`path.startswith("/api/v1/authentication/")`), all backend tests,
+  and the frontend callers (`useAuth`, `LoginPage`, `ChangePasswordDialog`).
+- The python module path `app.auth` is code, not a route, so it stays unchanged.
+- Kept `/api` and `/mcp`: these are the standard proper names of technologies (like the
+  un-renameable `/api/v1` prefix and the external OpenAI/MCP wire contracts), not short forms
+  of ordinary english words. The rule targets abbreviations of ordinary words
+  (anon→anonymous, auth→authentication, llm→language-model), which are now all expanded.
+- Backend suite 835 pass / 6 skip; frontend auth tests 26 pass.
+
+## 2026-08-17 — 15-Factor XII: seeding is a one-off process, not an HTTP route
+- Added `backend/scripts/seed.py` (one-off admin process; `uv run python scripts/seed.py
+  [admin|agencies|all]`), following the existing `scripts/hash_existing_api_keys.py` pattern.
+- Removed the dead `app/routers/seed.py` HTTP router (it was already unmounted in `main.py`)
+  and dropped `seed` from the router import list. Seeding logic lives in `app/services/seed.py`,
+  shared by app startup and the CLI.
+- Backend suite 835 pass / 6 skip; `app.main` and the CLI import cleanly.
+- Still open (needs an infra decision): Factor VI — agency-logo uploads use a local-disk
+  Docker volume (`UPLOAD_DIR`); true statelessness needs an S3-compatible object store
+  (e.g. MinIO added to docker-compose). Not provisioned unilaterally.
+
+## 2026-08-17 — Event-Driven Architecture: transactional outbox + dispatcher
+- Added a real event-driven seam (producer → durable channel → async consumer), no broker:
+  - `app/models/event.py` `DomainEvent` — the outbox table (event_type, payload, created_at,
+    dispatched_at). Migration `migrations/models/29_*_domain_events_outbox.py` (DDL correct;
+    its aerich MODELS_STATE is a placeholder to regenerate via `aerich migrate` with a DB).
+  - `app/services/events.py` — `publish(event_type, payload)` appends to the outbox;
+    `subscribe(event_type, handler)` registers a consumer; `dispatch_pending()` delivers
+    undispatched rows to handlers and stamps `dispatched_at` (at-most-once, logged-not-retried).
+  - `app/services/event_consumers.py` — `register_consumers()` (idempotent) wires the first
+    consumer: `agency.status_changed` → a system-actor audit projection.
+  - Producer: `agency_lifecycle.transition_status` now publishes `agency.status_changed`.
+  - Wiring: `scheduler.start_scheduler` registers consumers and adds a `dispatch_pending`
+    interval job (`EVENT_DISPATCH_INTERVAL_SECONDS`, default 10, env-driven per Factor III).
+- Additive: existing synchronous behavior unchanged; the producer only appends an outbox row.
+- TDD: `tests/services/test_events.py` (publish → outbox, dispatch → consumer + mark, failing
+  handler does not block, and an end-to-end agency status change). Full backend suite 839 pass /
+  6 skip.
+- This is the minimal real EDA seam. Grow it by adding events/consumers as needs appear
+  (the repo's YAGNI rule); a broker only when a second service must consume the stream.
+
+## 2026-08-17 — 15-Factor VI: deliberate exception (agency-logo uploads on a volume)
+- Decision (user): keep agency-logo uploads on the local-disk Docker volume (`UPLOAD_DIR`)
+  for the current single-node deployment. Do NOT add object storage yet.
+- Why: true statelessness needs a shared S3-compatible store, which means a new backing
+  service (MinIO container + credentials) and the `boto3` dependency — an infrastructure and
+  ops decision, not a code change. YAGNI until a second replica or a multi-node deploy needs it.
+- Upgrade path when needed: make the storage backend env-selectable (disk default, S3 when
+  configured), add MinIO to docker-compose, rewrite `agencies/logo.py` store/serve, mock S3 in
+  tests. All other 15-Factor factors reviewed hold (III env config, XI stdout logs, XII one-off
+  seed CLI; IV backing services by URL; V build/release/run split).

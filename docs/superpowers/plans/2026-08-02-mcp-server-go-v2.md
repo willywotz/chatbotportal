@@ -45,7 +45,7 @@ All files under new dir `mcp-server/`:
 Modified (additive) outside `mcp-server/`:
 - `docker-compose.yaml` — add `mcp-server` service + two named volumes.
 - `nginx/routes.conf` — add `location ^~ /mcp-v2`.
-- `context.md` — append dated entry.
+- `CONTEXT.md` — append dated entry.
 
 ---
 
@@ -1135,10 +1135,10 @@ rtk git commit -m "chore(nginx): route /mcp-v2 to mcp-server"
 
 ---
 
-## Task 10: Integration parity check + context.md + finalize
+## Task 10: Integration parity check + CONTEXT.md + finalize
 
 **Files:**
-- Modify: `context.md` (append dated entry per project rule).
+- Modify: `CONTEXT.md` (append dated entry per project rule).
 
 - [ ] **Step 1: Bring the stack up and smoke-test both endpoints**
 
@@ -1159,14 +1159,14 @@ asyncio.run(go())"
 ```
 Expected: a `{agencies, total}` result equivalent to `/mcp`.
 
-- [ ] **Step 3: Append context.md entry**
+- [ ] **Step 3: Append CONTEXT.md entry**
 
 Add a `## 2026-08-02 — Standalone Go MCP server at /mcp-v2` section summarizing: new `mcp-server/` service, go-sdk v1.7.0, strict MCP 2026-07-28, direct-Postgres, additive deploy, parity-verified against `/mcp`.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-rtk git add context.md
+rtk git add CONTEXT.md
 rtk git commit -m "docs: record standalone Go MCP server (/mcp-v2)"
 ```
 

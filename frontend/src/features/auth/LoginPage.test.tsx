@@ -37,7 +37,7 @@ describe("LoginPage", () => {
     fireEvent.change(screen.getByLabelText("รหัสผ่าน"), { target: { value: "pw12345" } });
     fireEvent.click(screen.getByRole("button", { name: /เข้าสู่ระบบ/ }));
     await waitFor(() => expect(setAuth).toHaveBeenCalledWith(user));
-    expect(api.post).toHaveBeenCalledWith("/api/v1/auth/login", { email: "a@b.co", password: "pw12345" });
+    expect(api.post).toHaveBeenCalledWith("/api/v1/authentication/login", { email: "a@b.co", password: "pw12345" });
   });
 
   it("does not link to the removed signup page", () => {

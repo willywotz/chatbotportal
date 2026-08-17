@@ -3,6 +3,7 @@ import pytest
 from app.models import Agency, ConnectionLog
 from app.models.user import User
 from app.routers.agencies import lifecycle
+from app.services import agency as agency_service
 from app.utils import now
 
 
@@ -32,7 +33,7 @@ async def test_test_connection_sets_reset_baseline(db, monkeypatch):
 
     async def fake(_ct, _ag):
         return _fake_result(True)
-    monkeypatch.setattr(lifecycle, "test_connection", fake)
+    monkeypatch.setattr(agency_service, "test_connection", fake)
 
     before = now()
     await lifecycle.test_connection_endpoint(ag.id, _=admin)
@@ -55,7 +56,7 @@ async def test_successful_test_reactivates_auto_maintenance(db, monkeypatch):
 
     async def fake(_ct, _ag):
         return _fake_result(True)
-    monkeypatch.setattr(lifecycle, "test_connection", fake)
+    monkeypatch.setattr(agency_service, "test_connection", fake)
 
     await lifecycle.test_connection_endpoint(ag.id, _=admin)
     refreshed = await Agency.get(id=ag.id)
@@ -73,7 +74,7 @@ async def test_failed_test_does_not_reactivate(db, monkeypatch):
 
     async def fake(_ct, _ag):
         return _fake_result(False)
-    monkeypatch.setattr(lifecycle, "test_connection", fake)
+    monkeypatch.setattr(agency_service, "test_connection", fake)
 
     await lifecycle.test_connection_endpoint(ag.id, _=admin)
     refreshed = await Agency.get(id=ag.id)
@@ -93,7 +94,7 @@ async def test_manual_maintenance_not_reactivated_by_test(db, monkeypatch):
 
     async def fake(_ct, _ag):
         return _fake_result(True)
-    monkeypatch.setattr(lifecycle, "test_connection", fake)
+    monkeypatch.setattr(agency_service, "test_connection", fake)
 
     await lifecycle.test_connection_endpoint(ag.id, _=admin)
     refreshed = await Agency.get(id=ag.id)

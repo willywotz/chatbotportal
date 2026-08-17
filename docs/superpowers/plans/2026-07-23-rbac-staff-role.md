@@ -43,7 +43,7 @@
 - Test updates: `roleLabels.test.ts`, `ProtectedRoute.test.tsx`, `UsersPage.test.tsx`, `SettingsLayout.test.tsx`.
 
 **Docs**
-- `context.md` — Auth & RBAC section + `User` data-model row.
+- `CONTEXT.md` — Auth & RBAC section + `User` data-model row.
 
 ---
 
@@ -720,7 +720,7 @@ rtk git add frontend/src/features/public/PublicPortal.tsx frontend/src/features/
 ## Task 9: Full test sweep + docs
 
 **Files:**
-- Modify: `context.md`
+- Modify: `CONTEXT.md`
 
 - [ ] **Step 1: Run the full backend suite**
 
@@ -732,7 +732,7 @@ Expected: PASS (no regressions from the role split).
 Run: `cd frontend && rtk vitest run && rtk tsc --noEmit`
 Expected: PASS, no type errors.
 
-- [ ] **Step 3: Update `context.md`**
+- [ ] **Step 3: Update `CONTEXT.md`**
 
 In the **Auth & RBAC** section, change the roles description to three roles:
 - `user` (citizen): chat, own conversation history, and the Architecture list. No ops dashboards.
@@ -746,7 +746,7 @@ In the **data model** table, change the `User` row: `role` = `user|staff|admin`.
 - [ ] **Step 4: Commit**
 
 ```bash
-rtk git add context.md && rtk git commit -m "docs: describe three-role RBAC (user/staff/admin) in context.md"
+rtk git add CONTEXT.md && rtk git commit -m "docs: describe three-role RBAC (user/staff/admin) in CONTEXT.md"
 ```
 
 ---

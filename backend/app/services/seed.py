@@ -1,25 +1,13 @@
-"""
-Seed router — manually populate default data.
+"""Default-data seeding logic (admin account + government agencies).
 
-Endpoints
----------
-  POST  /seed/admin      Create default admin (admin@example.com / admin1234)
-  POST  /seed/agencies   Create the 4 default government agencies
-  POST  /seed/all        Run both seeders above in one call
+Kept out of the router so the seed operations can be reused by app startup and a
+future management command, and unit-tested directly.
 """
-
-from fastapi import APIRouter, Depends
-from app.auth.dependencies import require_admin
 
 from app.auth.security import hash_password
 from app.models.agency import Agency
 from app.models.user import User
 
-router = APIRouter(prefix="/seed", tags=["Seed"])
-
-# ---------------------------------------------------------------------------
-# Default data definitions
-# ---------------------------------------------------------------------------
 
 DEFAULT_ADMIN = {
     "email": "admin@example.com",
@@ -83,7 +71,7 @@ DEFAULT_AGENCIES = [
 # Helpers
 # ---------------------------------------------------------------------------
 
-async def _run_seed_admin() -> dict:
+async def run_seed_admin() -> dict:
     existing = await User.all().count()
     if existing > 0:
         return {"status": "skipped", "message": f"{existing} users already exist"}
@@ -100,7 +88,7 @@ async def _run_seed_admin() -> dict:
     return {"status": "created", "message": f"Admin {DEFAULT_ADMIN['email']} created"}
 
 
-async def _run_seed_agencies() -> dict:
+async def run_seed_agencies() -> dict:
     existing = await Agency.all().count()
     if existing > 0:
         return {"status": "skipped", "message": f"{existing} agencies already exist"}
@@ -111,29 +99,3 @@ async def _run_seed_agencies() -> dict:
         created.append(data["name"])
 
     return {"status": "created", "message": f"{len(created)} agencies created", "agencies": created}
-
-
-# ---------------------------------------------------------------------------
-# Endpoints
-# ---------------------------------------------------------------------------
-
-@router.post("/admin", summary="Seed default admin account")
-async def seed_admin(_: User = Depends(require_admin)) -> dict:
-    result = await _run_seed_admin()
-    return result
-
-
-@router.post("/agencies", summary="Seed default government agencies")
-async def seed_agencies(_: User = Depends(require_admin)) -> dict:
-    result = await _run_seed_agencies()
-    return result
-
-
-@router.post("/all", summary="Seed all default data (admin + agencies)")
-async def seed_all(_: User = Depends(require_admin)) -> dict:
-    admin_result = await _run_seed_admin()
-    agencies_result = await _run_seed_agencies()
-    return {
-        "admin": admin_result,
-        "agencies": agencies_result,
-    }

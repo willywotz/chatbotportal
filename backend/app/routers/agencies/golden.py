@@ -2,13 +2,13 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel
 
 from app.auth.dependencies import require_admin
-from app.models.agency import Agency
-from app.models.evaluation import EvalResult, GoldenQuestion
 from app.models.user import User
+from app.services import agency as agency_service
+from app.services import agency_golden
 
 router = APIRouter()
 
@@ -37,13 +37,6 @@ class EvalResultResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-async def _get_agency_or_404(agency_id: str) -> Agency:
-    agency = await Agency.get_or_none(id=agency_id)
-    if agency is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
-    return agency
-
-
 @router.post(
     "/{agency_id}/golden-questions",
     response_model=GoldenQuestionResponse,
@@ -53,8 +46,8 @@ async def _get_agency_or_404(agency_id: str) -> Agency:
 async def create_golden_question(
     agency_id: str, body: GoldenQuestionCreate, _: User = Depends(require_admin)
 ) -> GoldenQuestionResponse:
-    agency = await _get_agency_or_404(agency_id)
-    gq = await GoldenQuestion.create(agency=agency, question=body.question, expected_topics=body.expected_topics)
+    agency = await agency_service.get_agency_or_404(agency_id)
+    gq = await agency_golden.create_golden_question(agency, body.question, body.expected_topics)
     return GoldenQuestionResponse(id=gq.id, agency_id=agency.id, question=gq.question, expected_topics=gq.expected_topics)
 
 
@@ -66,8 +59,8 @@ async def create_golden_question(
 async def list_golden_questions(
     agency_id: str, _: User = Depends(require_admin)
 ) -> list[GoldenQuestionResponse]:
-    agency = await _get_agency_or_404(agency_id)
-    questions = await GoldenQuestion.filter(agency=agency)
+    agency = await agency_service.get_agency_or_404(agency_id)
+    questions = await agency_golden.list_golden_questions(agency)
     return [
         GoldenQuestionResponse(id=q.id, agency_id=agency.id, question=q.question, expected_topics=q.expected_topics)
         for q in questions
@@ -82,11 +75,8 @@ async def list_golden_questions(
 async def delete_golden_question(
     agency_id: str, gq_id: uuid.UUID, _: User = Depends(require_admin)
 ) -> None:
-    agency = await _get_agency_or_404(agency_id)
-    gq = await GoldenQuestion.get_or_none(id=gq_id, agency=agency)
-    if gq is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Golden question not found")
-    await gq.delete()
+    agency = await agency_service.get_agency_or_404(agency_id)
+    await agency_golden.delete_golden_question(agency, gq_id)
 
 
 @router.get(
@@ -99,9 +89,8 @@ async def list_eval_results(
     limit: int = Query(50, ge=1, le=200),
     _: User = Depends(require_admin),
 ) -> list[EvalResultResponse]:
-    agency = await _get_agency_or_404(agency_id)
-    question_ids = await GoldenQuestion.filter(agency=agency).values_list("id", flat=True)
-    results = await EvalResult.filter(golden_question_id__in=list(question_ids)).order_by("-created_at").limit(limit)
+    agency = await agency_service.get_agency_or_404(agency_id)
+    results = await agency_golden.list_eval_results(agency, limit)
     return [
         EvalResultResponse(
             id=r.id,

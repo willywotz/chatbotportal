@@ -887,7 +887,7 @@ rtk git commit -m "refactor(config): drop legacy ONECHAT_V3/V4/V5_URL"
 
 ## Post-plan wrap-up (orchestrator, after all tasks green)
 
-- [ ] Update `context.md` and commit (project rule).
+- [ ] Update `CONTEXT.md` and commit (project rule).
 - [ ] Open PR `feat/onechat-client` → `dev`.
 - [ ] (Separate, unrelated) rotate/scrub the committed API keys in `spec/agent-onechat.md`.
 

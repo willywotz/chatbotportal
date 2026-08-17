@@ -28,7 +28,7 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await api.post<{ user: AuthUser }>("/api/v1/auth/login", {
+      const res = await api.post<{ user: AuthUser }>("/api/v1/authentication/login", {
         email,
         password,
       });

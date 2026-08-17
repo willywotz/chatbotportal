@@ -1,8 +1,12 @@
 """Tests for app.services.popular_questions."""
+import uuid
+
 import pytest
+from fastapi import HTTPException
 
 from app.models import Agency, Conversation, Message
 from app.models.popular_question import PopularQuestion, PopularQuestionSource
+from app.schemas.popular_question import PopularQuestionCreate, PopularQuestionUpdate
 from app.services import popular_questions as pq_service
 from app.services.llm import LlmResult, LlmUsageInfo
 
@@ -394,6 +398,83 @@ async def test_regenerate_no_agency_when_reply_has_none(db, monkeypatch):
 
 
 # ── seed_popular_questions ──────────────────────────────────────────────────
+
+# ── create_question / update_question / delete_question / list_questions ────
+
+@pytest.mark.asyncio
+async def test_create_question_persists_manual_source(db):
+    pq = await pq_service.create_question(PopularQuestionCreate(text="new q"))
+
+    assert pq.source == PopularQuestionSource.manual
+    assert pq.text_key == pq_service.normalize_text_key("new q")
+
+
+@pytest.mark.asyncio
+async def test_create_question_rejects_unknown_agency(db):
+    with pytest.raises(HTTPException) as exc:
+        await pq_service.create_question(PopularQuestionCreate(text="q", agency_id=uuid.uuid4()))
+    assert exc.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_create_question_rejects_duplicate_text_key(db):
+    await PopularQuestion.create(text="dup", text_key=pq_service.normalize_text_key("dup"), source="manual")
+    with pytest.raises(HTTPException) as exc:
+        await pq_service.create_question(PopularQuestionCreate(text="dup"))
+    assert exc.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_update_question_flips_auto_source_to_manual_on_text_change(db):
+    pq = await PopularQuestion.create(text="auto q", text_key="auto_q", source="auto")
+
+    updated = await pq_service.update_question(pq.id, PopularQuestionUpdate(text="edited"))
+
+    assert updated.source == PopularQuestionSource.manual
+    assert updated.text_key == pq_service.normalize_text_key("edited")
+
+
+@pytest.mark.asyncio
+async def test_update_question_missing_raises_404(db):
+    with pytest.raises(HTTPException) as exc:
+        await pq_service.update_question(uuid.uuid4(), PopularQuestionUpdate(pinned=True))
+    assert exc.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_delete_question_removes_row(db):
+    pq = await PopularQuestion.create(text="to delete", text_key="to_delete", source="manual")
+
+    await pq_service.delete_question(pq.id)
+
+    assert not await PopularQuestion.filter(id=pq.id).exists()
+
+
+@pytest.mark.asyncio
+async def test_delete_question_missing_raises_404(db):
+    with pytest.raises(HTTPException) as exc:
+        await pq_service.delete_question(uuid.uuid4())
+    assert exc.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_list_questions_includes_hidden(db):
+    await PopularQuestion.create(text="hidden one", text_key="hidden_one", source="seed", hidden=True)
+
+    rows = await pq_service.list_questions()
+
+    assert len(rows) == 1
+
+
+@pytest.mark.asyncio
+async def test_to_response_resolves_agency(db):
+    ag = await Agency.create(name="กรมการปกครอง", logo="🏛️")
+    pq = await PopularQuestion.create(text="with agency", text_key="with_agency", source="seed", agency=ag)
+
+    resp = await pq_service.to_response(pq)
+
+    assert resp.agency is not None and resp.agency.id == ag.id
+
 
 @pytest.mark.asyncio
 async def test_seed_is_idempotent(db):
