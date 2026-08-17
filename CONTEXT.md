@@ -1138,3 +1138,8 @@ Note: the Python backend already serves MCP at `/mcp` (`app/mcp/server.py`), so 
   (`^/api/v1/agent-proxy/[^/]+$`) that skips ONLY the role allowlist. The surface-parity test
   now enumerates the new route from the live route table. TDD: router 2, service 8, parity
   32 pass; full suite 849 pass / 6 skip.
+
+- Task 3 (done): `app/mcp/server.py` `_agent_proxy_endpoint` now builds the callback at
+  `/api/v1/agent-proxy/{id}` (was `/agent-proxy/{id}`). The scheme, `TRACE_URL_PROBE`, and
+  trace-query behavior are unchanged. Because nginx already sends `/api/*` to the backend,
+  no new nginx rule is needed. TDD: `tests/test_trace_url_probe.py` 5 pass; full suite 850.
