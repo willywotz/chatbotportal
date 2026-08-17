@@ -1,0 +1,6 @@
+all:
+  hosts:
+    chatbotportal:
+      ansible_host: chatbotportal.opdc.ai.in.th
+      ansible_user: deploy
+      ansible_python_interpreter: /usr/bin/python3

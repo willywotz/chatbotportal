@@ -15,3 +15,7 @@ test-results
 node_modules
 .venv
 185-84-160-55
+
+# Ansible installed collections + local age keys
+deploy/.ansible/
+keys.txt
