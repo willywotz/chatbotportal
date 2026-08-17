@@ -1,0 +1,45 @@
+# Local development override. Auto-merged by `docker compose up` (no `-f` flag),
+# so a bare `docker compose up` runs the full dev stack with hot-reload.
+#
+# NEVER reaches prod: .github/workflows/deploy.yml invokes
+# `docker compose -f docker-compose.yaml up`, and an explicit `-f` disables
+# automatic override merging. Keep this file additive — override only what dev
+# needs (build target + source mounts); do not redefine routing, volumes, or
+# ports that the base file owns.
+#
+# See docs/development.md.
+
+services:
+
+  backend:
+    build:
+      target: development
+    volumes:
+      - ./backend:/app
+      - backend-uv-cache:/root/.cache/uv
+      - agency-uploads:/app/uploads
+    # fastapi dev (the development stage cmd) reloads on .py changes; the
+    # bind-mount makes host edits visible inside the container.
+
+  frontend:
+    build:
+      target: development
+    environment:
+      # Same-origin through Caddy: the browser hits the gateway origin, which
+      # proxies /api -> backend. Empty = window.location.origin.
+      VITE_API_BASE_URL: ""
+    # Vite dev server has no /healthz route (that lives in the production
+    # nginx.conf); probe "/" instead so the container becomes healthy and Caddy
+    # (depends_on: frontend healthy) starts.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    volumes:
+      - ./frontend:/app
+      # Anonymous volume shadows the host node_modules so the container's
+      # pnpm-installed deps (from the image) are not clobbered by a host dir.
+      - /app/node_modules
+      - frontend-pnpm-store:/pnpm/store
