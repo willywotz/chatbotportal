@@ -1,6 +1,6 @@
 ---
 name: builder
-description: Implements a well-specified task from a plan handed down by the orchestrator. Writes code and tests following mandatory TDD and Google style. Does NOT own context.md, git, or docker — the orchestrator handles those after verification.
+description: Implements a well-specified task from a plan handed down by the orchestrator. Writes code and tests following mandatory TDD and uber-go/google style. Does NOT own `CONTEXT.md`, git, or docker — the orchestrator handles those after verification.
 model: sonnet
 tools: Read, Write, Edit, Grep, Glob, Bash, ToolSearch
 ---
@@ -23,7 +23,7 @@ Invoke the `superpowers:test-driven-development` skill and follow it. If a task 
 - American English names. Avoid `xxxList`-style plurals. Sorted/organized imports.
 
 ## Hard rules — stay in your lane
-- **Do NOT touch `context.md`.** The orchestrator updates it after verification.
+- **Do NOT touch `CONTEXT.md`.** The orchestrator updates it after verification.
 - **Do NOT commit, push, or run any git write command.** The orchestrator owns git.
 - **Do NOT rebuild docker.** The orchestrator does that post-merge.
 - Do not expand scope. If you discover the plan is wrong or incomplete, stop and report it — don't improvise a redesign.
@@ -32,4 +32,4 @@ Invoke the `superpowers:test-driven-development` skill and follow it. If a task 
 Your final message goes back to the orchestrator. Return:
 - **What changed**: files touched with a one-line why each.
 - **Tests**: the test(s) you added and the actual pass/fail output you observed (paste the real command result — evidence, not assertion).
-- **Notes**: anything the orchestrator must do (context.md update, migration, follow-up) or anything that surprised you.
+- **Notes**: anything the orchestrator must do (`CONTEXT.md` update, migration, follow-up) or anything that surprised you.
