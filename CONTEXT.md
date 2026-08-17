@@ -434,15 +434,16 @@ usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package m
 
 ## Infrastructure, CI/CD, deployment
 
-- **Branches**: `main` = prod (protected, **PR-only**, deploys to prod), `dev` = dev env.
+- **Branches**: `main` = prod (protected, **PR-only**), `dev` = dev env.
   Branch off `dev` → PR into `dev`; promote via PR `dev` → `main`. Never push `main` directly.
-- **`.github/workflows/test.yml`** (on PR / manual): parallel jobs — backend `pytest`,
-  frontend `tsc --noEmit` + vitest coverage. **No E2E** (removed from CI).
-- **`.github/workflows/deploy.yml`** (merged PR to `main` / manual): self-hosted runner, validates
-  `JWT_SECRET`/`OPENROUTER_API_KEY`, writes prod `.env` (`ENV=production`), then
+- **`.github/workflows/ci.yaml`** (`name: ci`; on push to `main` / PR to `main` / manual): parallel
+  jobs — backend `pytest`, frontend `tsc --noEmit` + vitest coverage. **No E2E** (removed from CI).
+- **`.github/workflows/release.yaml`** (`name: release`; on `v*` tag push / manual): self-hosted
+  runner, validates `JWT_SECRET`/`OPENROUTER_API_KEY`, writes prod `.env` (`ENV=production`), then
   `docker compose -f compose.yaml up -d --build --remove-orphans`. The explicit `-f` is
   load-bearing: it disables compose's automatic override merging, so `compose.override.yaml`
-  never reaches prod. Deploy does **not** depend on the test job.
+  never reaches prod. Releases are **tag-driven** — merging to `main` does not deploy; pushing a
+  `v*` tag does.
 - **Prod env** template: `.env.prod.example` (set `JWT_SECRET`, `POSTGRES_PASSWORD`, `CORS_ORIGINS`,
   OneChat URLs, `OPENROUTER_API_KEY`). `ENV=production` makes startup refuse the default JWT secret.
 - **Local dev** (`docs/development.md`): `docker compose up --watch` auto-merges
