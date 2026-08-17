@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     TIMEZONE: str = "Asia/Bangkok"
     USER_AGENT_PREFIX: str = "AI-Chatbot-Portal/1.0"
     ENV: str = "development"  # development | production
+    LOG_LEVEL: str = "INFO"   # 15-Factor XI: log level for the stdout event stream
 
     # ── Database ─────────────────────────────────────────────────────────────
     DATABASE_URL: str = "postgres://postgres:postgres@localhost:5432/chatbot"

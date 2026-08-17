@@ -13,6 +13,16 @@ REST API is served under /api/v1
 """
 
 import logging
+import os
+import sys
+
+# 15-Factor XI: treat logs as an event stream. Send every app log to stdout at
+# a level taken from the environment (LOG_LEVEL); the platform captures stdout.
+logging.basicConfig(
+    stream=sys.stdout,
+    level=os.getenv("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
 
 class EndpointFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:

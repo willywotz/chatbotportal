@@ -1026,3 +1026,11 @@ direct read (file:line), not inferred.
   of scope for the rule.
 - Note: an auto-commit git hook is active; it commits on its own and previously swept in
   unrelated pre-existing dirty files. Flagged for the user.
+
+## 2026-08-17 — 15-Factor XI: logs as a stdout event stream
+- `backend/app/main.py`: added `logging.basicConfig(stream=sys.stdout, level=LOG_LEVEL, ...)`
+  at import time. Every app log now goes to stdout; the platform captures the stream.
+- `backend/app/config.py`: added `LOG_LEVEL` setting (env-driven, Factor III). Documented in
+  `.env.example` (DEBUG | INFO | WARNING | ERROR, default INFO).
+- Smoke test: `LOG_LEVEL=DEBUG` sets the root level to 10 and logs print to stdout. Full
+  backend suite 750 pass / 6 skip.
