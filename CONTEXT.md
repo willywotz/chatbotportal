@@ -838,6 +838,16 @@ direct read (file:line), not inferred.
   extra is the `created` lifecycle event. `usage` is always zero by design; `input_items` ignores its
   `order`/`limit` args (`responses/retrieve.py:57`).
 
+## 2026-08-17 — Deploy via GitHub Actions + Ansible + SOPS/age (CD bootstrap + runbook)
+- Release is now continuous delivery: GitHub Actions (`release` workflow) builds images,
+  pushes them to GHCR, and dispatches Ansible to deploy via SSH. No more manual docker compose;
+  all runtime secrets encrypted with age, stored at `deploy/group_vars/all/secrets.sops.yaml`.
+- Bootstrap runbook (`docs/deploy-bootstrap.md`) documents: age key generation (public key in
+  `.sops.yaml`, secret in GitHub Actions), deploy SSH key setup, GitHub Actions secrets
+  (`SOPS_AGE_KEY`, `SSH_PRIVATE_KEY`, `SSH_KNOWN_HOSTS`), host preparation (deploy user,
+  Docker + Compose), GHCR package publicity, and secret editing with SOPS. Rollback: Actions
+  → release → enter older tag.
+
 ## 2026-08-17 — Release-readiness fixes (CI red + stale env docs)
 
 - **CI was red on `main`**: `comment-cleanup-phase3` merge → `ci` → failure. Root cause was a
