@@ -1108,3 +1108,23 @@ direct read (file:line), not inferred.
   configured), add MinIO to docker-compose, rewrite `agencies/logo.py` store/serve, mock S3 in
   tests. All other 15-Factor factors reviewed hold (III env config, XI stdout logs, XII one-off
   seed CLI; IV backing services by URL; V build/release/run split).
+
+## 2026-08-17 — Consolidate Go services into the Python backend
+Goal: one backend language (Python), one backend service. Remove the Go `agent-proxy`
+and `mcp-server`. Spec + plan:
+`docs/superpowers/specs/2026-08-17-agent-proxy-mcp-backend-consolidation-design.md`,
+`docs/superpowers/plans/2026-08-17-agent-proxy-mcp-backend-consolidation.md`.
+Note: the Python backend already serves MCP at `/mcp` (`app/mcp/server.py`), so the Go
+`mcp-server` is a duplicate — it is removed, not rewritten. Only the proxy is new Python code.
+
+- Task 1 (done): `app/services/agent_proxy.py` — port of the Go `agent-proxy/handler.go`.
+  It checks the id is a UUID (else 400), loads the agency (else 404), clones the request
+  headers, removes every `X-Forwarded*` header, sets the agency `api_headers`, injects the
+  W3C trace context, and forwards the body to the agency `endpoint_url` with an
+  `httpx.AsyncClient` at `AGENCY_CHAT_TIMEOUT` (180 s). It streams the answer back with the
+  upstream status and headers. After the stream ends it counts the call
+  (`increment_calls`, 2xx only) and always writes one `ConnectionLog` row
+  (`action="proxy"`, `connection_type="API"`, status, latency, bounded request/response
+  body). An upstream connection error or timeout gives 502 and an error log.
+  EDA note: the log write and the counter are direct service calls, not domain events
+  (they match the three existing `ConnectionLog.create` writers). TDD: 8 tests pass.
