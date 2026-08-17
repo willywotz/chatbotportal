@@ -39,7 +39,8 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "/app/uploads"
 
     # ── Redis (shared LLM-provider throttle budget across workers) ───────────
-    REDIS_URL: str = ""           # empty = in-process limiter (single worker)
+    # withinlazy: REDIS_SOCKET_TIMEOUT_MS still referenced by _get_redis_client;
+    # Task 5 removes both together once the Redis limiter classes are deleted.
     REDIS_SOCKET_TIMEOUT_MS: int = 100
 
     # ── CORS ─────────────────────────────────────────────────────────────────

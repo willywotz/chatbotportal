@@ -6,7 +6,13 @@ import app.services.rate_limit as rl
 from app.services.rate_limit import (
     PostgresFixedWindowLimiter,
     RateLimitResult,
+    build_limiter,
 )
+
+
+def test_factory_returns_postgres_limiter():
+    lim = build_limiter()
+    assert isinstance(lim, PostgresFixedWindowLimiter)
 
 
 @pytest.mark.asyncio

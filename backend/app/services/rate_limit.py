@@ -272,16 +272,6 @@ def _get_redis_client(url: str):
     return _redis_client
 
 
-def build_limiter(url: str | None = None):
-    """Return a Redis-backed limiter when REDIS_URL is set, else in-process."""
-    url = settings.REDIS_URL if url is None else url
-    client = _get_redis_client(url)
-    return RedisSlidingWindowLimiter(client) if client is not None else InProcessLimiter()
-
-
-async def close_limiter_client() -> None:
-    """Close the shared Redis client on application shutdown."""
-    global _redis_client
-    if _redis_client is not None:
-        await _redis_client.aclose()
-        _redis_client = None
+def build_limiter():
+    """Return the Postgres-backed limiter (the only backend)."""
+    return PostgresFixedWindowLimiter()
