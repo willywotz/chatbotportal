@@ -32,8 +32,7 @@ All traffic enters through **nginx** on one port; services talk over the `chatbo
 | **backend** | Python 3.12 · FastAPI · Tortoise ORM · FastMCP | REST API (`/api/v1`), MCP server (`/mcp`), scheduler, auth. Port 8080. |
 | **agent-proxy** | Go 1.26 · pgx · OTel | Reverse-proxy from backend → agency endpoints; logs connection attempts. Port 8080. |
 | **frontend** | React 18 · Vite 5 · TS · shadcn/ui | SPA admin + public portal. Port 8080. |
-| **postgres** | pgvector/pgvector:pg16 | Shared DB (backend + agent-proxy). Extensions: `pg_trgm`, `fuzzystrmatch`, `vector` (created by `postgres-init`). |
-| **redis** | redis:7-alpine | Shared LLM-provider throttle budget across workers (optional; empty `REDIS_URL` = in-process limiter). |
+| **postgres** | pgvector/pgvector:pg16 | Shared DB (backend). Extensions: `pg_trgm`, `fuzzystrmatch`, `vector` (created by `postgres-init`). |
 | **jaeger** | jaegertracing/jaeger:2.18.0 | OTLP tracing sink (`jaeger:4317`), UI proxied at `/jaeger/`. |
 | **certbot** | certbot/certbot | Renews the Let's Encrypt cert every 12h over the HTTP-01 webroot. No-op until one is issued. |
 
@@ -1169,3 +1168,45 @@ Note: the Python backend already serves MCP at `/mcp` (`app/mcp/server.py`), so 
   4. The connection-log `latency_ms` now measures time-to-headers (as the Go proxy did), not
      time-to-last-byte, so a long stream does not inflate the recorded latency.
   All covered by new tests. Full backend suite 852 pass / 6 skip. Branch is local only.
+
+## 2026-08-17 — Replace Redis with Postgres
+Goal: one backend datastore. Remove Redis; move auth session storage and
+LLM-provider rate limiting to Postgres. Spec + plan:
+`docs/superpowers/specs/2026-08-17-redis-to-postgres-design.md`,
+`docs/superpowers/plans/2026-08-17-redis-to-postgres.md`.
+
+- Auth sessions: new `Session` model (`backend/app/models/session.py`, table
+  `sessions`). The session id is `generate_uuid7().hex`. Expired sessions are
+  deleted lazily on read (`resolve_session`). The five public functions in
+  `backend/app/services/auth_session.py` keep the same names and signatures, so
+  the auth router, the WebSocket auth, and the session-refresh middleware do not
+  change.
+- Rate limiting: new `RateLimitCounter` model
+  (`backend/app/models/rate_limit_counter.py`, table `rate_limit_counters`) and
+  `PostgresFixedWindowLimiter` (`backend/app/services/rate_limit.py`). It uses a
+  fixed-window counter with a `get_or_create` increment. It is fail-closed: a
+  datastore error returns `(allowed=False, retry_after=1)`, and the LLM client
+  retry loop turns this into backpressure. Recovery (the next healthy call) logs
+  how many requests failed closed during the outage. The `RateLimiter` protocol
+  and `build_limiter()` stay, so `llm/client.py` does not change.
+- Redis removal: the `redis` service block, the `REDIS_URL` env, and the
+  `depends_on` entry are deleted from `docker-compose.yaml`. The `redis`
+  dependency is removed from `backend/pyproject.toml` and `backend/uv.lock`. The
+  redis service container and the `TEST_REDIS_URL` env are removed from
+  `.github/workflows/test.yml`. `REDIS_URL` and `REDIS_SOCKET_TIMEOUT_MS` are
+  removed from `backend/app/config.py`.
+- Verification: full backend suite 845 pass / 2 skip; surface parity 4 pass (no
+  route changed); zero Redis references in `backend/app`, `docker-compose.yaml`,
+  and `.github/workflows/test.yml`; `docker compose config` is valid.
+- Known limits (lazy): the rate-limit counter is a read-modify-write, not an
+  atomic upsert (concurrent workers can lose increments — acceptable, it is
+  approximate backpressure; upgrade path in the `withinlazy:` comment); expired
+  sessions are deleted only when read (a reaper can be added if the table grows);
+  fixed-window allows up to ~2x the limit at a window boundary.
+- Deploy note: no Aerich migration was generated. `init_db()` runs
+  `Tortoise.generate_schemas(safe=True)`, so production startup auto-creates the
+  `sessions` and `rate_limit_counters` tables.
+- Out of scope: the `agent-proxy` job in `.github/workflows/test.yml` is a
+  pre-existing dangling CI job (the `agent-proxy/` directory was deleted in the
+  prior consolidation). It is not part of this change and will fail CI until it
+  is removed.

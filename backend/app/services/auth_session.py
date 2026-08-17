@@ -25,7 +25,7 @@ async def resolve_session(session_id: str) -> str | None:
     if session.expires_at <= now():
         await session.delete()
         return None
-    return str(session.user_id)
+    return str(session.user_id) if session.user_id is not None else None
 
 
 async def delete_session(session_id: str) -> None:

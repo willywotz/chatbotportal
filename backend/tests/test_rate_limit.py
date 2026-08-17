@@ -71,3 +71,38 @@ async def test_db_error_fails_closed_and_logs_once(db, monkeypatch, caplog):
     warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
     assert len(warnings) == 1
     assert "rate limit" in warnings[0].getMessage().lower()
+
+
+@pytest.mark.asyncio
+async def test_recovery_logs_degraded_count_once(db, monkeypatch, caplog):
+    """Fail closed, then succeed: the failing->healthy change logs the count
+    of requests that degraded during the outage, exactly once."""
+    lim = PostgresFixedWindowLimiter()
+    rl._limiter_health.failing = False
+    rl._limiter_health.degraded_total = 0
+
+    calls = {"n": 0}
+
+    async def boom_then_ok(*a, **kw):
+        calls["n"] += 1
+        if calls["n"] <= 2:
+            raise RuntimeError("db down")
+        return 1  # under the limit
+
+    monkeypatch.setattr(rl, "_upsert_and_count", boom_then_ok)
+
+    with caplog.at_level(logging.INFO, logger="app.services.rate_limit"):
+        await lim.check("llm:p:s", limit=3, window_s=60.0)  # fail 1
+        await lim.check("llm:p:s", limit=3, window_s=60.0)  # fail 2
+        r3 = await lim.check("llm:p:s", limit=3, window_s=60.0)  # recover
+        r4 = await lim.check("llm:p:s", limit=3, window_s=60.0)  # still healthy
+
+    assert r3 == RateLimitResult(True, 0)
+    assert r4 == RateLimitResult(True, 0)
+    assert rl._limiter_health.failing is False
+    infos = [
+        r for r in caplog.records
+        if r.levelno == logging.INFO and "recover" in r.getMessage().lower()
+    ]
+    assert len(infos) == 1
+    assert "2" in infos[0].getMessage()  # two requests degraded during the outage

@@ -44,6 +44,14 @@ class LimiterHealth:
             return True
         return False
 
+    def record_success(self) -> int | None:
+        """Note a healthy call. On failing -> healthy, return how many requests
+        degraded during the outage; otherwise None."""
+        if self.failing:
+            self.failing = False
+            return self.degraded_total - self._since
+        return None
+
 
 _limiter_health = LimiterHealth()
 
@@ -90,6 +98,12 @@ class PostgresFixedWindowLimiter:
                     exc_info=exc,
                 )
             return RateLimitResult(False, 1)
+        recovered = _limiter_health.record_success()
+        if recovered is not None:
+            logger.info(
+                "rate limit: datastore recovered after %d request(s) failed closed",
+                recovered,
+            )
         if count <= limit:
             return RateLimitResult(True, 0)
         retry_us = window_start + window_us - now_us
