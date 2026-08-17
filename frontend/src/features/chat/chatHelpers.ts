@@ -85,7 +85,6 @@ export function buildAgentStepsSnapshot(state: StreamingState): AgentStepsSnapsh
   return { steps, agencies, errors };
 }
 
-/** Formats a timestamp for display using Thai locale (HH:MM). */
 export function formatTimestamp(): string {
   return new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
 }
@@ -113,7 +112,6 @@ export function buildAiMessageFromState(state: StreamingState): ChatMessage | nu
   };
 }
 
-/** Builds the "connection lost" error message returned when stream ends without answer. */
 export function buildConnectionLostMessage(): ChatMessage {
   return {
     id: generateUniqueId(),
@@ -124,7 +122,6 @@ export function buildConnectionLostMessage(): ChatMessage {
   };
 }
 
-/** Builds the generic error message for unexpected exceptions. */
 export function buildGenericErrorMessage(): ChatMessage {
   return {
     id: generateUniqueId(),

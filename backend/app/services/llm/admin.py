@@ -48,7 +48,7 @@ async def list_routes() -> list[LlmRoute]:
 
 
 async def route_provider_name(route: LlmRoute) -> str:
-    provider = await route.provider  # lazy FK load
+    provider = await route.provider
     return provider.name
 
 

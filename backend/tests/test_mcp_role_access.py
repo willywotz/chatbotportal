@@ -36,7 +36,6 @@ async def _make_user_with_key(email: str, role: str) -> tuple[User, str]:
 
 @pytest.mark.asyncio
 async def test_viewer_api_key_resolves_via_mcp_auth(db):
-    """A viewer with a valid API key is admitted by MCP auth (no role gate)."""
     user, raw = await _make_user_with_key("viewer@x.com", "viewer")
     resolved = await _resolve_user_via_mcp_auth(raw)
     assert resolved is not None
@@ -45,7 +44,6 @@ async def test_viewer_api_key_resolves_via_mcp_auth(db):
 
 @pytest.mark.asyncio
 async def test_auditor_api_key_resolves_via_mcp_auth(db):
-    """An auditor with a valid API key is admitted by MCP auth (no role gate)."""
     user, raw = await _make_user_with_key("auditor@x.com", "auditor")
     resolved = await _resolve_user_via_mcp_auth(raw)
     assert resolved is not None
@@ -54,14 +52,12 @@ async def test_auditor_api_key_resolves_via_mcp_auth(db):
 
 @pytest.mark.asyncio
 async def test_invalid_key_returns_none(db):
-    """A bogus key yields None — the MCP tool will respond unauthenticated."""
     resolved = await _resolve_user_via_mcp_auth("tcg_totallybogus")
     assert resolved is None
 
 
 @pytest.mark.asyncio
 async def test_inactive_user_returns_none(db):
-    """An inactive user's key does not resolve — is_active=True is required."""
     user = await User.create(
         email="inactive@x.com", hashed_password="h", role="viewer", is_active=False
     )
@@ -81,10 +77,8 @@ async def test_fetch_agencies_stable_ids_across_payload_keys():
     from app.mcp import server
 
     ctx = MagicMock()
-    # Simulate no stored ids so defaults are generated.
     ctx.get_state = AsyncMock(return_value=None)
 
-    # Agency with two payload keys carrying __user_id__ and two __conversation_id__.
     agency = {
         "id": "a1",
         "name": "A",
@@ -112,15 +106,12 @@ async def test_fetch_agencies_stable_ids_across_payload_keys():
 
     payload = agencies[0]["expected_payload"]
 
-    # Both uid* values must be equal (same resolved id).
     assert payload["uid1"] == payload["uid2"].removeprefix("prefix-"), (
         f"user_id not stable: uid1={payload['uid1']!r} uid2={payload['uid2']!r}"
     )
-    # Both cid* values must be equal.
     assert payload["cid1"] == payload["cid2"].removeprefix("tag-"), (
         f"conversation_id not stable: cid1={payload['cid1']!r} cid2={payload['cid2']!r}"
     )
-    # Values must not be the placeholder strings themselves.
     assert "__user_id__" not in payload["uid1"]
     assert "__conversation_id__" not in payload["cid1"]
 

@@ -8,7 +8,6 @@ import { stripSummaryPrefix } from "@/shared/lib/summary";
 import { parseThinkContent } from "@/shared/lib/utils";
 import type { AgentStepsSnapshot, SummaryReference } from "@/shared/types/chat";
 
-/** Card-bubble styling for an assistant answer, shared with the typing placeholder. */
 export const ASSISTANT_BUBBLE_CLASS =
   "rounded-2xl rounded-tl-sm border border-border bg-card px-4 py-3 text-[1em] leading-relaxed";
 

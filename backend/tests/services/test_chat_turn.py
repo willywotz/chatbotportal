@@ -46,8 +46,6 @@ async def test_save_stream_conversation_success_status_current():
     assert str(assistant_id)
 
 
-# ─── New tests for save_turn (BC #1, #3) ─────────────────────────────────────
-
 @pytest.mark.usefixtures("db")
 async def test_save_turn_marks_failed_when_outcome_failed():
     from app.services.chat.turn import save_turn
@@ -85,8 +83,6 @@ async def test_stream_empty_answer_marks_failed():
     conv = await Conversation.get(id=cid)
     assert conv.status == "failed"  # NEW behavior: empty answer marks failed
 
-
-# ─── v5 summary fields ───────────────────────────────────────────────────────
 
 @pytest.mark.usefixtures("db")
 async def test_message_stores_summary_and_summary_references():

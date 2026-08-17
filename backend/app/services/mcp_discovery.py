@@ -1,4 +1,3 @@
-"""Discover tools exposed by an MCP endpoint via fastmcp."""
 from typing import Any
 
 from fastmcp import Client

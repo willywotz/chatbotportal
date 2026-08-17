@@ -111,7 +111,6 @@ async def test_get_executive_summary_smoke():
     msg.count = AsyncMock(return_value=0)
     msg.values = AsyncMock(return_value=[])
 
-    # Conversation.filter(...).count() called 4 times.
     conv = MagicMock()
     conv.filter.return_value = conv
     conv.count = AsyncMock(return_value=0)
@@ -135,7 +134,6 @@ async def test_get_executive_summary_smoke():
 
 @pytest.mark.asyncio
 async def test_latest_brief_returns_placeholder_when_table_empty():
-    """With no stored brief, _latest_brief returns the placeholder (never blocks/no LLM)."""
     from app.services.analytics import brief
 
     qs = MagicMock()
@@ -152,7 +150,6 @@ async def test_latest_brief_returns_placeholder_when_table_empty():
 
 @pytest.mark.asyncio
 async def test_regenerate_weekly_brief_persists_ok_row():
-    """A successful LLM call inserts an ExecutiveBrief row with status 'ok'."""
     from app.services.analytics import brief
 
     from app.services.llm import LlmResult, LlmUsageInfo
@@ -184,7 +181,6 @@ async def test_regenerate_weekly_brief_persists_ok_row():
 
 @pytest.mark.asyncio
 async def test_regenerate_weekly_brief_persists_error_row_on_http_failure():
-    """When the LLM call raises, a row is still inserted with status 'error' and fallback text."""
     from app.services.analytics import brief
 
     brief_model = MagicMock()
@@ -248,7 +244,6 @@ async def test_get_agency_health_error_rate_and_uptime_values():
 
 @pytest.mark.asyncio
 async def test_get_agency_health_honors_stats_reset_at_and_two_dp():
-    """error_window receives each agency's stats_reset_at; uptime is rounded to 2 dp."""
     import datetime
 
     from app.schemas.insight import AgencyHealthData
@@ -289,7 +284,6 @@ async def test_get_agency_health_honors_stats_reset_at_and_two_dp():
 
 @pytest.mark.asyncio
 async def test_get_agency_health_two_agencies_grouped():
-    """Two agencies receive independent metrics; errorRate/uptime via per-agency error_window."""
     from app.schemas.insight import AgencyHealthData
     from app.services.analytics import health
 
@@ -333,14 +327,12 @@ async def test_get_agency_health_two_agencies_grouped():
     a1 = next(a for a in result.agencies if a.id == "ag-1")
     a2 = next(a for a in result.agencies if a.id == "ag-2")
 
-    # ag-1: 2/20 = 10% error rate, 90% uptime, 200ms cur, 180ms avg
     assert a1.errorRate == 10.0
     assert a1.uptime == 90.0
     assert a1.currentLatency == 200.0
     assert a1.avgLatency == 180.0
     assert a1.status == "healthy"
 
-    # ag-2: 0/5 = 0% error rate, 100% uptime, 50ms cur, 60ms avg, status=down
     assert a2.errorRate == 0.0
     assert a2.uptime == 100.0
     assert a2.currentLatency == 50.0

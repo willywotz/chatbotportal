@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { agencySchema } from "./agencySchema";
 
-// ---------------------------------------------------------------------------
-// agencySchema — zod validation
-// ---------------------------------------------------------------------------
-
 const VALID_PAYLOAD = {
   name: "กรมสรรพากร",
   shortName: "สร.",

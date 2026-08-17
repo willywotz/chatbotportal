@@ -65,7 +65,6 @@ def _mock_client(*, status: int = 200, chunks: tuple[str, ...] = (), exc: Except
 
 
 def _stub_upstream(*, status: int = 200, chunks: tuple[str, ...] = (), exc: Exception | None = None):
-    """Patch `get_client` so `_stream_live` talks to a MockTransport-backed client."""
     client = _mock_client(status=status, chunks=chunks, exc=exc)
     return patch.object(turn_stream, "get_client", lambda version=None: client)
 

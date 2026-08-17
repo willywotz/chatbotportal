@@ -23,7 +23,6 @@ _ANONYMOUS_PASSWORD_PLACEHOLDER = "!"  # anon users never authenticate with a pa
 
 
 def hash_new_password(password: str) -> str:
-    """Validate a plaintext password and return its bcrypt hash."""
     if len(password) < settings.MIN_PASSWORD_LENGTH:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -54,10 +53,6 @@ async def ensure_not_last_admin(target: User) -> None:
 
 
 async def create_user(data: UserCreate) -> User:
-    """
-    Create a user with an admin-set initial password; the user can log in
-    immediately.
-    """
     hashed = hash_new_password(data.password)
 
     if await User.filter(email=data.email).exists():
@@ -91,7 +86,6 @@ async def list_users(
 
 
 async def get_user_or_404(user_id: uuid.UUID) -> User:
-    """Return one user or raise 404."""
     try:
         return await User.get(id=user_id)
     except DoesNotExist:
@@ -128,7 +122,6 @@ async def deactivate(admin_id: uuid.UUID, user: User) -> None:
 
 
 async def activate(user: User) -> None:
-    """Reactivate a soft-deleted user."""
     user.is_active = True
     await user.save(update_fields=["is_active"])
 

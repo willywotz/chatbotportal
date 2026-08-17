@@ -40,7 +40,6 @@ async def test_test_connection_sets_reset_baseline(db, monkeypatch):
     refreshed = await Agency.get(id=ag.id)
     assert refreshed.stats_reset_at is not None
     assert refreshed.stats_reset_at >= before
-    # the test's own log lands in-window
     log = await ConnectionLog.filter(agency_id=ag.id).first()
     assert log is not None
     assert log.created_at >= refreshed.stats_reset_at
@@ -80,7 +79,6 @@ async def test_failed_test_does_not_reactivate(db, monkeypatch):
     refreshed = await Agency.get(id=ag.id)
     assert refreshed.status == "maintenance"
     assert refreshed.auto_maintenance is True
-    # baseline still set, and the single in-window log is the failure
     assert refreshed.stats_reset_at is not None
 
 

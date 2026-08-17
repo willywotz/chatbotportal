@@ -2,13 +2,11 @@ from pydantic import BaseModel
 from typing import List, Literal, Dict, Union, Any
 from datetime import datetime
 
-# --- Enums / Literals ---
 SentimentType = Literal['positive', 'neutral', 'negative']
 StatusType = Literal['healthy', 'degraded', 'down']
 SeverityType = Literal['info', 'warning', 'critical']
 HeatmapRange = Literal['7d', '30d', '90d']
 
-# --- Models ---
 
 class TopicCluster(BaseModel):
     topic: str

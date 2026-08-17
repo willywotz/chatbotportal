@@ -19,7 +19,6 @@ def is_legal_transition(current: str, target: str) -> bool:
 
 
 async def transition_status(agency: Agency, new_status: str) -> str:
-    """Validate and apply a status transition, saving `agency`. Returns the old status."""
     if not is_legal_transition(agency.status.value, new_status):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

@@ -19,7 +19,6 @@ describe("chat rating workflow (MessageBubble + FeedbackDialog)", () => {
     const onRate = vi.fn();
     render(<MessageBubble message={assistantMessage} onRate={onRate} />);
 
-    // Only the two rating buttons are present (no thinking block, no sources).
     const buttons = screen.getAllByRole("button");
     expect(buttons).toHaveLength(2);
 
@@ -33,7 +32,6 @@ describe("chat rating workflow (MessageBubble + FeedbackDialog)", () => {
 
     await userEvent.click(screen.getAllByRole("button")[1]);
 
-    // Dialog is now open.
     expect(screen.getByText("ขอบคุณสำหรับ Feedback")).toBeInTheDocument();
 
     await userEvent.type(

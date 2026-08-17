@@ -28,10 +28,6 @@ from app.services.auth_session import create_session, delete_session, resolve_se
 router = APIRouter(prefix="/authentication", tags=["Authentication"])
 
 
-# ---------------------------------------------------------------------------
-# Pydantic schemas (defined inline — small enough not to need a separate file)
-# ---------------------------------------------------------------------------
-
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
@@ -58,10 +54,6 @@ def _user_dict(user: User) -> dict:
     }
 
 
-# ---------------------------------------------------------------------------
-# Login
-# ---------------------------------------------------------------------------
-
 @router.post("/login", summary="Sign in and start a session")
 async def login(body: LoginRequest, response: Response) -> dict:
     user = await user_service.get_active_by_email(body.email)
@@ -81,10 +73,6 @@ async def login(body: LoginRequest, response: Response) -> dict:
     return {"user": _user_dict(user)}
 
 
-# ---------------------------------------------------------------------------
-# Logout
-# ---------------------------------------------------------------------------
-
 @router.post("/logout", summary="End the current session")
 async def logout(request: Request, response: Response) -> dict:
     sid = request.cookies.get(settings.SESSION_COOKIE_NAME)
@@ -96,10 +84,6 @@ async def logout(request: Request, response: Response) -> dict:
     )
     return {"ok": True}
 
-
-# ---------------------------------------------------------------------------
-# Anonymous session bootstrap
-# ---------------------------------------------------------------------------
 
 @router.post("/anonymous", summary="Start an anonymous session (idempotent)")
 async def create_anonymous_session(request: Request, response: Response) -> dict:
@@ -120,18 +104,10 @@ async def create_anonymous_session(request: Request, response: Response) -> dict
     return {"user": _user_dict(user)}
 
 
-# ---------------------------------------------------------------------------
-# Me — get current user
-# ---------------------------------------------------------------------------
-
 @router.get("/me", summary="Get current authenticated user")
 async def me(user: User = Depends(get_current_user)) -> dict:
     return {"user": _user_dict(user)}
 
-
-# ---------------------------------------------------------------------------
-# Update profile
-# ---------------------------------------------------------------------------
 
 @router.patch("/me", summary="Update display name or avatar")
 async def update_me(
@@ -145,10 +121,6 @@ async def update_me(
     await user.save()
     return {"user": _user_dict(user)}
 
-
-# ---------------------------------------------------------------------------
-# Change own password
-# ---------------------------------------------------------------------------
 
 @router.post("/change-password", summary="Change your own password")
 async def change_password(

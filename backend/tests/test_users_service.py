@@ -52,7 +52,7 @@ def test_ensure_not_self_blocks_same_id():
 
 
 def test_ensure_not_self_allows_different_id():
-    user_service.ensure_not_self(uuid.uuid4(), uuid.uuid4())  # no raise
+    user_service.ensure_not_self(uuid.uuid4(), uuid.uuid4())
 
 
 @pytest.mark.asyncio
@@ -67,17 +67,14 @@ async def test_ensure_not_last_admin_blocks_demoting_only_admin(db):
 async def test_ensure_not_last_admin_allows_when_another_admin_exists(db):
     admin = await _make_admin()
     await _make_admin(email="admin2@example.com")
-    await user_service.ensure_not_last_admin(admin)  # no raise
+    await user_service.ensure_not_last_admin(admin)
 
 
 @pytest.mark.asyncio
 async def test_ensure_not_last_admin_ignores_non_admin_target(db):
     await _make_admin()
     plain = await User.create(email="u@example.com", hashed_password="x", role="user")
-    await user_service.ensure_not_last_admin(plain)  # no raise
-
-
-# --- Query and mutation helpers moved out of the router (Clean Architecture) ---
+    await user_service.ensure_not_last_admin(plain)
 
 
 @pytest.mark.asyncio
@@ -89,7 +86,7 @@ async def test_list_users_excludes_ephemeral_and_filters(db):
 
     rows = await user_service.list_users(search=None, role=None, status_filter="all")
     emails = {u.email for u in rows}
-    assert "ghost@example.com" not in emails  # ephemeral hidden
+    assert "ghost@example.com" not in emails
     assert {"a@example.com", "plain@example.com"} <= emails
 
     admins = await user_service.list_users(search=None, role="admin", status_filter="all")

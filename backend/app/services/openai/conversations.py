@@ -1,4 +1,3 @@
-"""Conversation + item persistence for the OpenAI-compatible Conversations API."""
 from tortoise.expressions import Q
 
 from app.models.conversation import Conversation, Message

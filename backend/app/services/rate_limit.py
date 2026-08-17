@@ -61,7 +61,6 @@ _limiter_health = LimiterHealth()
 # load matters. (get_or_create, not update_or_create: the latter reapplies
 # defaults on update and would reset count to 0 every call.)
 async def _upsert_and_count(key: str, window_start: int) -> int:
-    """Fixed-window increment for one (key, window_start). Returns the new count."""
     counter, _ = await RateLimitCounter.get_or_create(
         key=key, window_start=window_start, defaults={"count": 0}
     )
@@ -112,5 +111,4 @@ class PostgresFixedWindowLimiter:
 
 
 def build_limiter():
-    """Return the Postgres-backed limiter (the only backend)."""
     return PostgresFixedWindowLimiter()

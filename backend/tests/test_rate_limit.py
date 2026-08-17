@@ -87,15 +87,15 @@ async def test_recovery_logs_degraded_count_once(db, monkeypatch, caplog):
         calls["n"] += 1
         if calls["n"] <= 2:
             raise RuntimeError("db down")
-        return 1  # under the limit
+        return 1
 
     monkeypatch.setattr(rl, "_upsert_and_count", boom_then_ok)
 
     with caplog.at_level(logging.INFO, logger="app.services.rate_limit"):
-        await lim.check("llm:p:s", limit=3, window_s=60.0)  # fail 1
-        await lim.check("llm:p:s", limit=3, window_s=60.0)  # fail 2
-        r3 = await lim.check("llm:p:s", limit=3, window_s=60.0)  # recover
-        r4 = await lim.check("llm:p:s", limit=3, window_s=60.0)  # still healthy
+        await lim.check("llm:p:s", limit=3, window_s=60.0)
+        await lim.check("llm:p:s", limit=3, window_s=60.0)
+        r3 = await lim.check("llm:p:s", limit=3, window_s=60.0)
+        r4 = await lim.check("llm:p:s", limit=3, window_s=60.0)
 
     assert r3 == RateLimitResult(True, 0)
     assert r4 == RateLimitResult(True, 0)
@@ -105,4 +105,4 @@ async def test_recovery_logs_degraded_count_once(db, monkeypatch, caplog):
         if r.levelno == logging.INFO and "recover" in r.getMessage().lower()
     ]
     assert len(infos) == 1
-    assert "2" in infos[0].getMessage()  # two requests degraded during the outage
+    assert "2" in infos[0].getMessage()

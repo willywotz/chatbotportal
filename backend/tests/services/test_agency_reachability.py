@@ -71,7 +71,6 @@ async def test_head_2xx_is_success():
 
 @pytest.mark.asyncio
 async def test_head_405_is_still_reachable():
-    """A POST-only endpoint answers HEAD with 405 — reachable, no POST probe."""
     fake = _FakeClient(head=_Resp(405, "Method Not Allowed"))
     with patch("app.services.agency.httpx.AsyncClient", return_value=fake):
         res = await probe("API", _agency(expected_payload={"query": "__query__"}))

@@ -89,7 +89,6 @@ async def test_non_streaming_returns_a_complete_response(db):
 
 @pytest.mark.asyncio
 async def test_http_onechat_version_routes_to_v3(db):
-    """`onechat_version` on the request body overrides the resolved upstream."""
     rec: dict = {}
 
     def handler(request: httpx.Request) -> httpx.Response:

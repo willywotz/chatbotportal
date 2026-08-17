@@ -23,15 +23,15 @@ router.get("", response_model=AgencyListResponse, summary="List agencies")(crud.
 router.post("", response_model=AgencyResponse, status_code=status.HTTP_201_CREATED, summary="Create agency")(crud.create_agency)
 
 # Literal-path sub-routers first (no /{agency_id} wildcard)
-router.include_router(spec.router)      # /mcp/discover, /parse-spec
+router.include_router(spec.router)
 
 # Sub-resource routers
-router.include_router(lifecycle.router)  # /{id}/status, /{id}/conformance, /{id}/health/history, /{id}/test
-router.include_router(golden.router)     # /{id}/golden-questions, /{id}/eval-results
-router.include_router(logo.router)       # /{id}/logo (GET/POST)
+router.include_router(lifecycle.router)
+router.include_router(golden.router)
+router.include_router(logo.router)
 
 # CRUD parametric routes last (/{id} catch-all)
-router.include_router(crud.router)       # /{id}, /{id}/increment-calls
+router.include_router(crud.router)
 
 # Re-export handler functions that tests import directly from this package.
 create_agency = crud.create_agency

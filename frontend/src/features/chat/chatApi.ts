@@ -42,8 +42,6 @@ export async function sendChatQuery(request: ChatApiRequest): Promise<ChatApiRes
   return api.post<ChatApiResponse>('/api/v1/chat', request);
 }
 
-// --- SSE Streaming ---
-
 export type SSEEventType = 'step' | 'agencies' | 'intent' | 'routing' | 'agency_start' | 'agency_responded' | 'agency_verified' | 'answer' | 'done' | 'error';
 
 export interface SSECallbacks {
@@ -151,7 +149,6 @@ export async function sendChatQuerySSE(
     return true; // SSE endpoint existed but request failed — don't fallback
   }
 
-  // Parse SSE stream
   const reader = response.body!.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
@@ -188,7 +185,7 @@ export async function sendChatQuerySSE(
 
       buffer += decoder.decode(value, { stream: true });
       const parts = buffer.split('\n\n');
-      buffer = parts.pop()!; // last incomplete chunk stays in buffer
+      buffer = parts.pop()!;
       for (const part of parts) dispatch(part);
     }
   } finally {
@@ -198,15 +195,12 @@ export async function sendChatQuerySSE(
     // On all other paths (normal completion or thrown error), releaseLock() is safe.
     if (!idleTimeout) {
       reader.releaseLock();
-      // Flush any event not terminated with \n\n
       dispatch(buffer);
     }
   }
 
   return true;
 }
-
-// --- WS Streaming ---
 
 /**
  * Send chat query over the WS chat endpoint. Resolves `true` once a `done`

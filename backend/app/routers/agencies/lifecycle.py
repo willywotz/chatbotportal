@@ -1,5 +1,3 @@
-"""Lifecycle endpoints: status transitions, conformance, test connection, health history."""
-
 import uuid
 from typing import Any
 

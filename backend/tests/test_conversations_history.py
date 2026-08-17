@@ -72,11 +72,8 @@ async def test_history_date_range_filters_in_query():
     assert [d["title"] for d in r.json()["data"]] == ["new"]
 
 
-# ─── v5 summary exposure ─────────────────────────────────────────────────────
-
 @pytest.mark.usefixtures("db")
 async def test_conversation_messages_expose_summary_fields():
-    """The history detail dialog needs the stored summary to render its card."""
     from app.models.conversation import Conversation, Message
     from app.routers.conversations import get_conversation_messages
     from unittest.mock import MagicMock

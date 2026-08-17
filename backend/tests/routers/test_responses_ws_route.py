@@ -74,9 +74,6 @@ async def test_invalid_token_is_anonymous_not_an_exception(db):
     assert await resolve_ws_user(_FakeSocket({"authorization": "Bearer tcg_bogus"})) is None
 
 
-# ─── End-to-end: a real socket through TestClient.websocket_connect ──────────
-
-
 @pytest.fixture(autouse=True)
 def _isolated_connection_registry():
     """`_connections` is module-level state shared across every test module.
@@ -136,7 +133,6 @@ def test_response_create_round_trip_over_a_real_socket():
 
 
 def test_response_create_onechat_version_routes_to_v3():
-    """`onechat_version` on a response.create frame overrides the resolved upstream."""
     rec: dict = {}
 
     def handler(request: httpx.Request) -> httpx.Response:

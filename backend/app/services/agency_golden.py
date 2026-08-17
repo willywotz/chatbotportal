@@ -1,5 +1,3 @@
-"""Golden question and eval result data access, scoped to one agency."""
-
 import uuid
 
 from fastapi import HTTPException, status

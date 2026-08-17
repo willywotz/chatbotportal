@@ -1,5 +1,3 @@
-"""Usage heatmap: message volume by hour/day, peaks, and busiest agency."""
-
 import logging
 from datetime import timedelta
 

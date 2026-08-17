@@ -97,7 +97,6 @@ async def _similarity_search(
     threshold: float,
     cutoff,
 ) -> Message | None:
-    """Search for similar questions using pg_trgm text similarity."""
     conn = Tortoise.get_connection("default")
     try:
         rows = await conn.execute_query_dict(

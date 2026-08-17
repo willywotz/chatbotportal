@@ -34,7 +34,6 @@ export default function PopularQuestionsPage() {
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: QUERY_KEY });
 
-  // Create
   const [createOpen, setCreateOpen] = useState(false);
   const createMutation = useMutation({
     mutationFn: (input: PopularQuestionInput) => createPopularQuestion(input),
@@ -46,7 +45,6 @@ export default function PopularQuestionsPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // Edit
   const [editTarget, setEditTarget] = useState<PopularQuestionAdmin | null>(null);
   const editMutation = useMutation({
     mutationFn: ({ id, body }: { id: string; body: PopularQuestionUpdate }) =>
@@ -59,7 +57,6 @@ export default function PopularQuestionsPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // Delete
   const [deleteTarget, setDeleteTarget] = useState<PopularQuestionAdmin | null>(null);
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deletePopularQuestion(id),
@@ -79,7 +76,6 @@ export default function PopularQuestionsPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // Regenerate
   const regenerateMutation = useMutation({
     mutationFn: regeneratePopularQuestions,
     onSuccess: () => {

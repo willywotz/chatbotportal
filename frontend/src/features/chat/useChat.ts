@@ -39,7 +39,6 @@ export function useChat() {
     });
     const ok = await updateMessageRating(id, rating, feedbackText);
     if (!ok) {
-      // Roll back to previous rating
       setMessages((prev) =>
         prev.map((m) => (m.id === id ? { ...m, rating: previousRating ?? null } : m))
       );
@@ -53,7 +52,6 @@ export function useChat() {
   }, [streamCancel]);
 
   const finalizeStreaming = useCallback(() => {
-    // Read from streamingRef.current (always synchronous / latest) — same as original.
     const state = streamingRef.current;
     state.sessionId && setConversationId(state.sessionId);
     const aiMsg = buildAiMessageFromState(state);

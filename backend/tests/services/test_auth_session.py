@@ -32,7 +32,6 @@ async def test_expired_session_returns_none_and_is_deleted(db, make_user):
 
     user = await make_user()
     sid = await create_session(str(user.id))
-    # Force expiry in the past.
     await Session.filter(id=sid).update(expires_at=now() - timedelta(seconds=1))
     assert await resolve_session(sid) is None
     assert await Session.filter(id=sid).count() == 0
@@ -63,5 +62,5 @@ async def test_remaining_ttl_none_for_missing(db):
 
 @pytest.mark.asyncio
 async def test_delete_and_expire_on_missing_sid_are_noops(db):
-    await delete_session("missing")          # no raise
-    await expire_session("missing", 5)       # no raise
+    await delete_session("missing")
+    await expire_session("missing", 5)

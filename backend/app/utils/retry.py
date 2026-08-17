@@ -1,4 +1,3 @@
-"""Retry an async callable on transient network errors with exponential backoff."""
 import asyncio
 
 import httpx

@@ -1,17 +1,9 @@
-"""
-Auth utilities — password hashing and API-key generation/hashing.
-"""
-
 from __future__ import annotations
 
 import hashlib
 import secrets
 
 import bcrypt
-
-# ---------------------------------------------------------------------------
-# Password hashing
-# ---------------------------------------------------------------------------
 
 
 def hash_password(plain: str) -> str:
@@ -24,10 +16,6 @@ def verify_password(plain: str, hashed: str) -> bool:
     except ValueError:
         return False  # unusable/"!" hash (e.g. anonymous users) never authenticates
 
-
-# ---------------------------------------------------------------------------
-# API key generation and hashing
-# ---------------------------------------------------------------------------
 
 API_KEY_PREFIX = "tcg_"
 

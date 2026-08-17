@@ -17,7 +17,7 @@ from app.services.auth_session import resolve_session
 async def resolve_ws_user(websocket) -> User | None:
     auth = websocket.headers.get("authorization", "")
     if auth.lower().startswith("bearer "):
-        return await _resolve_api_key(auth[7:])  # header decides
+        return await _resolve_api_key(auth[7:])
     sid = websocket.cookies.get(settings.SESSION_COOKIE_NAME)
     if sid:
         user_id = await resolve_session(sid)

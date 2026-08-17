@@ -1,8 +1,3 @@
-"""
-Data access for conversation & message-history. Kept separate from the router
-so the ORM queries can be unit-tested directly and the router stays thin.
-"""
-
 from __future__ import annotations
 
 import uuid
@@ -17,7 +12,6 @@ from app.schemas.conversation import SaveConversationRequest
 
 
 async def create_conversation(body: SaveConversationRequest, user: User | None) -> Conversation:
-    """Create a conversation and bulk-insert its messages."""
     conv = await Conversation.create(
         title=body.title or "สนทนาใหม่",
         preview=body.preview or "",

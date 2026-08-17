@@ -101,7 +101,6 @@ async def _compute_executive_metrics() -> dict:
 
 
 def _build_brief_prompt(m: dict) -> str:
-    """Build the Thai LLM prompt for the weekly brief from computed metrics."""
     return f"""
         คุณเป็นนักวิเคราะห์ข้อมูลให้ผู้บริหารระดับสูงของรัฐบาลไทย กรุณาสรุปข้อมูลการใช้งาน AI Portal ในสัปดาห์นี้เป็นภาษาไทย ความยาว 3-4 ย่อหน้า เน้น insights เชิงกลยุทธ์และข้อเสนอแนะเชิงนโยบาย
     ข้อมูล:

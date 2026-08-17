@@ -15,7 +15,6 @@ async def test_list_returns_entries_newest_first(db):
 
     assert result["total"] == 2
     assert len(result["data"]) == 2
-    # newest first
     assert result["data"][0]["action"] == "user.deactivate"
     assert result["data"][0]["object_id"] == "2"
 

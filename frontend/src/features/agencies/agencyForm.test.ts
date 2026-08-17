@@ -15,10 +15,6 @@ import {
 } from "./agencyForm";
 import type { Agency } from "@/shared/types/agency";
 
-// ---------------------------------------------------------------------------
-// Fixtures
-// ---------------------------------------------------------------------------
-
 const API_AGENCY: Agency = {
   id: "1",
   name: "Test Agency",
@@ -70,10 +66,6 @@ const MCP_AGENCY: Agency = {
   health: { state: "unknown", uptime24h: null, avgLatencyMs24h: null, lastCheckAt: null },
 };
 
-// ---------------------------------------------------------------------------
-// DEFAULT_FORM_STATE
-// ---------------------------------------------------------------------------
-
 describe("DEFAULT_FORM_STATE", () => {
   it("has expected baseline values", () => {
     expect(DEFAULT_FORM_STATE.name).toBe("");
@@ -88,10 +80,6 @@ describe("DEFAULT_FORM_STATE", () => {
     expect(DEFAULT_FORM_STATE.apiHeaders).toEqual([]);
   });
 });
-
-// ---------------------------------------------------------------------------
-// agencyToFormState
-// ---------------------------------------------------------------------------
 
 describe("agencyToFormState", () => {
   it("maps all Agency fields to form state for API agency", () => {
@@ -148,10 +136,6 @@ describe("agencyToFormState", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// parseExpectedPayload
-// ---------------------------------------------------------------------------
-
 describe("parseExpectedPayload", () => {
   it("parses valid JSON object", () => {
     const { value, error } = parseExpectedPayload('{"query":"test","limit":10}');
@@ -183,10 +167,6 @@ describe("parseExpectedPayload", () => {
     expect(error).toBe(false);
   });
 });
-
-// ---------------------------------------------------------------------------
-// buildSavePayload
-// ---------------------------------------------------------------------------
 
 describe("buildSavePayload", () => {
   const baseState = {
@@ -282,10 +262,6 @@ describe("buildSavePayload", () => {
     expect(payload.expectedPayload).toBeNull();
   });
 });
-
-// ---------------------------------------------------------------------------
-// PROTOCOL_INFO
-// ---------------------------------------------------------------------------
 
 describe("PROTOCOL_INFO", () => {
   it("has entries for all three connection types", () => {

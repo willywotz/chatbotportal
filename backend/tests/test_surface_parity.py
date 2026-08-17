@@ -22,7 +22,6 @@ _SAMPLE_ID = "abc-123"
 
 
 def _concrete_paths() -> list[tuple[str, str]]:
-    """Every (method, concrete path) pair the app registers, params filled in."""
     pairs: list[tuple[str, str]] = []
     for route in app.routes:
         if not isinstance(route, APIRoute):
@@ -41,7 +40,6 @@ def _make_request(method: str, path: str, *, api_key: str | None = None) -> Requ
 
 
 async def _reachable_by(api_key: str | None) -> set[tuple[str, str]]:
-    """The (method, path) set a caller with this API key passes the chokepoint for."""
     reachable = set()
     for method, path in _concrete_paths():
         try:

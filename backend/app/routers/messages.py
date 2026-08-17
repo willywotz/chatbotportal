@@ -1,11 +1,3 @@
-"""
-Message routes — rating update.
-
-Endpoints
----------
-  PATCH  /messages/{id}/rating   Update message rating (up/down) + optional feedback
-"""
-
 import uuid
 
 from fastapi import APIRouter

@@ -1,5 +1,3 @@
-"""Spec and MCP discovery endpoints: parse-spec, mcp/discover."""
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 

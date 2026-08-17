@@ -26,8 +26,6 @@ def _tool_name(tool) -> str:
     return tool.name
 
 
-# ── Pure helpers ─────────────────────────────────────────────────────────────
-
 def _dispatch_timeout(route: dict) -> int:
     return route.get("dispatch_timeout_s") or settings.AGENCY_CHAT_TIMEOUT
 
@@ -126,8 +124,6 @@ def extract_mcp_text(result) -> str:
 
     return str(result)
 
-
-# ── Async dispatch functions ─────────────────────────────────────────────────
 
 async def dispatch_a2a(route: dict, conversation_id: str) -> dict:
     sub_q = route["sub_question"]

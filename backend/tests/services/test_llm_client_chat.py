@@ -31,7 +31,6 @@ async def test_chat_returns_result_and_records_usage(db):
     with patch.object(c.httpx, "AsyncClient", factory):
         res = await c.chat(purpose="classification", messages=[{"role": "user", "content": "x"}])
     assert res.content == "hi"
-    # auth header + usage-include injected
     _, kwargs = client.post.call_args
     assert kwargs["headers"]["Authorization"] == "Bearer sk"
     assert kwargs["json"]["usage"] == {"include": True}

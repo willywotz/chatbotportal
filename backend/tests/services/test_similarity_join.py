@@ -16,7 +16,6 @@ async def _build_cache_entry(
     answer: str = "visit the embassy",
     conv_status: str = "success",
 ) -> tuple[Message, Message, ConnectionLog, Conversation]:
-    """Build a user msg + assistant child + conn_log in one conversation."""
     conv = await Conversation.create(status=conv_status)
     user_msg = await Message.create(
         conversation=conv,
@@ -44,7 +43,6 @@ async def _build_cache_entry(
 
 @pytest.mark.usefixtures("db")
 async def test_match_resolution_returns_correct_objects():
-    """Cache hit: returned tuple ids match the objects that were created."""
     from unittest.mock import AsyncMock, patch
 
     from app.services import similarity
@@ -67,7 +65,6 @@ async def test_match_resolution_returns_correct_objects():
 
 @pytest.mark.usefixtures("db")
 async def test_match_resolution_preserves_payload_fields():
-    """The returned assistant message has correct content, sources, agent_steps, agency_ids."""
     from unittest.mock import AsyncMock, patch
 
     from app.services import similarity
@@ -92,7 +89,6 @@ async def test_match_resolution_preserves_payload_fields():
 
 @pytest.mark.usefixtures("db")
 async def test_non_success_conversation_excluded():
-    """A matched user message from a non-success conversation returns None."""
     from unittest.mock import AsyncMock, patch
 
     from app.services import similarity
@@ -111,7 +107,6 @@ async def test_non_success_conversation_excluded():
 
 @pytest.mark.usefixtures("db")
 async def test_no_match_returns_none():
-    """When no similar question is found the function returns None."""
     from unittest.mock import AsyncMock, patch
 
     from app.services import similarity
@@ -128,7 +123,6 @@ async def test_no_match_returns_none():
 
 @pytest.mark.usefixtures("db")
 async def test_missing_assistant_message_returns_none():
-    """If no assistant child exists for the matched user message, return None."""
     from unittest.mock import AsyncMock, patch
 
     from app.services import similarity
@@ -137,7 +131,6 @@ async def test_missing_assistant_message_returns_none():
     user_msg = await Message.create(
         conversation=conv, role="user", content="orphan question"
     )
-    # No assistant message created — no conn_log either
 
     with patch.object(
         similarity, "effective_cutoff", new=AsyncMock(return_value=None)
@@ -151,7 +144,6 @@ async def test_missing_assistant_message_returns_none():
 
 @pytest.mark.usefixtures("db")
 async def test_missing_conn_log_returns_none():
-    """If the conn_log is absent for the assistant message, return None."""
     from unittest.mock import AsyncMock, patch
 
     from app.services import similarity
@@ -166,7 +158,6 @@ async def test_missing_conn_log_returns_none():
         role="assistant",
         content="answer without log",
     )
-    # No ConnectionLog created
 
     with patch.object(
         similarity, "effective_cutoff", new=AsyncMock(return_value=None)
@@ -180,7 +171,6 @@ async def test_missing_conn_log_returns_none():
 
 @pytest.mark.usefixtures("db")
 async def test_query_count_tail_is_one_raw_join(monkeypatch):
-    """The post-match tail uses exactly 1 raw execute_query_dict call (the join query)."""
     from unittest.mock import AsyncMock, patch
 
     from tortoise import Tortoise

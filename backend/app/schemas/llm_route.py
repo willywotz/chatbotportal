@@ -17,12 +17,10 @@ class LLMRouteBase(BaseModel):
 
 
 class LLMRouteCreate(LLMRouteBase):
-    """Request body for creating a new LLM route."""
     pass
 
 
 class LLMRouteUpdate(BaseModel):
-    """Request body for partial update of an LLM route (all fields optional)."""
     purpose: Purpose | None = None
     provider_id: uuid.UUID | None = None
     model: str | None = None
@@ -46,7 +44,6 @@ class LLMRouteResponse(BaseModel):
 
 
 class LLMRouteListResponse(BaseModel):
-    """Paginated list of LLM routes."""
     data: list[LLMRouteResponse]
     total: int
 

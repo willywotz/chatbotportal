@@ -17,10 +17,6 @@
 
 import axios, { type AxiosInstance, type AxiosResponse } from 'axios';
 
-// ---------------------------------------------------------------------------
-// Axios instance
-// ---------------------------------------------------------------------------
-
 var baseURL = import.meta.env.VITE_API_BASE_URL as string | undefined;
 
 if (!baseURL || baseURL.trim() === '') {
@@ -54,18 +50,10 @@ axiosInstance.interceptors.response.use(
   }
 );
 
-// ---------------------------------------------------------------------------
-// Typed helper — returns response.data directly (matches the old api.* surface)
-// ---------------------------------------------------------------------------
-
 async function req<T>(fn: () => Promise<AxiosResponse<T>>): Promise<T> {
   const res = await fn();
   return res.data;
 }
-
-// ---------------------------------------------------------------------------
-// Public API  (drop-in replacement for the old fetch-based api object)
-// ---------------------------------------------------------------------------
 
 export const api = {
   // `params` is `object`, not `Record<string, unknown>`: an interface has no

@@ -64,17 +64,14 @@ describe("AuditLogPage server pagination", () => {
 
     renderPage();
 
-    // Wait for initial page to load
     await waitFor(() =>
       expect(screen.getByText("actor-0@example.com")).toBeInTheDocument(),
     );
 
     expect(handler).toHaveBeenCalledWith(0);
 
-    // Click Next
     await userEvent.click(screen.getByRole("button", { name: /ถัดไป/ }));
 
-    // Should now show page 2 entries (offset=50)
     await waitFor(() =>
       expect(screen.getByText("actor-50@example.com")).toBeInTheDocument(),
     );
@@ -165,13 +162,11 @@ describe("AuditLogPage server pagination", () => {
       expect(screen.getByRole("button", { name: /ถัดไป/ })).toBeEnabled(),
     );
 
-    // Go to page 2
     await userEvent.click(screen.getByRole("button", { name: /ถัดไป/ }));
     await waitFor(() =>
       expect(screen.getByText("actor-50@example.com")).toBeInTheDocument(),
     );
 
-    // Type in actor filter — should reset offset to 0
     const calls = handler.mock.calls.length;
     await userEvent.type(screen.getByPlaceholderText(/ค้นหาอีเมลผู้กระทำ/), "a");
 

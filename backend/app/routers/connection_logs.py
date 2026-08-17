@@ -7,9 +7,6 @@ from app.services import connection_log as connection_log_service
 
 router = APIRouter(prefix="/connection-logs", tags=["Connection Logs"])
 
-# ---------------------------------------------------------------------------
-# Connection logs
-# ---------------------------------------------------------------------------
 
 class ConnectionLogItem(BaseModel):
     id: str

@@ -20,17 +20,9 @@ import {
 } from './chatHelpers';
 import type { StreamingState } from '@/shared/types';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function baseState(): StreamingState {
   return { ...INITIAL_STREAMING_STATE };
 }
-
-// ---------------------------------------------------------------------------
-// STEP_LABELS
-// ---------------------------------------------------------------------------
 
 describe('STEP_LABELS', () => {
   it('has entries for all five pipeline steps', () => {
@@ -42,10 +34,6 @@ describe('STEP_LABELS', () => {
     }
   });
 });
-
-// ---------------------------------------------------------------------------
-// buildAgentStepsFromStreaming
-// ---------------------------------------------------------------------------
 
 describe('buildAgentStepsFromStreaming', () => {
   it('returns empty array for empty state', () => {
@@ -123,10 +111,6 @@ describe('buildAgentStepsFromStreaming', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// applyStepEvent
-// ---------------------------------------------------------------------------
-
 describe('applyStepEvent', () => {
   it('adds a new running step', () => {
     const next = applyStepEvent(baseState(), { name: 'discover', status: 'running', ms: null });
@@ -140,7 +124,6 @@ describe('applyStepEvent', () => {
     const next = applyStepEvent(state, { name: 'discover', status: 'done', ms: 800 });
     expect(next.pipelineSteps).toHaveLength(1);
     expect(next.pipelineSteps[0]).toEqual({ name: 'discover', status: 'done', ms: 800 });
-    // currentStep stays as previous value when not running
     expect(next.currentStep).toBe('discover');
   });
 
@@ -157,10 +140,6 @@ describe('applyStepEvent', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// applyAgenciesEvent
-// ---------------------------------------------------------------------------
-
 describe('applyAgenciesEvent', () => {
   it('sets the agencies list', () => {
     const agencies = [{ id: 'dbd', name: 'DBD', description: null, data_scope: [] }];
@@ -168,10 +147,6 @@ describe('applyAgenciesEvent', () => {
     expect(next.agencies).toEqual(agencies);
   });
 });
-
-// ---------------------------------------------------------------------------
-// applyIntentEvent
-// ---------------------------------------------------------------------------
 
 describe('applyIntentEvent', () => {
   it('stores the intent event', () => {
@@ -181,10 +156,6 @@ describe('applyIntentEvent', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// applyRoutingEvent
-// ---------------------------------------------------------------------------
-
 describe('applyRoutingEvent', () => {
   it('stores the routing event', () => {
     const event = { sub_questions: [] };
@@ -192,10 +163,6 @@ describe('applyRoutingEvent', () => {
     expect(next.routing).toEqual(event);
   });
 });
-
-// ---------------------------------------------------------------------------
-// applyAgencyStartEvent
-// ---------------------------------------------------------------------------
 
 describe('applyAgencyStartEvent', () => {
   it('adds agency with running status', () => {
@@ -213,10 +180,6 @@ describe('applyAgencyStartEvent', () => {
     });
   });
 });
-
-// ---------------------------------------------------------------------------
-// applyAgencyRespondedEvent
-// ---------------------------------------------------------------------------
 
 describe('applyAgencyRespondedEvent', () => {
   it('updates existing agency status to ok', () => {
@@ -261,10 +224,6 @@ describe('applyAgencyRespondedEvent', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// applyAgencyVerifiedEvent
-// ---------------------------------------------------------------------------
-
 describe('applyAgencyVerifiedEvent', () => {
   it('updates agency to passed with relevance score', () => {
     const state = applyAgencyStartEvent(baseState(), {
@@ -296,10 +255,6 @@ describe('applyAgencyVerifiedEvent', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// applyAnswerEvent
-// ---------------------------------------------------------------------------
-
 describe('applyAnswerEvent', () => {
   it('stores answer, sections, and errors', () => {
     const event = {
@@ -315,10 +270,6 @@ describe('applyAnswerEvent', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// applyDoneEvent
-// ---------------------------------------------------------------------------
-
 describe('applyDoneEvent', () => {
   it('marks state as done and stores session_id + total_ms', () => {
     const next = applyDoneEvent(baseState(), { session_id: 'sess-123', total_ms: 4200 });
@@ -332,10 +283,6 @@ describe('applyDoneEvent', () => {
     expect(next.messageId).toBe('db-msg-1');
   });
 });
-
-// ---------------------------------------------------------------------------
-// applyErrorEvent
-// ---------------------------------------------------------------------------
 
 describe('applyErrorEvent', () => {
   it('appends an SSE error and marks done', () => {
@@ -352,10 +299,6 @@ describe('applyErrorEvent', () => {
     expect(s2.errors).toHaveLength(2);
   });
 });
-
-// ---------------------------------------------------------------------------
-// buildAiMessageFromState
-// ---------------------------------------------------------------------------
 
 describe('buildAiMessageFromState', () => {
   it('returns null when there is no answer', () => {
@@ -380,7 +323,6 @@ describe('buildAiMessageFromState', () => {
     expect(msg!.role).toBe('assistant');
     expect(msg!.content).toBe('The answer is 42.');
     expect(msg!.agentSteps).toHaveLength(1);
-    // sources are derived from sections
     expect(msg!.sources).toHaveLength(1);
     expect(msg!.sources![0].agency).toBe('NSO');
     expect(msg!.sources![0].title).toBe('General');
@@ -396,10 +338,6 @@ describe('buildAiMessageFromState', () => {
     expect(msg!.id).toBe('db-msg-1');
   });
 });
-
-// ---------------------------------------------------------------------------
-// buildAgentStepsSnapshot
-// ---------------------------------------------------------------------------
 
 describe('buildAgentStepsSnapshot', () => {
   it('returns null when nothing was captured', () => {
@@ -430,10 +368,6 @@ describe('buildAgentStepsSnapshot', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// buildConnectionLostMessage / buildGenericErrorMessage
-// ---------------------------------------------------------------------------
-
 describe('buildConnectionLostMessage', () => {
   it('returns an assistant message with the connection-lost text', () => {
     const msg = buildConnectionLostMessage();
@@ -451,10 +385,6 @@ describe('buildGenericErrorMessage', () => {
     expect(msg.rating).toBeNull();
   });
 });
-
-// ---------------------------------------------------------------------------
-// Full pipeline simulation
-// ---------------------------------------------------------------------------
 
 describe('v5 streaming fields', () => {
   it('records the summarize step with a Thai label', () => {
@@ -508,44 +438,35 @@ describe('full pipeline state simulation', () => {
   it('processes a realistic SSE event sequence end-to-end', () => {
     let state = baseState();
 
-    // step: discover running
     state = applyStepEvent(state, { name: 'discover', status: 'running', ms: null });
     expect(state.currentStep).toBe('discover');
 
-    // agencies found
     state = applyAgenciesEvent(state, {
       agencies: [{ id: 'dbd', name: 'DBD', description: null, data_scope: [] }],
       count: 1,
     });
     expect(state.agencies).toHaveLength(1);
 
-    // step: discover done
     state = applyStepEvent(state, { name: 'discover', status: 'done', ms: 300 });
     expect(state.pipelineSteps[0].status).toBe('done');
 
-    // intent
     state = applyIntentEvent(state, { intent: 'search', normalized_query: 'company registration', reasoning: null });
     expect(state.intent?.intent).toBe('search');
 
-    // routing
     state = applyRoutingEvent(state, {
       sub_questions: [{ section_label: 'Registration', broadcast: false, agencies: [{ id: 'dbd', name: 'DBD', query: 'reg' }] }],
     });
     expect(state.routing?.sub_questions).toHaveLength(1);
 
-    // agency start
     state = applyAgencyStartEvent(state, { agency_id: 'dbd', agency_name: 'DBD', query: 'reg', section_label: 'Registration' });
     expect(state.agencyStatuses['dbd'].status).toBe('running');
 
-    // agency responded ok
     state = applyAgencyRespondedEvent(state, { agency_id: 'dbd', agency_name: 'DBD', status: 'ok', section_label: null, error_type: null });
     expect(state.agencyStatuses['dbd'].status).toBe('ok');
 
-    // agency verified passed
     state = applyAgencyVerifiedEvent(state, { agency_id: 'dbd', agency_name: 'DBD', status: 'passed', relevance_score: 0.95, section_label: null });
     expect(state.agencyStatuses['dbd'].status).toBe('passed');
 
-    // answer
     state = applyAnswerEvent(state, {
       answer: 'You can register a company at DBD.',
       sections: [{ title: 'Registration', agencies: [{ id: 'dbd', name: 'DBD', query: 'reg', content: 'details' }] }],
@@ -554,12 +475,10 @@ describe('full pipeline state simulation', () => {
     });
     expect(state.answer).toBeTruthy();
 
-    // done
     state = applyDoneEvent(state, { session_id: 'sess-abc', total_ms: 2500 });
     expect(state.done).toBe(true);
     expect(state.sessionId).toBe('sess-abc');
 
-    // build final message
     const msg = buildAiMessageFromState(state);
     expect(msg).not.toBeNull();
     expect(msg!.content).toBe('You can register a company at DBD.');
