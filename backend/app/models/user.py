@@ -14,7 +14,7 @@ class User(Model):
     email = fields.CharField(max_length=255, unique=True)
     display_name = fields.CharField(max_length=255, null=True)
     hashed_password = fields.CharField(max_length=500)
-    role = fields.CharField(max_length=20, default="user")     # user | admin
+    role = fields.CharField(max_length=20, default="user")     # user | staff | admin
     avatar_url = fields.CharField(max_length=500, null=True)
     is_active = fields.BooleanField(default=True)
     is_ephemeral = fields.BooleanField(default=False)  # anonymous temp-user; prune later
@@ -33,10 +33,7 @@ class User(Model):
         return self.role == "admin"
 
 class UserAPIKey(Model):
-    """
-    API keys for users to access the AI Chatbot API.
-    Each key is associated with a user and has its own permissions and expiration.
-    """
+    """API keys for users to access the AI Chatbot API. Inherits its owner's role."""
 
     id = fields.UUIDField(primary_key=True, default=generate_uuid)
     user = fields.ForeignKeyField("models.User", related_name="api_keys")
