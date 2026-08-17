@@ -445,12 +445,16 @@ usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package m
   never reaches prod. Deploy does **not** depend on the test job.
 - **Prod env** template: `.env.prod.example` (set `JWT_SECRET`, `POSTGRES_PASSWORD`, `CORS_ORIGINS`,
   OneChat URLs, `OPENROUTER_API_KEY`). `ENV=production` makes startup refuse the default JWT secret.
-- **Local dev** (`docs/development.md`): a bare `docker compose up` auto-merges
+- **Local dev** (`docs/development.md`): `docker compose up --watch` auto-merges
   `docker-compose.override.yaml`, which swaps the `development` Dockerfile stages (Vite dev server +
-  `fastapi dev --reload`) and bind-mounts `./backend` + `./frontend` for hot-reload. Frontend HMR
-  pushes instant updates (`[vite] hmr update`); backend `watchfiles` restarts uvicorn on `.py` edits.
-  The frontend dev healthcheck probes `/` (Vite has no `/healthz`, which lives in the production
-  nginx stage). Dev runs plain HTTP — `CERT_DOMAIN` is unset, so Caddy serves `:80` only.
+  `fastapi dev --reload`) and uses Compose `develop.watch` (sync actions) to copy source edits into
+  the running containers — **no bind-mounts** (avoids WSL2 cross-filesystem issues + host
+  `node_modules` clobbering). `--watch` is required: a plain `docker compose up` runs the baked dev
+  image without syncing. `sync` copies `backend/app`/`frontend/src` (backend `watchfiles` restarts
+  uvicorn; frontend Vite pushes an HMR update); `sync+restart` handles `migrations`; `rebuild` fires
+  on dependency-manifest changes. The frontend dev healthcheck probes `/` (Vite has no `/healthz`,
+  which lives in the production nginx stage). Dev runs plain HTTP — `CERT_DOMAIN` is unset, so Caddy
+  serves `:80` only.
 
 ## Testing suites
 

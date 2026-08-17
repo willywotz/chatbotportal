@@ -1,10 +1,13 @@
 # Local development
 
-The dev stack is the prod stack with two swaps: the `development` Dockerfile
-stages (hot-reload servers instead of production servers) and source
-bind-mounts (host edits are live inside the containers). A `docker-compose.override.yaml`
-applies both automatically, so a bare `docker compose up` runs the full dev
-stack. The override is **never** merged into prod — `deploy.yml` runs
+The dev stack is the prod stack with one swap: the `development` Dockerfile
+stages (hot-reload servers instead of production servers). A
+`docker-compose.override.yaml` targets those stages and wires Compose
+`develop.watch` to sync source edits into the running containers — **no
+bind-mounts**, so no WSL2 cross-filesystem issues or host `node_modules`
+clobbering.
+
+The override is **never** merged into prod — `deploy.yml` runs
 `docker compose -f docker-compose.yaml up`, and an explicit `-f` disables
 override merging.
 
@@ -18,7 +21,7 @@ override merging.
 
 ```bash
 cp .env.example .env          # if you don't have one
-docker compose up --build     # builds the dev images, starts the stack
+docker compose up --watch --build   # builds dev images, starts stack, begins syncing
 ```
 
 Reach the app at `http://localhost:${EXTERNAL_HTTP_PORT}` (8080 by default).
@@ -27,26 +30,29 @@ same routing contract as prod, just plain HTTP (no `CERT_DOMAIN` set).
 
 ## Hot-reload
 
-| Service | How | What reloads |
-|---|---|---|
-| frontend | Vite dev server (HMR) | Edits to `frontend/src/**` appear in the browser instantly, no full reload. |
-| backend | `fastapi dev` (`--reload`) | Edits to `backend/app/**/*.py` restart uvicorn automatically (single worker). |
+Hot-reload only activates with `--watch`. A plain `docker compose up` runs the
+baked dev image fine, but edits on the host are **not** synced into the
+container — always use `--watch` for development.
 
-Both work because the override bind-mounts `./backend` and `./frontend` into
-the containers — save a file on the host, the change is live inside.
+`develop.watch` has three actions, each scoped to a path:
+
+| Action | When | Effect |
+|---|---|---|
+| `sync` | Source edits (`backend/app`, `frontend/src`) | File is copied into the container. The dev server then reloads: backend `watchfiles` restarts uvicorn; frontend Vite pushes an HMR update. |
+| `sync+restart` | `backend/migrations` | File copied, then the process restarted (a migration needs a restart to apply). |
+| `rebuild` | Dependency manifests (`pyproject.toml`/`uv.lock`, `package.json`/`pnpm-lock.yaml`) | Image rebuilt and container recreated — `sync` can't add packages. |
+
+So: edit a `.py` or `.tsx` → instant reload. Change a dependency manifest →
+Compose rebuilds that service automatically.
 
 ## Day-to-day
 
 ```bash
-docker compose up             # start (images already built)
-docker compose up --build     # start + rebuild images (after dep changes)
-docker compose down           # stop
+docker compose up --watch          # start + sync (the normal dev command)
+docker compose up --watch --build  # force-rebuild images (after big changes)
+docker compose down                # stop
 docker compose logs -f backend frontend   # tail dev-server output
 ```
-
-When you change dependencies (`pyproject.toml`/`uv.lock`, `package.json`/
-`pnpm-lock.yaml`), rebuild: `docker compose up --build backend` (or `frontend`).
-Hot-reload only watches source, not dependency manifests.
 
 ## Reaching individual services
 

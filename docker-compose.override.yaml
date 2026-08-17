@@ -1,10 +1,16 @@
-# Local development override. Auto-merged by `docker compose up` (no `-f` flag),
-# so a bare `docker compose up` runs the full dev stack with hot-reload.
+# Local development override. Auto-merged by `docker compose up --watch`, so a
+# single command runs the full dev stack with hot-reload.
+#
+# Hot-reload uses Compose `develop.watch` (sync actions), NOT bind-mounts:
+# edited files are copied into the running container on watch, avoiding the
+# WSL2 cross-filesystem bind issues and host `node_modules` clobbering that
+# bind-mounts cause. Trade-off: hot-reload only activates under `--watch` — a
+# plain `docker compose up` runs the baked dev image without syncing edits.
 #
 # NEVER reaches prod: .github/workflows/deploy.yml invokes
 # `docker compose -f docker-compose.yaml up`, and an explicit `-f` disables
 # automatic override merging. Keep this file additive — override only what dev
-# needs (build target + source mounts); do not redefine routing, volumes, or
+# needs (build target + watch rules); do not redefine routing, volumes, or
 # ports that the base file owns.
 #
 # See docs/development.md.
@@ -14,12 +20,23 @@ services:
   backend:
     build:
       target: development
-    volumes:
-      - ./backend:/app
-      - backend-uv-cache:/root/.cache/uv
-      - agency-uploads:/app/uploads
-    # fastapi dev (the development stage cmd) reloads on .py changes; the
-    # bind-mount makes host edits visible inside the container.
+    develop:
+      watch:
+        # Dependency changes -> rebuild the image (sync can't add packages).
+        - action: rebuild
+          path: ./backend/pyproject.toml
+        - action: rebuild
+          path: ./backend/uv.lock
+        # Migrations change rarely but need a restart to apply; sync+restart
+        # copies the file then restarts the process.
+        - action: sync+restart
+          path: ./backend/migrations
+          target: /app/migrations
+        # App source -> sync in place. fastapi dev's watchfiles then reloads
+        # uvicorn on the changed .py files.
+        - action: sync
+          path: ./backend/app
+          target: /app/app
 
   frontend:
     build:
@@ -37,9 +54,14 @@ services:
       timeout: 10s
       retries: 3
       start_period: 20s
-    volumes:
-      - ./frontend:/app
-      # Anonymous volume shadows the host node_modules so the container's
-      # pnpm-installed deps (from the image) are not clobbered by a host dir.
-      - /app/node_modules
-      - frontend-pnpm-store:/pnpm/store
+    develop:
+      watch:
+        # Dependency changes -> rebuild (pnpm install runs in the image build).
+        - action: rebuild
+          path: ./frontend/package.json
+        - action: rebuild
+          path: ./frontend/pnpm-lock.yaml
+        # Source -> sync. Vite's HMR picks up the change and pushes an update.
+        - action: sync
+          path: ./frontend/src
+          target: /app/src
