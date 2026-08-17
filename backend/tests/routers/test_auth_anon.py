@@ -18,7 +18,7 @@ def _app():
 @pytest.mark.asyncio
 async def test_anon_creates_ephemeral_user_and_cookie(db):
     client = TestClient(_app())
-    r = client.post("/api/v1/auth/anon")
+    r = client.post("/api/v1/auth/anonymous")
     assert r.status_code == 200
     body = r.json()["user"]
     assert body["isEphemeral"] is True
@@ -32,10 +32,10 @@ async def test_anon_is_idempotent_with_existing_session(db):
     # base_url must be https: AUTH_COOKIE_SECURE=True, so the Secure cookie is
     # only re-sent by the client's cookie jar on subsequent https requests.
     client = TestClient(_app(), base_url="https://testserver")
-    r1 = client.post("/api/v1/auth/anon")           # TestClient persists the cookie
+    r1 = client.post("/api/v1/auth/anonymous")           # TestClient persists the cookie
     first_id = r1.json()["user"]["id"]
     before = await User.filter(is_ephemeral=True).count()
-    r2 = client.post("/api/v1/auth/anon")
+    r2 = client.post("/api/v1/auth/anonymous")
     assert r2.json()["user"]["id"] == first_id
     assert await User.filter(is_ephemeral=True).count() == before  # no new row
 

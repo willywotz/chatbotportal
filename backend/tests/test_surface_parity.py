@@ -99,7 +99,7 @@ async def test_user_surface_is_exactly_this(db):
         # History page expands a conversation; ownership-scoped in the handler.
         ("GET", f"/api/v1/history/{_SAMPLE_ID}/messages"),
         ("POST", "/api/v1/auth/logout"),
-        ("POST", "/api/v1/auth/anon"),
+        ("POST", "/api/v1/auth/anonymous"),
         # NOTE: the six read-only ops dashboards (dashboard/stats, executive-summary,
         # agency-health, usage-heatmap, insight/usage, feedback/stats) were moved to
         # `staff`-only in the staff-role split — a plain `user` can no longer reach

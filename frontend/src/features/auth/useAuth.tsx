@@ -76,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const ensureSession = useCallback(async () => {
     if (user) return;
     try {
-      const res = await api.post<{ user: AuthUser }>("/api/v1/auth/anon", {});
+      const res = await api.post<{ user: AuthUser }>("/api/v1/auth/anonymous", {});
       setUser(res.user);
     } catch {
       // Proceed anyway; the chat request may 401 and surface an error.

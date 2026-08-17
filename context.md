@@ -1,6 +1,6 @@
 # Project Context — AI Chatbot Portal (Thai Citizen Guide)
 
-> Primary orientation doc for this repo. Loaded into every session via `CLAUDE.md` (`@context.md`).
+> Primary orientation doc for this repo. Loaded into every session via `CLAUDE.md` (`@CONTEXT.md`).
 > Keep it current: **after any completed code change, update this file, commit, and (on merge to `main`) rebuild docker compose.**
 
 ## What this is
@@ -538,7 +538,7 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
   an `agency_id` back. The returned id is resolved **only** against the set of agencies actually
   fed (`agency_by_id` from `valid_ids`) — hallucinated, unknown, empty, *or real-but-unfed* ids all
   resolve to `None`. Churn/dedupe/tombstone/public-shape logic unchanged.
-- After any completed code change: **update this `context.md`, then commit**; on merge to `main`,
+- After any completed code change: **update this `CONTEXT.md`, then commit**; on merge to `main`,
   **rebuild docker compose**.
 - **Multi-task work → create a branch first** (`feat/`, `fix/`, `chore/`, `refactor/`); never commit
   multi-step work to `main`. Do **not** use claude worktree.
@@ -987,3 +987,16 @@ direct read (file:line), not inferred.
 - `HistoryPage.tsx` maps `getPaginationRange(safePage, totalPages)`, rendering `…` spans for
   ellipsis markers; prev/next chevrons unchanged. Added a regression test asserting ≤7 number
   buttons + ellipsis for a 339-item total. `tsc` clean; full suite 431/431 pass.
+
+## 2026-08-17 — Full english API route name (auth anonymous session)
+- Rule compliance: API endpoint routes must use full english names, no short form or alias.
+- Renamed route `POST /api/v1/auth/anon` → `POST /api/v1/auth/anonymous`; handler `anon` →
+  `create_anonymous_session` (`backend/app/routers/auth.py`).
+- Updated the caller `frontend/src/features/auth/useAuth.tsx` (`ensureSession`) and all tests:
+  `backend/tests/routers/test_auth_anon.py`, `backend/tests/test_surface_parity.py`,
+  `frontend/src/features/auth/useAuth.test.tsx`.
+- Left unchanged: internal ephemeral-user email prefix `anon-<uuid>` (data value, not a route);
+  historical design docs under `docs/superpowers/` (records of past work). Acronym prefixes
+  (`/llm`, `/mcp`, `/api-keys`) and OpenAI-compatible surfaces (`/responses`, `/conversations`)
+  kept — standard technical terms / external-contract compatibility.
+- Backend auth+parity tests pass (7); frontend auth test passes (6).

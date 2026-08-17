@@ -82,7 +82,7 @@ describe("AuthProvider", () => {
     expect(screen.getByText("user:none")).toBeInTheDocument();
   });
 
-  it("ensureSession posts /auth/anon and sets the user when none is set", async () => {
+  it("ensureSession posts /auth/anonymous and sets the user when none is set", async () => {
     vi.mocked(api.get).mockResolvedValueOnce({ user: null });
     vi.mocked(api.post).mockResolvedValueOnce({ user: authUser });
     render(
@@ -92,7 +92,7 @@ describe("AuthProvider", () => {
     );
     await waitFor(() => expect(screen.getByText("user:none")).toBeInTheDocument());
     await act(async () => screen.getByText("ensure").click());
-    expect(api.post).toHaveBeenCalledWith("/api/v1/auth/anon", {});
+    expect(api.post).toHaveBeenCalledWith("/api/v1/auth/anonymous", {});
     expect(screen.getByText("user:a@b.co")).toBeInTheDocument();
   });
 

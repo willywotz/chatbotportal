@@ -105,8 +105,8 @@ async def logout(request: Request, response: Response) -> dict:
 # Anonymous session bootstrap
 # ---------------------------------------------------------------------------
 
-@router.post("/anon", summary="Start an anonymous session (idempotent)")
-async def anon(request: Request, response: Response) -> dict:
+@router.post("/anonymous", summary="Start an anonymous session (idempotent)")
+async def create_anonymous_session(request: Request, response: Response) -> dict:
     sid = request.cookies.get(settings.SESSION_COOKIE_NAME)
     if sid:
         from app.services.auth_session import resolve_session
