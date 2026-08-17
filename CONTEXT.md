@@ -879,6 +879,30 @@ direct read (file:line), not inferred.
   historical records under `docs/superpowers/plans|specs/*` (history, not living docs).
 - Branch `chore/jwt-and-name-cleanup`.
 
+## 2026-08-17 — v0.1.0 release + repo-rename data-migration incident
+
+- **First release tagged:** `v0.1.0` (no prior tags existed). Tag-driven: `release.yaml` fired on the
+  self-hosted runner (`xver@i-145995`), wrote prod `.env` (`ENV=production`), brought up the compose
+  stack. Backend `pyproject.toml`/`APP_VERSION` declare `1.0.0`; the `v0.1.0` tag is a deliberate
+  pre-1.0 signal (mismatch intentional).
+- **Repo renamed** `thai-citizen-guide` → `chatbotportal` (GitHub keeps the old URL as a redirect).
+  Local `origin` updated to `git@github.com:willywotz/chatbotportal.git`.
+- **⚠️ Incident: the `v0.1.0` deploy ran against EMPTY volumes.** The rename changed the runner's
+  checkout directory (`thai-citizen-guide/` → `chatbotportal/`), and Compose derives its **project
+  name** from the directory — so the deploy created a fresh `chatbotportal` project with empty
+  volumes; the backend ran migrations + seed on a blank DB. Old containers stopped; old volumes
+  (`thai-citizen-guide_*`) left intact. **Data was not lost** — the operator migrated it manually via
+  `pg_dumpall`/restore from the old `postgres_data` volume into `chatbotportal_postgres_data`.
+  Operator skipped the `COMPOSE_PROJECT_NAME` adopt path (chose clean `chatbotportal` naming).
+- **⚠️ Open verification gap: the `agency-uploads` Docker volume.** `pg_dumpall` migrates the DB only;
+  agency logos live in the named `agency-uploads` volume (`compose.yaml:70`), which a DB dump does not
+  touch. If the operator did not separately copy that volume, logos will 404 (DB rows intact, files
+  absent). Verification step in the handoff doc.
+- **⚠️ Durable fix pending: pin `COMPOSE_PROJECT_NAME` in `release.yaml`.** Root cause = Compose
+  deriving project name from the checkout dir. Not yet fixed; one-line PR. Since the operator migrated
+  to `chatbotportal_*` volumes, the pin should be `chatbotportal`.
+- Full runbook + commands: `docs/handoff/2026-08-17-v0.1.0-release-and-data-migration.md`.
+
 ## 2026-08-02 — frontend/index.html SEO + OG rebrand
 
 - Replaced Lovable placeholder metadata in `frontend/index.html` with real branding + full SEO/social
