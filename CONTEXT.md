@@ -1154,3 +1154,18 @@ Note: the Python backend already serves MCP at `/mcp` (`app/mcp/server.py`), so 
   is `app/routers/agent_proxy.py` + `app/services/agent_proxy.py` at
   `/api/v1/agent-proxy/{agency_id}`; MCP stays at `/mcp` via `app/mcp/server.py`. `/mcp-v2` is
   dropped. No frontend change. This branch is local only (not pushed/merged).
+
+- Final review + fixes (done): a whole-branch review found and fixed four parity issues that
+  the per-task reviews could not see across files:
+  1. Trace continuation: the `?traceparent` query fallback only wrapped the `/mcp` mount, not
+     the main app, so OneChat's header-dropping callback broke the trace on the proxy route.
+     Fix: `app/main.py` now also exposes `asgi_app = QueryTraceparentASGI(app)` and the
+     `backend/Dockerfile` serves `app.main:asgi_app`, so query→header promotion runs before
+     OTel extraction for every main-app route (the same pattern the `/mcp` mount already used).
+  2. `total_calls` was a non-atomic read-modify-write (lost-update race). Fix: `increment_calls`
+     now uses an atomic `F("total_calls") + 1` update, then refreshes the object.
+  3. The incoming `Host` header was forwarded to the agency. Fix: `_upstream_headers` now also
+     drops `host`, `content-length`, `connection`, and `transfer-encoding`.
+  4. The connection-log `latency_ms` now measures time-to-headers (as the Go proxy did), not
+     time-to-last-byte, so a long stream does not inflate the recorded latency.
+  All covered by new tests. Full backend suite 852 pass / 6 skip. Branch is local only.
