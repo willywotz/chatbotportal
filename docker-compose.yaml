@@ -85,20 +85,19 @@ services:
     volumes:
       - frontend-pnpm-store:/pnpm/store
 
-  nginx:
-    image: nginx
+  caddy:
+    image: caddy:2-alpine
     restart: unless-stopped
     environment:
-      # Empty = plain HTTP only. Set to the public hostname to enable TLS once a
-      # cert has been issued; see docs/tls.md.
-      CERT_DOMAIN: ${CERT_DOMAIN:-}
+      # Drives the Caddyfile site address. Defaults to ":80" (plain HTTP, local
+      # dev). Set CERT_DOMAIN to the public hostname to enable auto-HTTPS.
+      # Never empty — Caddy's site address must always resolve to a real value.
+      SITE_ADDRESS: ${CERT_DOMAIN:-:80}
+      CERT_EMAIL: ${CERT_EMAIL:-}
     volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
-      - ./nginx/routes.conf:/etc/nginx/routes.conf
-      - ./nginx/tls.conf.template:/etc/nginx/tls.conf.template
-      - ./nginx/tls.sh:/docker-entrypoint.d/40-tls.sh
-      - letsencrypt:/etc/letsencrypt:ro
-      - acme-challenge:/var/www/certbot:ro
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
     depends_on:
       frontend:
         condition: service_healthy
@@ -111,25 +110,10 @@ services:
     networks:
       - chatbot-network
     ports:
-      - target: 8080
+      - target: 80
         published: "${EXTERNAL_HTTP_PORT:-}"
-      - target: 8443
+      - target: 443
         published: "${EXTERNAL_HTTPS_PORT:-}"
-
-  # Renews every certificate in the letsencrypt volume twice a day (a no-op until
-  # one is issued — see docs/tls.md for the first `certonly` run). nginx
-  # picks up a renewed cert on its own; nothing here reloads it.
-  certbot:
-    image: certbot/certbot:v5.1.0
-    restart: unless-stopped
-    networks:
-      - chatbot-network
-    volumes:
-      - letsencrypt:/etc/letsencrypt
-      - acme-challenge:/var/www/certbot
-    entrypoint: >
-      sh -c 'trap exit TERM;
-      while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done'
 
   jaeger:
     image: jaegertracing/jaeger:2.18.0
@@ -144,8 +128,8 @@ volumes:
   backend-uv-cache:
   agency-uploads:
   frontend-pnpm-store:
-  letsencrypt:
-  acme-challenge:
+  caddy_data:
+  caddy_config:
 
 networks:
   chatbot-network:

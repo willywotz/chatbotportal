@@ -1,67 +1,62 @@
-# HTTPS / Let's Encrypt (HTTP-01)
+# HTTPS / Let's Encrypt (Caddy automatic HTTPS)
 
-The gateway serves TLS for one public hostname, with certificates issued and renewed
-by a `certbot` container using the **HTTP-01** challenge over a shared webroot — no
-DNS access required. Production host: `chatbotportal.opdc.ai.in.th`.
+The gateway (`caddy` service) terminates TLS for one public hostname, with
+certificates issued and renewed **automatically** by Caddy — no `certbot`
+container, no `certonly` run, no renewal loop. Production host:
+`chatbotportal.opdc.ai.in.th`.
 
 ## How it fits together
 
 | Piece | Role |
 |---|---|
-| `nginx/default.conf` | HTTP server (`:8080`). Serves `/.well-known/acme-challenge/` from the webroot; everything else redirects to HTTPS once a cert exists. |
-| `nginx/tls.conf.template` | TLS server (`:8443`), rendered to `conf.d/tls.conf` with `CERT_DOMAIN` substituted. |
-| `nginx/routes.conf` | The proxy routing contract, included by both servers so they never drift. |
-| `nginx/tls.sh` | Runs from nginx's `/docker-entrypoint.d/`. Enables the TLS block only when the cert exists, then watches hourly and reloads on issuance/renewal. |
-| `certbot` service | `certbot renew` every 12h against the `letsencrypt` volume. |
-| volumes | `letsencrypt` (certs, `:ro` in nginx), `acme-challenge` (webroot, `:ro` in nginx). |
+| `caddy/Caddyfile` | The single config: site address, TLS, routing contract, timeouts. |
+| `caddy` service | Obtains + renews the Let's Encrypt cert itself (HTTP-01 / TLS-ALPN). |
+| `caddy_data` volume | Persists the ACME account + certs across restarts (`/data`). |
+| `caddy_config` volume | Caddy's runtime config cache (`/config`). |
 
-Without a certificate the stack is a plain HTTP gateway — nginx never fails to start on
-a missing certificate file, and local dev needs no changes.
+`SITE_ADDRESS` (sourced from `CERT_DOMAIN`) drives the listen mode:
+
+- **Empty** — Caddy listens on `:80` plain HTTP. No cert is requested. This is
+  local dev: nothing to configure, nothing fails.
+- **A hostname** (`chatbotportal.opdc.ai.in.th`) — Caddy listens on `:80` and
+  `:443`, requests a cert for that hostname on first start, serves HTTPS on
+  `:443`, and `301`-redirects `:80` to `:443`. Renewals are automatic; Caddy
+  reloads the renewed cert itself.
 
 ## Prerequisites
 
 - `chatbotportal.opdc.ai.in.th` resolves to the host running compose.
-- Port **80** is open to the public internet and published by the `nginx` service
-  (`EXTERNAL_HTTP_PORT=80`). Let's Encrypt always validates HTTP-01 on port 80 and
-  follows redirects; it cannot use any other port.
+- Port **80** is open to the public internet and published by the `caddy`
+  service (`EXTERNAL_HTTP_PORT=80`). Caddy completes the HTTP-01 challenge on
+  port 80; it cannot use another port.
 - Port **443** published (`EXTERNAL_HTTPS_PORT=443`).
+- `CERT_EMAIL` set (a Let's Encrypt account contact for expiry notices).
 
 ## First issuance
 
-On the prod host, with `CERT_DOMAIN` set in `.env`:
+There is no manual issuance step. On the prod host, with `CERT_DOMAIN` and
+`CERT_EMAIL` set in `.env`:
 
 ```bash
-rtk docker compose up -d nginx                    # webroot must be reachable first
-rtk curl http://chatbotportal.opdc.ai.in.th/.well-known/acme-challenge/probe   # expect 404, not a timeout
-
-rtk docker compose run --rm --entrypoint certbot certbot \
-  certonly --webroot -w /var/www/certbot \
-  -d chatbotportal.opdc.ai.in.th \
-  --email "$CERT_EMAIL" --agree-tos --no-eff-email
+docker compose up -d caddy
+docker compose logs caddy | grep -i 'certificate\|obtain'
 ```
 
-Add `--dry-run` first to rehearse without burning rate limits (5 failed
-validations per account/hostname/hour).
-
-nginx picks the new cert up within the hour on its own; to cut that short:
-
-```bash
-rtk docker compose restart nginx
-rtk curl -I https://chatbotportal.opdc.ai.in.th/
-```
+Caddy obtains the cert on first start and serves HTTPS within seconds. The
+first request to `https://chatbotportal.opdc.ai.in.th/` should succeed.
 
 ## Renewal
 
-The `certbot` service renews unattended (certs renew at ~30 days remaining). nginx's
-watcher notices the changed `fullchain.pem` and issues `nginx -s reload` — no restart,
-no deploy needed. Check it:
+Unattended. Caddy renews certificates at ~30 days remaining and reloads them
+itself — no deploy, no restart, no `certbot` job. Check the cert:
 
 ```bash
-rtk docker compose run --rm --entrypoint certbot certbot renew --dry-run
-rtk docker compose logs nginx | grep '\[tls\]'
+echo | openssl s_client -connect chatbotportal.opdc.ai.in.th:443 2>/dev/null \
+  | openssl x509 -noout -dates
+docker compose logs caddy | grep -i 'renew'
 ```
 
 ## Turning TLS off
 
-Unset `CERT_DOMAIN` and restart nginx. The TLS server block and the HTTPS redirect
-disappear; the certificate stays in the volume.
+Unset `CERT_DOMAIN` and restart caddy. Caddy goes back to plain HTTP on `:80`;
+the cert stays in the `caddy_data` volume.

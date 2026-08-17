@@ -1,0 +1,62 @@
+# Gateway reverse proxy (container: caddy). Caddy terminates TLS and obtains
+# renews its Let's Encrypt certificate automatically — no certbot, no entrypoint
+# script, no TLS template. See docs/tls.md.
+#
+# SITE_ADDRESS drives the listen mode:
+#   unset / empty  -> ":80"      plain HTTP (local dev, no cert)
+#   chatbot...th   -> "<domain>" Caddy auto-issues a cert, serves :443, and
+#                               301-redirects :80 -> :443 for that hostname.
+# Caddy never redirects IP/literal addresses, so the old nginx IP-check guard
+# is built in.
+{
+	# ACME account email (optional). {env.CERT_EMAIL} tolerates an empty value —
+	# in dev (no email, plain HTTP) Caddy never contacts the CA, so this is a
+	# no-op. In prod compose sets CERT_EMAIL for Let's Encrypt expiry notices.
+	email {env.CERT_EMAIL}
+}
+
+# compose guarantees SITE_ADDRESS is never empty: ":80" (dev, plain HTTP) or the
+# public hostname (prod, auto-HTTPS + 80->443 redirect). Caddy never redirects
+# IP/literal addresses, so the old nginx IP-check guard is built in.
+{$SITE_ADDRESS} {
+	encode zstd gzip
+	request_body {
+		max_size 20MB
+	}
+
+	# OpenAI Responses API. The WebSocket transport holds a connection for up to
+	# 60 minutes (RESPONSES_WS_MAX_DURATION_SECONDS), so Caddy's default idle
+	# timeout would kill an idle socket well before the cap.
+	@api_responses path /api/v1/responses
+	handle @api_responses {
+		reverse_proxy backend:8080 {
+			transport http {
+				read_timeout 3700s
+				write_timeout 3700s
+			}
+		}
+	}
+
+	# Backend API surface. path_regexp mirrors the old routes.conf nginx regex
+	# exactly (^/(api|sse|messages|mcp|docs|redoc|openapi.json)) so bare paths
+	# (/mcp, /docs) and subpaths (/mcp/sse, /api/v1/...) both match — a plain
+	# `path` matcher would drop bare /mcp and /mcp/* subpaths.
+	@backend path_regexp ^/(api|sse|messages|mcp|docs|redoc|openapi\.json)
+	handle @backend {
+		reverse_proxy backend:8080 {
+			transport http {
+				read_timeout 300s
+				write_timeout 300s
+			}
+		}
+	}
+
+	# Jaeger UI (base_path /jaeger set on the jaeger service).
+	@jaeger path /jaeger/*
+	handle @jaeger {
+		reverse_proxy jaeger:16686
+	}
+
+	# Everything else -> SPA (frontend:8080, see frontend/nginx.conf).
+	reverse_proxy frontend:8080
+}
