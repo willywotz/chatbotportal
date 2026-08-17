@@ -33,7 +33,7 @@ def test_staff_keeps_everything_a_basic_user_can_do():
         ("DELETE", "/api/v1/history/abc-123"),
         ("GET", "/api/v1/history/abc-123/messages"),
         ("GET", "/api/v1/agencies"),
-        ("GET", "/api/v1/auth/me"),
+        ("GET", "/api/v1/authentication/me"),
     ]
     for method, path in shared:
         assert _is_allowed_for_basic_user(method, path)
@@ -60,7 +60,7 @@ _PRE_SPLIT_USER_SURFACE = [
     ("DELETE", "/api/v1/history/abc-123"),
     ("GET", "/api/v1/history/abc-123/messages"),
     ("GET", "/api/v1/agencies"),
-    ("GET", "/api/v1/auth/me"),
+    ("GET", "/api/v1/authentication/me"),
     ("GET", "/api/v1/dashboard/stats"),
     ("GET", "/api/v1/executive-summary"),
     ("GET", "/api/v1/agency-health"),

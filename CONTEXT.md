@@ -1054,3 +1054,15 @@ direct read (file:line), not inferred.
 - Full backend suite: 835 pass / 6 skip (was 750 before this pass; +85 new service tests).
 - Deferred (user choice): 15-Factor uploads-to-object-storage and seed-to-CLI; event-driven
   audit outbox.
+
+## 2026-08-17 — Full english route name: /auth → /authentication
+- Renamed API prefix `/api/v1/auth` → `/api/v1/authentication` ("auth" is a short form of the
+  ordinary word "authentication"). Updated the router prefix/tag, the allowlist chokepoint
+  `app/auth/dependencies.py` (`path.startswith("/api/v1/authentication/")`), all backend tests,
+  and the frontend callers (`useAuth`, `LoginPage`, `ChangePasswordDialog`).
+- The python module path `app.auth` is code, not a route, so it stays unchanged.
+- Kept `/api` and `/mcp`: these are the standard proper names of technologies (like the
+  un-renameable `/api/v1` prefix and the external OpenAI/MCP wire contracts), not short forms
+  of ordinary english words. The rule targets abbreviations of ordinary words
+  (anon→anonymous, auth→authentication, llm→language-model), which are now all expanded.
+- Backend suite 835 pass / 6 skip; frontend auth tests 26 pass.

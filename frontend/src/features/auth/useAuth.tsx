@@ -60,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // server who we are.
   useEffect(() => {
     api
-      .get<{ user: AuthUser }>("/api/v1/auth/me")
+      .get<{ user: AuthUser }>("/api/v1/authentication/me")
       .then(({ user }) => setUser(user))
       .catch(() => setUser(null))
       .finally(() => setIsLoading(false));
@@ -69,14 +69,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const setAuth = useCallback((authUser: AuthUser) => setUser(authUser), []);
 
   const signOut = useCallback(() => {
-    api.post("/api/v1/auth/logout", {}).catch(() => {});
+    api.post("/api/v1/authentication/logout", {}).catch(() => {});
     setUser(null);
   }, []);
 
   const ensureSession = useCallback(async () => {
     if (user) return;
     try {
-      const res = await api.post<{ user: AuthUser }>("/api/v1/auth/anonymous", {});
+      const res = await api.post<{ user: AuthUser }>("/api/v1/authentication/anonymous", {});
       setUser(res.user);
     } catch {
       // Proceed anyway; the chat request may 401 and surface an error.

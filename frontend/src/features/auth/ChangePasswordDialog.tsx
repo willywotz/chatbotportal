@@ -33,7 +33,7 @@ export function ChangePasswordDialog({ open, onOpenChange }: Props) {
     if (err) { toast.error(err); return; }
     setPending(true);
     try {
-      await api.post('/api/v1/auth/change-password', {
+      await api.post('/api/v1/authentication/change-password', {
         current_password: currentPassword,
         new_password: newPassword,
       });

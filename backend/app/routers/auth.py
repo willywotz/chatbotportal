@@ -25,7 +25,7 @@ from app.auth.security import verify_password
 from app.services import user as user_service
 from app.services.auth_session import create_session, delete_session, resolve_session
 
-router = APIRouter(prefix="/auth", tags=["Auth"])
+router = APIRouter(prefix="/authentication", tags=["Authentication"])
 
 
 # ---------------------------------------------------------------------------

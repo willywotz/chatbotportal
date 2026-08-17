@@ -6,7 +6,7 @@ from app.main import app
 def test_cors_reflects_any_origin_with_credentials():
     client = TestClient(app)
     r = client.options(
-        "/api/v1/auth/login",
+        "/api/v1/authentication/login",
         headers={"Origin": "http://anything.example",
                  "Access-Control-Request-Method": "POST"},
     )

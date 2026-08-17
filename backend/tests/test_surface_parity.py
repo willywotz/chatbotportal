@@ -98,8 +98,8 @@ async def test_user_surface_is_exactly_this(db):
         ("DELETE", f"/api/v1/history/{_SAMPLE_ID}"),
         # History page expands a conversation; ownership-scoped in the handler.
         ("GET", f"/api/v1/history/{_SAMPLE_ID}/messages"),
-        ("POST", "/api/v1/auth/logout"),
-        ("POST", "/api/v1/auth/anonymous"),
+        ("POST", "/api/v1/authentication/logout"),
+        ("POST", "/api/v1/authentication/anonymous"),
         # NOTE: the six read-only ops dashboards (dashboard/stats, executive-summary,
         # agency-health, usage-heatmap, insight/usage, feedback/stats) were moved to
         # `staff`-only in the staff-role split — a plain `user` can no longer reach
@@ -107,7 +107,7 @@ async def test_user_surface_is_exactly_this(db):
     }
     # Every /auth/* route and every public GET is also reachable; enumerate them
     # from the route table so new ones are picked up rather than silently missed.
-    auth_routes = {(m, p) for m, p in _concrete_paths() if p.startswith("/api/v1/auth/")}
+    auth_routes = {(m, p) for m, p in _concrete_paths() if p.startswith("/api/v1/authentication/")}
     public_gets = {
         (m, p)
         for m, p in _concrete_paths()
@@ -134,4 +134,4 @@ async def test_admin_reaches_the_whole_route_table(db):
 
 def test_register_route_removed():
     """Self-registration is gone; accounts are admin-created via POST /users."""
-    assert ("POST", "/api/v1/auth/register") not in set(_concrete_paths())
+    assert ("POST", "/api/v1/authentication/register") not in set(_concrete_paths())

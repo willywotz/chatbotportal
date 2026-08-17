@@ -44,8 +44,8 @@ def test_conversation_messages_is_read_only():
 
 
 def test_auth_self_endpoints_allowed():
-    assert _is_allowed_for_basic_user("GET", "/api/v1/auth/me")
-    assert _is_allowed_for_basic_user("POST", "/api/v1/auth/login")
+    assert _is_allowed_for_basic_user("GET", "/api/v1/authentication/me")
+    assert _is_allowed_for_basic_user("POST", "/api/v1/authentication/login")
 
 
 def test_restricted_pages_blocked():

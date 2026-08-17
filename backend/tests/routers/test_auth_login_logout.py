@@ -19,7 +19,7 @@ async def test_login_sets_cookie_and_omits_token(db):
     await User.create(email="a@b.co", hashed_password=hash_new_password("pw12345"),
                       role="admin", is_active=True)
     client = TestClient(_app())
-    r = client.post("/api/v1/auth/login", json={"email": "a@b.co", "password": "pw12345"})
+    r = client.post("/api/v1/authentication/login", json={"email": "a@b.co", "password": "pw12345"})
     assert r.status_code == 200
     assert "access_token" not in r.json()
     assert r.json()["user"]["email"] == "a@b.co"
@@ -33,8 +33,8 @@ async def test_logout_clears_cookie(db):
     await User.create(email="a@b.co", hashed_password=hash_new_password("pw12345"),
                       role="admin", is_active=True)
     client = TestClient(_app())
-    client.post("/api/v1/auth/login", json={"email": "a@b.co", "password": "pw12345"})
-    r = client.post("/api/v1/auth/logout")
+    client.post("/api/v1/authentication/login", json={"email": "a@b.co", "password": "pw12345"})
+    r = client.post("/api/v1/authentication/logout")
     assert r.status_code == 200
     # Deletion is a Set-Cookie with an expiry in the past / Max-Age=0, and it
     # must carry matching attributes or strict browsers won't clear it.

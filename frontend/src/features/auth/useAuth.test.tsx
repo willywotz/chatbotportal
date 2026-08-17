@@ -33,7 +33,7 @@ function Consumer() {
 }
 
 describe("AuthProvider", () => {
-  it("restores the user by calling GET /api/v1/auth/me on mount", async () => {
+  it("restores the user by calling GET /api/v1/authentication/me on mount", async () => {
     vi.mocked(api.get).mockResolvedValueOnce({ user: authUser });
     render(
       <AuthProvider>
@@ -41,7 +41,7 @@ describe("AuthProvider", () => {
       </AuthProvider>,
     );
     await waitFor(() => expect(screen.getByText("loading:false")).toBeInTheDocument());
-    expect(api.get).toHaveBeenCalledWith("/api/v1/auth/me");
+    expect(api.get).toHaveBeenCalledWith("/api/v1/authentication/me");
     expect(screen.getByText("user:a@b.co")).toBeInTheDocument();
   });
 
@@ -68,7 +68,7 @@ describe("AuthProvider", () => {
     expect(screen.getByText("user:a@b.co")).toBeInTheDocument();
   });
 
-  it("signOut calls POST /api/v1/auth/logout and clears the user", async () => {
+  it("signOut calls POST /api/v1/authentication/logout and clears the user", async () => {
     vi.mocked(api.get).mockResolvedValueOnce({ user: authUser });
     vi.mocked(api.post).mockResolvedValueOnce({ ok: true });
     render(
@@ -78,7 +78,7 @@ describe("AuthProvider", () => {
     );
     await waitFor(() => expect(screen.getByText("user:a@b.co")).toBeInTheDocument());
     await act(async () => screen.getByText("signout").click());
-    expect(api.post).toHaveBeenCalledWith("/api/v1/auth/logout", {});
+    expect(api.post).toHaveBeenCalledWith("/api/v1/authentication/logout", {});
     expect(screen.getByText("user:none")).toBeInTheDocument();
   });
 
@@ -92,7 +92,7 @@ describe("AuthProvider", () => {
     );
     await waitFor(() => expect(screen.getByText("user:none")).toBeInTheDocument());
     await act(async () => screen.getByText("ensure").click());
-    expect(api.post).toHaveBeenCalledWith("/api/v1/auth/anonymous", {});
+    expect(api.post).toHaveBeenCalledWith("/api/v1/authentication/anonymous", {});
     expect(screen.getByText("user:a@b.co")).toBeInTheDocument();
   });
 
