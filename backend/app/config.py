@@ -38,11 +38,6 @@ class Settings(BaseSettings):
     # {UPLOAD_DIR}/agency-logos/.
     UPLOAD_DIR: str = "/app/uploads"
 
-    # ── Redis (shared LLM-provider throttle budget across workers) ───────────
-    # withinlazy: REDIS_SOCKET_TIMEOUT_MS still referenced by _get_redis_client;
-    # Task 5 removes both together once the Redis limiter classes are deleted.
-    REDIS_SOCKET_TIMEOUT_MS: int = 100
-
     # ── CORS ─────────────────────────────────────────────────────────────────
     CORS_ORIGINS: list[str] = ["*"]
 

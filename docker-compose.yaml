@@ -38,18 +38,6 @@ services:
       -c "CREATE EXTENSION IF NOT EXISTS fuzzystrmatch;"
       -c "CREATE EXTENSION IF NOT EXISTS vector;"
 
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    networks:
-      - chatbot-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 5s
-
   backend:
     build:
       context: ./backend
@@ -58,16 +46,12 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-chatbot}:${POSTGRES_PASSWORD:-chatbot_secret}@${POSTGRES_HOST:-postgres}:5432/${POSTGRES_DB:-chatbot}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
     depends_on:
       postgres:
         condition: service_healthy
         restart: true
       postgres-init:
         condition: service_completed_successfully
-        restart: true
-      redis:
-        condition: service_healthy
         restart: true
       jaeger:
         condition: service_started
