@@ -7,7 +7,7 @@
 # bind-mounts cause. Trade-off: hot-reload only activates under `--watch` — a
 # plain `docker compose up` runs the baked dev image without syncing edits.
 #
-# NEVER reaches prod: .github/workflows/deploy.yml invokes
+# NEVER reaches prod: .github/workflows/release.yaml invokes
 # `docker compose -f compose.yaml up`, and an explicit `-f` disables
 # automatic override merging. Keep this file additive — override only what dev
 # needs (build target + watch rules); do not redefine routing, volumes, or
