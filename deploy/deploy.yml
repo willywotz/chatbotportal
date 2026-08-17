@@ -21,6 +21,32 @@
         dest: "{{ deploy_dir }}/compose.yaml"
         mode: "0644"
 
+    - name: Ensure caddy config directory exists
+      ansible.builtin.file:
+        path: "{{ deploy_dir }}/caddy"
+        state: directory
+        mode: "0755"
+
+    # compose.yaml bind-mounts ./caddy/Caddyfile as a FILE. If it is missing when
+    # `up` runs, Docker auto-creates it as a directory and the file mount then fails
+    # ("not a directory"). Drop any such stale directory before copying the real file.
+    - name: Detect Caddyfile path type
+      ansible.builtin.stat:
+        path: "{{ deploy_dir }}/caddy/Caddyfile"
+      register: caddyfile_dest
+
+    - name: Remove stale Caddyfile directory
+      ansible.builtin.file:
+        path: "{{ deploy_dir }}/caddy/Caddyfile"
+        state: absent
+      when: caddyfile_dest.stat.isdir | default(false)
+
+    - name: Copy Caddyfile
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../caddy/Caddyfile"
+        dest: "{{ deploy_dir }}/caddy/Caddyfile"
+        mode: "0644"
+
     - name: Pull images and start the stack
       community.docker.docker_compose_v2:
         project_src: "{{ deploy_dir }}"
