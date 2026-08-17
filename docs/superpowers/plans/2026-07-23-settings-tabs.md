@@ -474,10 +474,10 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 ---
 
-### Task 5: Manual verification + update context.md
+### Task 5: Manual verification + update CONTEXT.md
 
 **Files:**
-- Modify: `context.md` (project convention: update after any change)
+- Modify: `CONTEXT.md` (project convention: update after any change)
 
 **Interfaces:**
 - Consumes: the completed feature.
@@ -495,15 +495,15 @@ As a non-admin (role `user`), confirm:
 - `/settings` lands on the Usage tab and only the Usage tab is shown.
 - Deep-linking to `/settings/audit` is blocked by the `requireAdmin` guard.
 
-- [ ] **Step 2: Update `context.md`**
+- [ ] **Step 2: Update `CONTEXT.md`**
 
 Add a short note under the frontend/navigation section recording that the six admin pages are now tabs under `/settings` (`SettingsLayout`), routes are nested with redirects from the old URLs, and `/settings` is all-roles with per-tab admin guards. Match the file's existing tone and length.
 
 - [ ] **Step 3: Commit**
 
 ```bash
-rtk git add context.md
-rtk git commit -m "docs: note tabbed Settings area in context.md
+rtk git add CONTEXT.md
+rtk git commit -m "docs: note tabbed Settings area in CONTEXT.md
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ```

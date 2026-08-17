@@ -933,12 +933,12 @@ rtk git add -A frontend && rtk git commit -m "refactor(authz): remove read-only 
 ### Task 9: Documentation
 
 **Files:**
-- Modify: `context.md` (Auth & RBAC section; `User` and `Relationship` rows in the data-model table; the Agency-detail Edit-tab paragraph)
+- Modify: `CONTEXT.md` (Auth & RBAC section; `User` and `Relationship` rows in the data-model table; the Agency-detail Edit-tab paragraph)
 - Modify: `docs/adr/0002-agency-edit-connection-demote.md`
 
 **Interfaces:** none.
 
-- [ ] **Step 1: Update `context.md`'s data model table**
+- [ ] **Step 1: Update `CONTEXT.md`'s data model table**
 
 Change the `User` row's role list to `user|admin`. Delete the `Relationship` row entirely. Update the migration count sentence to reflect the new head.
 
@@ -983,7 +983,7 @@ Expected: all green.
 - [ ] **Step 6: Commit**
 
 ```bash
-rtk git add context.md docs/adr/0002-agency-edit-connection-demote.md && rtk git commit -m "docs: update context and ADR 0002 for the two-role model"
+rtk git add CONTEXT.md docs/adr/0002-agency-edit-connection-demote.md && rtk git commit -m "docs: update context and ADR 0002 for the two-role model"
 ```
 
 ---

@@ -46,7 +46,7 @@ Both are recorded here because the implementer will notice the difference:
 | `backend/app/routers/responses.py` | HTTP POST + WebSocket routes; thin |
 | `spec/openai-responses.md` | The wire contract we implement |
 
-**Modified:** `backend/app/routers/chat.py`, `backend/app/services/chat/turn.py`, `backend/app/auth/dependencies.py`, `backend/app/config.py`, `backend/app/errors.py`, `backend/app/main.py`, `default.conf`, `docs/quickstart.md`, `context.md`.
+**Modified:** `backend/app/routers/chat.py`, `backend/app/services/chat/turn.py`, `backend/app/auth/dependencies.py`, `backend/app/config.py`, `backend/app/errors.py`, `backend/app/main.py`, `default.conf`, `docs/quickstart.md`, `CONTEXT.md`.
 
 **Tests created:** `backend/tests/services/test_chat_turn_stream.py`, `backend/tests/services/test_responses_request.py`, `backend/tests/services/test_responses_continuity.py`, `backend/tests/services/test_responses_translate.py`, `backend/tests/services/test_responses_ws_session.py`, `backend/tests/routers/test_responses_http.py`, `backend/tests/routers/test_responses_auth.py`.
 
@@ -2564,7 +2564,7 @@ rtk git commit -m "feat(nginx): proxy WebSocket upgrades to /api/v1/responses"
 **Files:**
 - Create: `spec/openai-responses.md`
 - Modify: `docs/quickstart.md`
-- Modify: `context.md`
+- Modify: `CONTEXT.md`
 
 **Interfaces:** none.
 
@@ -2648,7 +2648,7 @@ analytics and audit. `usage` is always zero — the orchestrator does not report
 Pipeline progress events are not surfaced; use `/api/v1/chat/stream` for those.
 ````
 
-- [ ] **Step 3: Update `context.md`**
+- [ ] **Step 3: Update `CONTEXT.md`**
 
 Make these edits so the orientation doc stays accurate:
 
@@ -2675,7 +2675,7 @@ Run: `cd backend && .venv/bin/pytest -q`
 Expected: PASS — everything green.
 
 ```bash
-rtk git add spec/openai-responses.md docs/quickstart.md context.md
+rtk git add spec/openai-responses.md docs/quickstart.md CONTEXT.md
 rtk git commit -m "docs: document the OpenAI Responses API endpoint"
 ```
 
@@ -2687,5 +2687,5 @@ rtk git commit -m "docs: document the OpenAI Responses API endpoint"
 - [ ] `POST /api/v1/responses` works from the official OpenAI Python SDK, streaming and not.
 - [ ] `wss://<host>/api/v1/responses` completes a `response.create` round trip.
 - [ ] `/chat/stream` and the SPA are byte-identical in behaviour to before Task 1.
-- [ ] `context.md` is updated and committed.
+- [ ] `CONTEXT.md` is updated and committed.
 - [ ] PR into `dev` (after `feat/onechat-v5` lands there); on merge to `main`, rebuild docker compose.

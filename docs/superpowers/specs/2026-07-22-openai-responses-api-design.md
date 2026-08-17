@@ -298,14 +298,14 @@ Both in the `"Chat"` group so they are editable at `/settings`.
   `previous_response_id`, the `portal` block, and explicit notes that `store` is ignored, `usage`
   is zero, and progress events are not surfaced.
 - `spec/openai-responses.md` — the wire contract we implement, mirroring `spec/v5.md`'s role.
-- `context.md` — new endpoint, new router, the `services/chat/stream.py` seam, the nginx WebSocket
+- `CONTEXT.md` — new endpoint, new router, the `services/chat/stream.py` seam, the nginx WebSocket
   change, and the two new settings.
 
 ## Rollout
 
 - Branch `feat/openai-responses-api` off `feat/onechat-v5`; PR into `dev` once v5 has landed there.
 - Purely additive: no migration, and rollback is removing the router mount.
-- On merge to `main`: update `context.md` and rebuild docker compose.
+- On merge to `main`: update `CONTEXT.md` and rebuild docker compose.
 
 ## Out of scope
 

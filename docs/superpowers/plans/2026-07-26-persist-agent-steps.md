@@ -885,12 +885,12 @@ rtk git commit -m "feat(chat): show agent-steps card in chat and history"
 
 ---
 
-## Task 8: Update context.md and finalize
+## Task 8: Update CONTEXT.md and finalize
 
 **Files:**
-- Modify: `context.md`
+- Modify: `CONTEXT.md`
 
-- [ ] **Step 1: Add a context.md entry** describing the persisted `agent_steps` snapshot: backend
+- [ ] **Step 1: Add a CONTEXT.md entry** describing the persisted `agent_steps` snapshot: backend
   `build_pipeline_snapshot` folds streamed `step`/`agency_*` events into `Message.agent_steps` on
   `/chat/stream`; frontend `AgentStepsCard` (fed by `ChatMessage.pipeline` live or
   `toAgentStepsSnapshot(agent_steps)` in history) renders it collapsed after the summary in
@@ -904,8 +904,8 @@ Expected: both green.
 - [ ] **Step 3: Commit**
 
 ```bash
-rtk git add context.md
-rtk git commit -m "docs: record persisted agent-steps feature in context.md"
+rtk git add CONTEXT.md
+rtk git commit -m "docs: record persisted agent-steps feature in CONTEXT.md"
 ```
 
 ---

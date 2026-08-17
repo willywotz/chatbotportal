@@ -12,7 +12,7 @@
 
 - TDD mandatory; Google style; imports sorted by path; American English.
 - `.venv/bin/pytest <path>` from `backend/` (NOT `rtk pytest`). Frontend `rtk vitest run <path>` from `frontend/`.
-- Orchestrator owns git/commits/context.md; builders do NOT commit.
+- Orchestrator owns git/commits/CONTEXT.md; builders do NOT commit.
 - Anon user: `User(email=f"anon-{uuid4().hex}@ephemeral.local", is_ephemeral=True, role="user", hashed_password=UNUSABLE_PASSWORD)` where `UNUSABLE_PASSWORD = "!"` (never verified; anon never logs in).
 - WS precedence mirrors HTTP: `Authorization: Bearer` present → API-key only (no cookie fallback); else session cookie.
 - `/responses` (HTTP + WS) + `/conversations` reject `is_ephemeral`; `/chat` accepts anon.
@@ -391,16 +391,16 @@ const ensureSession = useCallback(async () => {
 
 ---
 
-## Task Integration: parity, suites, context.md
+## Task Integration: parity, suites, CONTEXT.md
 
-**Files:** `backend/tests/test_surface_parity.py`, `context.md`.
+**Files:** `backend/tests/test_surface_parity.py`, `CONTEXT.md`.
 
 - [ ] **Step 1:** add `("POST", "/api/v1/auth/anon")` to surface parity; `.venv/bin/pytest tests/test_surface_parity.py -v`.
 - [ ] **Step 2:** full backend `.venv/bin/pytest -q` green.
 - [ ] **Step 3:** full frontend `rtk vitest run` green; `tsc --noEmit` clean.
 - [ ] **Step 4:** manual smoke (per `/run`): anon visitor → first chat triggers `/auth/anon` (cookie set) → WS turn works; reload → history persists via `/auth/me`; `/responses` with anon session → 401; disallowed-Origin WS → refused.
-- [ ] **Step 5:** update `context.md`: anon `/chat` session via `POST /auth/anon` (`is_ephemeral` user, created on first chat); OpenAI surfaces reject ephemeral (`get_current_user_non_ephemeral`); WS (`/chat` + `/responses`) authenticate via cookie behind an Origin check (`app/auth/ws.py`); browser chat is WS-first (SSE→JSON fallback) with `ensureSession` bootstrap; `AuthUser.isEphemeral`.
-- [ ] **Step 6: Commit** — `docs: update context.md for anon sessions + WS-default chat`
+- [ ] **Step 5:** update `CONTEXT.md`: anon `/chat` session via `POST /auth/anon` (`is_ephemeral` user, created on first chat); OpenAI surfaces reject ephemeral (`get_current_user_non_ephemeral`); WS (`/chat` + `/responses`) authenticate via cookie behind an Origin check (`app/auth/ws.py`); browser chat is WS-first (SSE→JSON fallback) with `ensureSession` bootstrap; `AuthUser.isEphemeral`.
+- [ ] **Step 6: Commit** — `docs: update CONTEXT.md for anon sessions + WS-default chat`
 
 ---
 

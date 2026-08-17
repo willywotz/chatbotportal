@@ -780,5 +780,5 @@ rtk git commit -m "feat(llm): route /llm-settings, redirect old paths, remove ol
 
 ## Post-implementation (orchestrator)
 
-- Update `context.md` to reflect the merged LLM Settings page and edit-only routes, then commit (per project CLAUDE.md).
+- Update `CONTEXT.md` to reflect the merged LLM Settings page and edit-only routes, then commit (per project CLAUDE.md).
 - Optionally verify in the running app that `/llm-providers` and `/llm-routes` redirect to `/llm-settings` and the two-column layout renders.

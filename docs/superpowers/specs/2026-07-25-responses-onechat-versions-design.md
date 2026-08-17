@@ -173,7 +173,7 @@ imports the name).
 per-request override e2e on HTTP + WS.
 
 **Living docs:** `spec/openai-responses.md`, `spec/openai-responses-spec-gap-log.md`,
-`context.md`. Dated historical plan docs under `docs/superpowers/plans/` are left
+`CONTEXT.md`. Dated historical plan docs under `docs/superpowers/plans/` are left
 as-is (historical record).
 
 ## 9. Acceptance

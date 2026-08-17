@@ -36,7 +36,7 @@
 | `frontend/src/test/vite-config.test.ts` | Create | Regression guard on `allowedHosts`. |
 | `.github/workflows/test.yml` | Modify | Add a `scripts` job running the shell test. |
 | `docs/quickstart.md` | Modify | Tunnel row in the origins table, sharing + troubleshooting notes. |
-| `context.md` | Modify | Record the feature, per the repo's CLAUDE.md rule. |
+| `CONTEXT.md` | Modify | Record the feature, per the repo's CLAUDE.md rule. |
 
 `scripts/` does not exist yet; Task 1 creates it.
 
@@ -441,7 +441,7 @@ rtk git commit -m "feat(dev): tunnel the gateway via an always-on Cloudflare Qui
 
 **Files:**
 - Modify: `docs/quickstart.md`
-- Modify: `context.md`
+- Modify: `CONTEXT.md`
 
 **Interfaces:**
 - Consumes: the behavior built in Tasks 1–3.
@@ -504,9 +504,9 @@ Run: `rtk grep -n 'trycloudflare' docs/quickstart.md`
 
 Expected: matches in both the table row and the new section. Confirm by eye that the nested code fences are balanced and the section sits before `## Endpoints`.
 
-- [ ] **Step 4: Update context.md**
+- [ ] **Step 4: Update CONTEXT.md**
 
-Per the repo's CLAUDE.md rule, record the feature in `context.md`. Read the file first and follow its existing structure and heading style rather than appending a stray section. Cover, in the style already used there:
+Per the repo's CLAUDE.md rule, record the feature in `CONTEXT.md`. Read the file first and follow its existing structure and heading style rather than appending a stray section. Cover, in the style already used there:
 
 - Dev-only Cloudflare Quick Tunnel, always-on in `docker-compose.override.yaml`, tunnels `nginx:8080`.
 - `scripts/tunnel-url.sh` reads the random hostname from cloudflared's metrics endpoint; the `tunnel-url` sidecar prints it at startup.
@@ -517,7 +517,7 @@ Per the repo's CLAUDE.md rule, record the feature in `context.md`. Read the file
 - [ ] **Step 5: Commit**
 
 ```bash
-rtk git add docs/quickstart.md context.md
+rtk git add docs/quickstart.md CONTEXT.md
 rtk git commit -m "docs: document the dev Cloudflare Quick Tunnel"
 ```
 

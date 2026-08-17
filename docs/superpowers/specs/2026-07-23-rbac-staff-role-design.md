@@ -182,5 +182,5 @@ is blocked while `staff` and `admin` are allowed.
 
 ## Documentation to update
 
-- `context.md` — the "Auth & RBAC" section (roles list and chokepoint description) and the `User`
+- `CONTEXT.md` — the "Auth & RBAC" section (roles list and chokepoint description) and the `User`
   row in the data-model table (`role = user|staff|admin`). Note the self-registration follow-up.

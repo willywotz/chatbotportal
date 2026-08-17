@@ -120,7 +120,7 @@ Frontend (vitest):
 
 - Branch `feat/onechat-v5` off `dev`; PR into `dev`.
 - Rollback: set `CHAT_STREAM_VERSION=v4` at `/settings` — no redeploy, no data migration back.
-- On merge to `main`: update `context.md` and rebuild docker compose.
+- On merge to `main`: update `CONTEXT.md` and rebuild docker compose.
 
 ## Out of scope
 

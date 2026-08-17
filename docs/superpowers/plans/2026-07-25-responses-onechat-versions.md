@@ -545,11 +545,11 @@ rtk git commit -m "chore(config): remove CHAT_STREAM_VERSION; version is per-req
 
 ---
 
-### Task 6: Full suite, living docs, context.md
+### Task 6: Full suite, living docs, CONTEXT.md
 
 **Files:**
 - Modify: `spec/openai-responses.md:85`, `spec/openai-responses-spec-gap-log.md:71-73`
-- Modify: `context.md`
+- Modify: `CONTEXT.md`
 - (No `docs/superpowers/plans/*` historical edits.)
 
 **Interfaces:** none (documentation).
@@ -569,14 +569,14 @@ In `spec/openai-responses.md`, replace the model table row:
 
 In `spec/openai-responses-spec-gap-log.md`, replace the two `CHAT_STREAM_VERSION` rows with one noting version now comes from the `onechat_version` request field (absent → newest), and drop the "pinned model overrides" row.
 
-- [ ] **Step 3: Update `context.md`**
+- [ ] **Step 3: Update `CONTEXT.md`**
 
 Update the OneChat/Responses section to state: single `onechat` model id; per-request `onechat_version` (v1–v5, else newest); `CHAT_STREAM_VERSION` removed; portal `/chat/stream` now always newest. Follow the file's existing structure.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-rtk git add spec/openai-responses.md spec/openai-responses-spec-gap-log.md context.md
+rtk git add spec/openai-responses.md spec/openai-responses-spec-gap-log.md CONTEXT.md
 rtk git commit -m "docs: document onechat model id and per-request version selection"
 ```
 

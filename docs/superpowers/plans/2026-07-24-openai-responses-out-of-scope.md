@@ -382,7 +382,7 @@ rtk git add backend/app/services/openai backend/app/routers/responses.py backend
 rtk git commit -m "feat: mint ephemeral temp-user + X-Portal-Session for anonymous responses"
 ```
 
-**End of Phase A.** Open PR `feat/oai-foundation` → `dev`. Update context.md. Run `rtk pytest backend/tests -q` + frontend suite; both green before merge.
+**End of Phase A.** Open PR `feat/oai-foundation` → `dev`. Update CONTEXT.md. Run `rtk pytest backend/tests -q` + frontend suite; both green before merge.
 
 ---
 
@@ -943,7 +943,7 @@ rtk git commit -m "feat: conversation items create/list/retrieve/delete"
 
 **End of Phase B.** Confirm the `ResponsesApiError` handler covers `/api/v1/conversations` (it is
 registered app-wide in `register_responses_error_handler`; add a test asserting a conversations
-404 returns the OpenAI envelope). Open PR → `dev`; update context.md; full suite green.
+404 returns the OpenAI envelope). Open PR → `dev`; update CONTEXT.md; full suite green.
 
 ---
 
@@ -1233,18 +1233,18 @@ rtk git commit -m "feat: 501 stubs for cancel/input_tokens/compact"
 
 ---
 
-### Task C4: Flip the base spec + context.md
+### Task C4: Flip the base spec + CONTEXT.md
 
 **Files:**
-- Modify: `spec/openai-responses.md` (endpoint-scope tables), `context.md`
+- Modify: `spec/openai-responses.md` (endpoint-scope tables), `CONTEXT.md`
 
 - [ ] **Step 1** — In `spec/openai-responses.md`, change the §"Endpoint scope" and §5.1/§8.1 rows for the now-implemented endpoints from ❌ to ✅ (or "501 stub"), and add a top-of-file cross-link: `See spec/openai-responses-extended.md for retrieve/delete/input_items, Conversations, items, and the Kind 2 501 stubs.` Leave the 44 streaming events unchanged.
 
-- [ ] **Step 2** — Update `context.md`: note the `/api/v1/history` move, the OpenAI conversations router, temp-user identity, and soft delete.
+- [ ] **Step 2** — Update `CONTEXT.md`: note the `/api/v1/history` move, the OpenAI conversations router, temp-user identity, and soft delete.
 
 - [ ] **Step 3: Commit**
 ```bash
-rtk git add spec/openai-responses.md spec/openai-responses-extended.md context.md
+rtk git add spec/openai-responses.md spec/openai-responses-extended.md CONTEXT.md
 rtk git commit -m "docs: flip out-of-scope rows; document extended surface"
 ```
 
