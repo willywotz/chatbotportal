@@ -8,7 +8,7 @@
 # plain `docker compose up` runs the baked dev image without syncing edits.
 #
 # NEVER reaches prod: .github/workflows/deploy.yml invokes
-# `docker compose -f docker-compose.yaml up`, and an explicit `-f` disables
+# `docker compose -f compose.yaml up`, and an explicit `-f` disables
 # automatic override merging. Keep this file additive — override only what dev
 # needs (build target + watch rules); do not redefine routing, volumes, or
 # ports that the base file owns.

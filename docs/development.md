@@ -2,13 +2,13 @@
 
 The dev stack is the prod stack with one swap: the `development` Dockerfile
 stages (hot-reload servers instead of production servers). A
-`docker-compose.override.yaml` targets those stages and wires Compose
+`compose.override.yaml` targets those stages and wires Compose
 `develop.watch` to sync source edits into the running containers — **no
 bind-mounts**, so no WSL2 cross-filesystem issues or host `node_modules`
 clobbering.
 
 The override is **never** merged into prod — `deploy.yml` runs
-`docker compose -f docker-compose.yaml up`, and an explicit `-f` disables
+`docker compose -f compose.yaml up`, and an explicit `-f` disables
 override merging.
 
 ## Prerequisites

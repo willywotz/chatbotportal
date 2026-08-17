@@ -22,7 +22,7 @@ backend; keep a single `logo` field that holds either an emoji or an image URL.*
 
 - **Storage**: files live under an `UPLOAD_DIR` (single config constant) on a **named
   volume** mounted **rw into the backend only**. No nginx change, no cross-container
-  mount. Declared in the **base** `docker-compose.yaml` (inherited by the dev override) so
+  mount. Declared in the **base** `compose.yaml` (inherited by the dev override) so
   uploads survive `docker compose up -d --build --remove-orphans`.
 - **Serving**: `GET /api/v1/agencies/{id}/logo` streams the file with an explicit
   allowlisted `media_type`, `X-Content-Type-Options: nosniff`, and

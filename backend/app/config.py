@@ -34,7 +34,7 @@ class Settings(BaseSettings):
 
     # ── Uploads ──────────────────────────────────────────────────────────────
     # Single source of truth for on-disk upload storage (named Docker volume in
-    # docker-compose.yaml, backend service only). Agency logos live under
+    # compose.yaml, backend service only). Agency logos live under
     # {UPLOAD_DIR}/agency-logos/.
     UPLOAD_DIR: str = "/app/uploads"
 
