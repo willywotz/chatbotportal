@@ -44,7 +44,7 @@ two layers in one file. Business rules for queries live in the router, not the u
   `backend/app/config.py` uses `pydantic-settings` `BaseSettings` and reports overrides.
 - **Factor IV (Backing services):** The database and Redis attach by URL
   (`DATABASE_URL`, `REDIS_URL`). The code can swap them without a code change.
-- **Factor V (Build, release, run):** Dockerfiles and `docker-compose.yaml` separate the stages.
+- **Factor V (Build, release, run):** Dockerfiles and `compose.yaml` separate the stages.
 
 ### Gaps
 - **Factor VI (Stateless / disposability):** Agency logos write to local disk.

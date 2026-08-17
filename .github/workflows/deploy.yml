@@ -38,4 +38,4 @@ jobs:
           } > .env
 
       - name: Build and deploy
-        run: docker compose -f docker-compose.yaml up -d --build --remove-orphans
+        run: docker compose -f compose.yaml up -d --build --remove-orphans

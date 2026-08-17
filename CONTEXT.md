@@ -22,7 +22,7 @@ This backend is the **portal/gateway**: it wraps OneChat, exposes its own MCP se
 agency data that OneChat calls back into, persists conversations, and provides all the
 admin/analytics/auth surface.
 
-## Services (docker-compose.yaml)
+## Services (compose.yaml)
 
 All traffic enters through **caddy** on ports 80/443; services talk over the `chatbot-network`.
 
@@ -440,13 +440,13 @@ usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package m
   frontend `tsc --noEmit` + vitest coverage. **No E2E** (removed from CI).
 - **`.github/workflows/deploy.yml`** (merged PR to `main` / manual): self-hosted runner, validates
   `JWT_SECRET`/`OPENROUTER_API_KEY`, writes prod `.env` (`ENV=production`), then
-  `docker compose -f docker-compose.yaml up -d --build --remove-orphans`. The explicit `-f` is
-  load-bearing: it disables compose's automatic override merging, so `docker-compose.override.yaml`
+  `docker compose -f compose.yaml up -d --build --remove-orphans`. The explicit `-f` is
+  load-bearing: it disables compose's automatic override merging, so `compose.override.yaml`
   never reaches prod. Deploy does **not** depend on the test job.
 - **Prod env** template: `.env.prod.example` (set `JWT_SECRET`, `POSTGRES_PASSWORD`, `CORS_ORIGINS`,
   OneChat URLs, `OPENROUTER_API_KEY`). `ENV=production` makes startup refuse the default JWT secret.
 - **Local dev** (`docs/development.md`): `docker compose up --watch` auto-merges
-  `docker-compose.override.yaml`, which swaps the `development` Dockerfile stages (Vite dev server +
+  `compose.override.yaml`, which swaps the `development` Dockerfile stages (Vite dev server +
   `fastapi dev --reload`) and uses Compose `develop.watch` (sync actions) to copy source edits into
   the running containers — **no bind-mounts** (avoids WSL2 cross-filesystem issues + host
   `node_modules` clobbering). `--watch` is required: a plain `docker compose up` runs the baked dev

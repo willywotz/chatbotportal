@@ -21,7 +21,7 @@
 | Logging | structlog + `request_id` middleware |
 | Session history | Redis (optional) |
 | Testing | pytest + pytest-asyncio + httpx |
-| Containerization | Docker + docker-compose + nginx |
+| Containerization | Docker + Compose + Caddy |
 
 ## โครงสร้างชั้น (Layers)
 
