@@ -842,7 +842,7 @@ direct read (file:line), not inferred.
 - Release is now continuous delivery: GitHub Actions (`release` workflow) builds images,
   pushes them to GHCR, and dispatches Ansible to deploy via SSH. No more manual docker compose;
   all runtime secrets encrypted with age, stored at `deploy/group_vars/all/secrets.sops.yaml`.
-- Bootstrap runbook (`docs/deploy-bootstrap.md`) documents: age key generation (public key in
+- Bootstrap runbook (`deploy/README.md`) documents: age key generation (public key in
   `.sops.yaml`, secret in GitHub Actions), deploy SSH key setup, GitHub Actions secrets
   (`SOPS_AGE_KEY`, `SSH_PRIVATE_KEY`, `SSH_KNOWN_HOSTS`), host preparation (deploy user,
   Docker + Compose), GHCR package publicity, and secret editing with SOPS. Rollback: Actions
