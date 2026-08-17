@@ -38,10 +38,6 @@ class Settings(BaseSettings):
     # {UPLOAD_DIR}/agency-logos/.
     UPLOAD_DIR: str = "/app/uploads"
 
-    # ── Redis (shared LLM-provider throttle budget across workers) ───────────
-    REDIS_URL: str = ""           # empty = in-process limiter (single worker)
-    REDIS_SOCKET_TIMEOUT_MS: int = 100
-
     # ── CORS ─────────────────────────────────────────────────────────────────
     CORS_ORIGINS: list[str] = ["*"]
 

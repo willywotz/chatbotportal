@@ -14,8 +14,6 @@ dependencies = [
     # ORM + PostgreSQL async driver
     "tortoise-orm[asyncpg]>=0.21.0",
     "pgvector>=0.3.0",
-    # Distributed rate limiting
-    "redis>=5.0.0",
     # Migrations
     "aerich>=0.7.2",
     # MCP server
