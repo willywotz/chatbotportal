@@ -1,7 +1,7 @@
 # Deploy bootstrap (one-time)
 
 ## 1. age key
-`age-keygen -o keys.txt` — public key goes in `.sops.yaml`; full file contents become the `SOPS_AGE_KEY` GitHub secret. Store `keys.txt` in the team password manager; never commit it.
+`age-keygen -o deploy/keys.txt` — public key goes in `deploy/.sops.yaml`; full file contents become the `SOPS_AGE_KEY` GitHub secret. Store the key in the team password manager. `keys.txt` is gitignored anywhere in the tree; never commit it.
 
 ## 2. Deploy SSH key
 On a workstation: `ssh-keygen -t ed25519 -f deploy_key -C chatbotportal-deploy`.
@@ -22,7 +22,7 @@ After the first `release` run pushes them, in GitHub → Packages, set
 `chatbotportal` and `chatbotportal-web` visibility to Public (the deploy host pulls anonymously).
 
 ## 6. Editing secrets later
-`SOPS_AGE_KEY_FILE=keys.txt sops deploy/group_vars/all/secrets.sops.yaml`, edit, save — SOPS re-encrypts. Commit the ciphertext.
+From `deploy/`: `SOPS_AGE_KEY_FILE=keys.txt sops group_vars/all/secrets.sops.yaml`, edit, save — SOPS re-encrypts (recipients come from `deploy/.sops.yaml`). Commit the ciphertext.
 
 ## Rollback
 Actions → release → Run workflow → enter an older tag (e.g. `v0.1.0`). Images are immutable per tag/SHA.
