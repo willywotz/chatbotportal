@@ -31,7 +31,7 @@ All traffic enters through **caddy** on ports 80/443; services talk over the `ch
 | **caddy** | Caddy 2 | Reverse proxy + TLS terminator. HTTP on `EXTERNAL_HTTP_PORT`, HTTPS on `EXTERNAL_HTTPS_PORT`. Routing in `caddy/Caddyfile`. Obtains + renews the Let's Encrypt cert itself. |
 | **backend** | Python 3.12 · FastAPI · Tortoise ORM · FastMCP | REST API (`/api/v1`), MCP server (`/mcp`), scheduler, auth. Port 8080. |
 | **frontend** | React 18 · Vite 5 · TS · shadcn/ui | SPA admin + public portal. Port 8080. |
-| **postgres** | pgvector/pgvector:pg16 | Shared DB (backend). Extensions: `pg_trgm`, `fuzzystrmatch`, `vector` (created by `postgres-init`). |
+| **postgres** | pgvector/pgvector:pg16 | Shared DB (backend). Extension `pg_trgm` created by migrations on backend startup (`app/database.py` → aerich upgrade). |
 | **jaeger** | jaegertracing/jaeger:2.18.0 | OTLP tracing sink (`jaeger:4317`), UI proxied at `/jaeger/`. |
 
 **caddy routing (`caddy/Caddyfile`, single source of truth):**

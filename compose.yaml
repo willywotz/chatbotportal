@@ -21,23 +21,6 @@ services:
       - target: 5432
         published: "${EXTERNAL_POSTGRES_PORT:-}"
 
-  postgres-init:
-    image: postgres:16
-    environment:
-      PGPASSWORD: ${POSTGRES_PASSWORD:-chatbot_secret}
-    networks:
-      - chatbot-network
-    depends_on:
-      postgres:
-        condition: service_healthy
-    command: >
-      psql -h postgres
-      -U ${POSTGRES_USER:-chatbot}
-      -d ${POSTGRES_DB:-chatbot}
-      -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
-      -c "CREATE EXTENSION IF NOT EXISTS fuzzystrmatch;"
-      -c "CREATE EXTENSION IF NOT EXISTS vector;"
-
   backend:
     image: ghcr.io/willywotz/chatbotportal:${IMAGE_TAG:-latest}
     build:
@@ -52,9 +35,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-        restart: true
-      postgres-init:
-        condition: service_completed_successfully
         restart: true
       jaeger:
         condition: service_started
