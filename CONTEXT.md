@@ -1472,3 +1472,35 @@ transport client `app/services/llm/client.py` also wrote usage rows (`_record_us
 TDD: RED (`test_client_chat_is_transport_only`, `test_ping_records_no_usage` failed `1==0`) → GREEN.
 Suite 714 → **716 pass / 2 skip**, green. Remaining de-couple work: P2 (`chat/stream.py` hub),
 then P1 (ORM repository ports, per aggregate).
+
+## 2026-08-18 — De-couple P2 folded into P1; P1 template (Conversation repository)
+
+Branch `refactor/repo-port-conversation`. Design + plan:
+`docs/superpowers/specs/2026-08-18-repository-ports-design.md`,
+`docs/superpowers/plans/2026-08-18-repo-port-conversation.md`.
+
+**P2 finding:** on reading `chat/stream.py`, the "most coupled hub" is already transport-decoupled
+(injected `Scheduler` port, narrow `TurnPlan`/`ChatEvent`), has no cycles (the openai⇄responses
+cycle died with the deletion), and its service edges (onechat/session/similarity/log_sanitize) are
+legitimate orchestration. The only real remaining coupling is ORM model access = P1. So **P2 was
+folded into P1** — no standalone port-wrapping of correctly-shared services (would be YAGNI).
+
+**P1 pattern (locked decisions):** command repositories only (analytics/reporting stays a
+SQL-backed read-model, CQRS-lite); **no `Protocol`** while there is one impl + SQLite-backed tests
+(honors the Lazy "no interface with one implementation" rule — extract when the Go port needs it);
+repositories **return/accept Tortoise instances** (isolate ORM operations + exceptions, not the
+model type — `withinlazy` ceiling); one aggregate per branch.
+
+**First template — `app/repositories/conversation.py`:** `by_id`, `list_and_count`, `create`,
+`save`, `delete`. Routed all Conversation *command* access in `conversation.py`, `chat/turn.py`,
+`chat/stream.py`, `session.py` through it — no `Conversation.<orm>` call or `DoesNotExist` left in
+those services. `Message` access and analytics `Conversation.filter(...).count()` reads stay
+(later steps). Repo functions are transaction-agnostic (join the caller's `in_transaction()`).
+Final review (opus): ready to merge, template sound. One correction during review: a fix attempt
+rewrote `list_and_count` to filter `agencies__contains` in Python (load-all — a memory regression
+on the admin path); reverted to the faithful DB-level JSONB filter (Postgres-only, not unit-testable
+on SQLite). Suite 716 → **720 pass / 2 skip**, green.
+
+**Next P1 aggregates (copy this template, one branch each):** `User`, then `Agency` (its atomic
+`F()` counter bump gets a dedicated `increment_*` method, NOT `save()`), then `Message`
+command-slice (analytics reads stay in the read-model).

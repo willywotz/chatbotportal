@@ -17,12 +17,12 @@ from typing import Any, AsyncIterator, Callable, Coroutine, NamedTuple
 
 from opentelemetry import trace
 from opentelemetry.trace import StatusCode
-from tortoise.exceptions import DoesNotExist
 
 from app.config import settings
 from app.models.connection_log import ConnectionLog
-from app.models.conversation import Conversation, Message
+from app.models.conversation import Message
 from app.models.user import User
+from app.repositories import conversation as conversation_repo
 from app.services.chat.llm import classify_message_category
 from app.services.chat.pipeline_snapshot import build_pipeline_snapshot
 from app.services.chat.turn import save_turn
@@ -93,9 +93,8 @@ async def prepare_turn(
         plan.cached = await find_similar_question(query=query)
         return plan
 
-    try:
-        conv = await Conversation.get(id=conversation_id)
-    except DoesNotExist:
+    conv = await conversation_repo.by_id(conversation_id)
+    if conv is None:
         raise ConversationNotFound(conversation_id)
     try:
         await ensure_session_warmed(conv, settings.MCP_ENDPOINT_URL)

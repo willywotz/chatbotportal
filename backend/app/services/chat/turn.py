@@ -2,11 +2,11 @@
 import uuid
 from dataclasses import dataclass
 
-from tortoise.exceptions import DoesNotExist
 from tortoise.transactions import in_transaction
 
 from app.config import settings
-from app.models.conversation import Conversation, Message
+from app.models.conversation import Message
+from app.repositories import conversation as conversation_repo
 from app.utils import generate_uuid, now
 
 
@@ -49,17 +49,9 @@ async def save_turn(
     """
     status = "success" if succeeded else "failed"
     async with in_transaction():
-        try:
-            conv = await Conversation.get(id=conversation_id)
-            conv.message_count += 2
-            conv.updated_at = now()
-            if not succeeded:
-                # One-way ratchet: once "failed", status is never restored to "success",
-                # keeping the conversation out of the similarity cache on recovery.
-                conv.status = "failed"
-            await conv.save()
-        except DoesNotExist:
-            conv = await Conversation.create(
+        conv = await conversation_repo.by_id(conversation_id)
+        if conv is None:
+            conv = await conversation_repo.create(
                 id=conversation_id,
                 title=(title or query)[: settings.TITLE_MAX_LENGTH],
                 preview=query[: settings.PREVIEW_MAX_LENGTH],
@@ -70,6 +62,14 @@ async def save_turn(
                 user_id=user.id if user else None,
                 external_session_id=external_session_id,
             )
+        else:
+            conv.message_count += 2
+            conv.updated_at = now()
+            if not succeeded:
+                # One-way ratchet: once "failed", status is never restored to "success",
+                # keeping the conversation out of the similarity cache on recovery.
+                conv.status = "failed"
+            await conversation_repo.save(conv)
         user_msg = await Message.create(
             conversation_id=conversation_id, role="user", content=query, category=category,
         )
