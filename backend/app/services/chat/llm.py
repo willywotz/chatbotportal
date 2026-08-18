@@ -1,6 +1,6 @@
 import logging
 
-from app.models.conversation import Message
+from app.repositories import message as message_repo
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +21,6 @@ async def classify_message_category(message_id: str, query: str, answer: str) ->
     from app.services.llm import LlmError, Purpose, chat
     try:
         res = await chat(purpose=Purpose.CLASSIFICATION, messages=[{"role": "user", "content": content}])
-        await Message.filter(id=message_id).update(category=res.content)
+        await message_repo.set_category(message_id, res.content)
     except (LlmError, Exception) as e:
         logger.error("Error classifying message category: %s", e)

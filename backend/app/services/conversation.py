@@ -7,6 +7,7 @@ from app.errors import ApiError, ErrorCode
 from app.models.conversation import Conversation, Message
 from app.models.user import User
 from app.repositories import conversation as conversation_repo
+from app.repositories import message as message_repo
 from app.schemas.conversation import SaveConversationRequest
 
 
@@ -36,7 +37,7 @@ async def create_conversation(body: SaveConversationRequest, user: User | None) 
             )
             for m in body.messages
         ]
-        await Message.bulk_create(msg_rows, ignore_conflicts=True)
+        await message_repo.bulk_create(msg_rows, ignore_conflicts=True)
 
     return conv
 
@@ -87,13 +88,13 @@ async def _authorize(conversation_id: uuid.UUID, user: User) -> Conversation:
 
 async def get_conversation_with_messages(conversation_id: uuid.UUID, user: User) -> tuple[Conversation, list[Message]]:
     conv = await _authorize(conversation_id, user)
-    messages = await Message.filter(conversation_id=conversation_id, deleted_at=None).order_by("created_at")
+    messages = await message_repo.list_for_conversation(conversation_id)
     return conv, messages
 
 
 async def get_conversation_messages(conversation_id: uuid.UUID, user: User) -> list[Message]:
     await _authorize(conversation_id, user)
-    return await Message.filter(conversation_id=conversation_id, deleted_at=None).order_by("created_at")
+    return await message_repo.list_for_conversation(conversation_id)
 
 
 async def delete_conversation(conversation_id: uuid.UUID, user: User) -> None:

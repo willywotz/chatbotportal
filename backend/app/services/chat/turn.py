@@ -5,8 +5,8 @@ from dataclasses import dataclass
 from tortoise.transactions import in_transaction
 
 from app.config import settings
-from app.models.conversation import Message
 from app.repositories import conversation as conversation_repo
+from app.repositories import message as message_repo
 from app.utils import generate_uuid, now
 
 
@@ -70,10 +70,10 @@ async def save_turn(
                 # keeping the conversation out of the similarity cache on recovery.
                 conv.status = "failed"
             await conversation_repo.save(conv)
-        user_msg = await Message.create(
+        user_msg = await message_repo.create(
             conversation_id=conversation_id, role="user", content=query, category=category,
         )
-        asst_msg = await Message.create(
+        asst_msg = await message_repo.create(
             id=assistant_message_id or generate_uuid(),
             parent_id=user_msg.id,
             conversation_id=conversation_id,
