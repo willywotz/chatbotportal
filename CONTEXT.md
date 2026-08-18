@@ -1559,6 +1559,12 @@ New `app/repositories/message.py` (`by_id`, `list_for_conversation`, `first_user
   `ignore_conflicts=True`; `turn.py` creates stay inside `in_transaction()`.
 Final review (sonnet): ready to merge, no issues. Suite 730 → **736 pass / 2 skip**, green.
 
+### Agency write-side closed (2026-08-18)
+Branch `refactor/repo-port-agency-writes-tail`: the two remaining `agency.save()` command sites
+(`agency_lifecycle.py`, `conformance.py`) now use `agency_repo.save`. Zero direct `agency.save` left
+in `app/services`. Agency's deferred *reads* (analytics `.values()` / existence-check validation in
+`popular_questions`/`feedback` / `public_status` / `mcp`) remain read-model, by design. Suite 736/2.
+
 **P1 status:** the 4 high-traffic aggregates (Conversation, User, Agency, Message) now have command
 repositories. `app/repositories/` holds the seam; use-case services no longer do Active-Record for
 these aggregates' command paths. Remaining: the deferred Agency peripheral sites, and the smaller
