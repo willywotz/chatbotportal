@@ -33,15 +33,13 @@ logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
 
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings, load_settings_from_db
 from app.errors import register_error_handlers
 from app.database import init_db, close_db
-from app.middleware.session_refresh import SessionRefreshMiddleware
 from app.mcp.server import mcp
-from app.auth.dependencies import enforce_role_allowlist
 from app.routers import agencies, audit_log, conversations, messages, dashboard, feedback, auth, chat, connection_logs, api_key, executive_summary, insight, popular_questions, public_status, users, settings as settings_router
 from app.routers import agent_proxy
 from app.routers import llm as llm_router
@@ -113,7 +111,6 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
-    dependencies=[Depends(enforce_role_allowlist)],
 )
 register_error_handlers(app)
 
@@ -128,7 +125,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.add_middleware(SessionRefreshMiddleware)
 
 # ---------------------------------------------------------------------------
 # REST routers
@@ -154,13 +150,13 @@ app.include_router(llm_router.router, prefix="/api/v1")
 app.include_router(agent_proxy.router, prefix="/api/v1")
 
 # ---------------------------------------------------------------------------
-# MCP transport — intentionally outside the role chokepoint
+# MCP transport — its own auth, independent of the REST routers above.
 #
-# NOTE: enforce_role_allowlist (an app-level FastAPI dependency) does NOT cover
-# this mount. Mounted sub-apps (app.mount) bypass FastAPI's dependency
-# injection by design. MCP auth is enforced in app/mcp/server.py via API key:
-# any active user is admitted with no role check. Do not "fix" this by gating
-# the mount without revisiting that intent — see backend/tests/test_mcp_role_access.py.
+# Mounted sub-apps (app.mount) bypass FastAPI's per-request dependency
+# injection by design, so the REST routers' `require_scope` never runs for
+# this mount. MCP auth is enforced in app/mcp/server.py via API key: any
+# active user is admitted with no role check — see
+# backend/tests/test_mcp_role_access.py.
 # ---------------------------------------------------------------------------
 
 # MCP server — stateless streamable-HTTP sub-app. QueryTraceparentASGI runs

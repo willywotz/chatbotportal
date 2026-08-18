@@ -1,10 +1,9 @@
 """Guard test: read-only roles (viewer, auditor) are NOT rejected by MCP auth.
 
 The MCP transport (/mcp) is mounted outside FastAPI's dependency injection, so
-the role chokepoint (enforce_role_allowlist) never runs for it. The only auth
-gate is AuthMiddleware in app/mcp/server.py,
-which checks that the API key is usable and the user is active — no role
-check at all.
+the REST routers' `require_scope` never runs for it. The only auth gate is
+AuthMiddleware in app/mcp/server.py, which checks that the API key is usable
+and the user is active — no role check at all.
 
 These tests reproduce the exact DB lookups performed by AuthMiddleware to
 confirm that viewer and auditor keys resolve to a live User object and are
