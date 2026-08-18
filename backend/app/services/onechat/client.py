@@ -113,18 +113,6 @@ class OneChatClient:
             raise OneChatError(resp.status_code, resp.text[:200])
         return resp.json()
 
-    async def stream_v4(
-        self, query: str, mcp_endpoint_url: str, session_id: str | None = None
-    ) -> AsyncIterator[SseEvent]:
-        async for ev in self._stream("/v4/chat", query, mcp_endpoint_url, session_id):
-            yield ev
-
-    async def stream_v5(
-        self, query: str, mcp_endpoint_url: str, session_id: str | None = None
-    ) -> AsyncIterator[SseEvent]:
-        async for ev in self._stream("/v5/chat", query, mcp_endpoint_url, session_id):
-            yield ev
-
     async def events(
         self, query: str, mcp_endpoint_url: str, session_id: str | None = None
     ) -> AsyncIterator[SseEvent]:

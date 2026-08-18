@@ -24,19 +24,6 @@
 		max_size 20MB
 	}
 
-	# OpenAI Responses API. The WebSocket transport holds a connection for up to
-	# 60 minutes (RESPONSES_WS_MAX_DURATION_SECONDS), so Caddy's default idle
-	# timeout would kill an idle socket well before the cap.
-	@api_responses path /api/v1/responses
-	handle @api_responses {
-		reverse_proxy backend:8080 {
-			transport http {
-				read_timeout 3700s
-				write_timeout 3700s
-			}
-		}
-	}
-
 	# Backend API surface. path_regexp mirrors the old routes.conf nginx regex
 	# exactly (^/(api|sse|messages|mcp|docs|redoc|openapi.json)) so bare paths
 	# (/mcp, /docs) and subpaths (/mcp/sse, /api/v1/...) both match — a plain

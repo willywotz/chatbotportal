@@ -63,7 +63,3 @@ def register_error_handlers(app: FastAPI) -> None:
 
     app.add_exception_handler(HTTPException, _http_error)
     app.add_exception_handler(StarletteHTTPException, _http_error)
-
-    from app.services.responses.errors import register_responses_error_handler
-
-    register_responses_error_handler(app)
