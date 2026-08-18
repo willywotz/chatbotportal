@@ -1453,3 +1453,22 @@ Deferred: one redundant `POST /agencies` basic-user contrast assertion (covered 
 `test_basic_user_allowlist.py`). **Deploy gate before this reaches a live environment:** confirm no
 external ops client calls `/api/v1/responses` or `/api/v1/conversations` (access logs). De-couple
 phases P3/P2/P1 remain future work, to be planned against this post-deletion tree.
+
+## 2026-08-18 — De-couple P3: LLM transport gateway made pure
+
+Branch `refactor/llm-gateway-transport-only`. The audit's last live dependency-rule leak: the LLM
+transport client `app/services/llm/client.py` also wrote usage rows (`_record_usage` →
+`LlmUsage.create`), mixing transport with persistence.
+- **`client.py` is now pure transport** — no model import, no persistence. `chat()` drops its
+  `user_id/agency_id/conversation_id` params and returns `LlmResult` only.
+- **New `llm/usage.py`** is the persistence adapter (`record()`, moved verbatim: contextvar
+  fallbacks + swallow-all-errors so accounting never breaks the call path).
+- **`llm/__init__.py` is the composition seam** — the public `chat()` calls `client.chat()` then
+  `usage.record()`. The 5 callers (`evaluation`, `chat/llm`, `popular_questions`, `agency`,
+  `analytics/brief`) are UNCHANGED.
+- **Behavior fix:** `ping()` uses pure transport, so health-check pings no longer record a 1-token
+  row as real usage.
+- Follow-up `e665f3c` dropped the now-dead module logger from the pure client.
+TDD: RED (`test_client_chat_is_transport_only`, `test_ping_records_no_usage` failed `1==0`) → GREEN.
+Suite 714 → **716 pass / 2 skip**, green. Remaining de-couple work: P2 (`chat/stream.py` hub),
+then P1 (ORM repository ports, per aggregate).
