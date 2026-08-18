@@ -2,6 +2,7 @@
 import asyncio
 
 from app.models import Agency
+from app.repositories import agency as agency_repo
 from app.services.chat.dispatch import dispatch_one
 from app.utils import now
 
@@ -42,5 +43,5 @@ async def run_conformance(agency: Agency) -> dict:
 
     report = {"ran_at": now().isoformat(), "passed": all(c["passed"] for c in checks), "checks": checks}
     agency.conformance_report = report
-    await agency.save(update_fields=["conformance_report"])
+    await agency_repo.save(agency, update_fields=["conformance_report"])
     return report
