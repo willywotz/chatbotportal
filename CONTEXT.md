@@ -1504,3 +1504,19 @@ on SQLite). Suite 716 → **720 pass / 2 skip**, green.
 **Next P1 aggregates (copy this template, one branch each):** `User`, then `Agency` (its atomic
 `F()` counter bump gets a dedicated `increment_*` method, NOT `save()`), then `Message`
 command-slice (analytics reads stay in the read-model).
+
+## 2026-08-18 — P1 aggregate 2: User repository
+
+Branch `refactor/repo-port-user`. Plan `docs/superpowers/plans/2026-08-18-repo-port-user.md`.
+New `app/repositories/user.py` (`by_id`, `active_by_id`, `active_by_email`, `email_exists`,
+`count_other_active_admins`, `count_all`, `search`, `create`, `save`). Routed User command access
+through it in `services/user.py`, `services/seed.py`, `auth/dependencies.py`, `auth/ws.py`,
+`routers/auth.py` — no `User.<orm>` call or `DoesNotExist` left in those files. **Root-cause dedup:**
+the `User.filter(id=x, is_active=True).first()` query was copy-pasted in FIVE places (4 in
+`auth/dependencies.py` — `_resolve_api_key`/`_resolve_session_user`/`_resolve_role`×2 — plus
+`auth/ws.py`); all now call one `active_by_id`. The `is_active=True` auth security filter is
+preserved exactly (final opus review: Ready to merge, confirmed by a passing deactivated-user test).
+Out of scope (read-model / other aggregate): `analytics/usage.py` `id__in`, `UserAPIKey` access.
+Suite 720 → **726 pass / 2 skip**, green. Template note added to spec §7: an auth/soft-state filter
+may be its own named method (`active_by_id`) rather than a `by_id` flag — repos need not be
+mechanically identical.

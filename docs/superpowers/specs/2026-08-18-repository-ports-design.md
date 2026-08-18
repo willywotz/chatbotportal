@@ -101,7 +101,13 @@ created_at__month...).count()` reads (read-model).
 
 ## 7. After this template
 
-Apply the same shape to the next aggregates, one branch each: `User`, then
-`Agency` (note its atomic `F()`-counter bump → a dedicated `increment_*`
+Apply the same shape to the next aggregates, one branch each: `User` (done),
+then `Agency` (note its atomic `F()`-counter bump → a dedicated `increment_*`
 method), then `Message` command-slice (its analytics reads stay in the
 read-model). Re-plan each against the tree at that time.
+
+The repos need not be mechanically identical. A security or soft-state filter
+used at an aggregate/auth boundary may be exposed as its own named method
+(e.g. User's `active_by_id`, which always applies `is_active=True`) rather than
+a boolean flag on `by_id` (as Conversation does with `exclude_deleted=`). Name
+the method after the intent; do not force one shape across aggregates.
