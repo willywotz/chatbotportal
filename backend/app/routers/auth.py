@@ -22,6 +22,7 @@ from app.models.user import User
 from pydantic import BaseModel, EmailStr
 
 from app.auth.security import verify_password
+from app.repositories import user as user_repo
 from app.services import user as user_service
 from app.services.auth_session import create_session, delete_session, resolve_session
 
@@ -118,7 +119,7 @@ async def update_me(
         user.display_name = body.display_name
     if body.avatar_url is not None:
         user.avatar_url = body.avatar_url
-    await user.save()
+    await user_repo.save(user)
     return {"user": _user_dict(user)}
 
 
@@ -131,5 +132,5 @@ async def change_password(
         raise HTTPException(status_code=400, detail="รหัสผ่านปัจจุบันไม่ถูกต้อง")
 
     user.hashed_password = user_service.hash_new_password(body.new_password)
-    await user.save(update_fields=["hashed_password"])
+    await user_repo.save(user, update_fields=["hashed_password"])
     return {"message": "เปลี่ยนรหัสผ่านสำเร็จ"}

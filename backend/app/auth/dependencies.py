@@ -24,6 +24,7 @@ from starlette.requests import HTTPConnection
 from app.auth.security import API_KEY_PREFIX, hash_api_key
 from app.config import settings
 from app.models.user import User, UserAPIKey
+from app.repositories import user as user_repo
 from app.services.auth_session import resolve_session
 from app.services.usage_context import current_api_key_id, current_user_id
 from app.utils import now
@@ -131,7 +132,7 @@ async def _resolve_api_key(token: str) -> User | None:
     api_key = await UserAPIKey.filter(key_hash=hash_api_key(token)).first()
     if api_key is None or not api_key.is_usable():
         return None
-    user = await User.filter(id=api_key.user_id, is_active=True).first()
+    user = await user_repo.active_by_id(api_key.user_id)
     if user is None:
         return None
     api_key.last_used_at = now()
@@ -151,7 +152,7 @@ async def _resolve_session_user(session_id: str) -> User | None:
     user_id = await resolve_session(session_id)
     if not user_id:
         return None
-    user = await User.filter(id=user_id, is_active=True).first()
+    user = await user_repo.active_by_id(user_id)
     if user is not None:
         current_user_id.set(user.id)
     return user
@@ -215,13 +216,13 @@ async def _resolve_role(conn: HTTPConnection) -> str | None:
         api_key = await UserAPIKey.filter(key_hash=hash_api_key(key)).first()
         if api_key is None or not api_key.is_usable():
             return None
-        user = await User.filter(id=api_key.user_id, is_active=True).first()
+        user = await user_repo.active_by_id(api_key.user_id)
         return user.role if user else None
     sid = conn.cookies.get(settings.SESSION_COOKIE_NAME)
     if sid:
         user_id = await resolve_session(sid)
         if user_id:
-            user = await User.filter(id=user_id, is_active=True).first()
+            user = await user_repo.active_by_id(user_id)
             return user.role if user else None
     return None
 

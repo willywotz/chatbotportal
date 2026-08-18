@@ -6,7 +6,7 @@ future management command, and unit-tested directly.
 
 from app.auth.security import hash_password
 from app.models.agency import Agency
-from app.models.user import User
+from app.repositories import user as user_repo
 
 
 DEFAULT_ADMIN = {
@@ -68,14 +68,14 @@ DEFAULT_AGENCIES = [
 ]
 
 async def run_seed_admin() -> dict:
-    existing = await User.all().count()
+    existing = await user_repo.count_all()
     if existing > 0:
         return {"status": "skipped", "message": f"{existing} users already exist"}
 
-    if await User.filter(email=DEFAULT_ADMIN["email"]).exists():
+    if await user_repo.email_exists(DEFAULT_ADMIN["email"]):
         return {"status": "skipped", "message": f"{DEFAULT_ADMIN['email']} already exists"}
 
-    await User.create(
+    await user_repo.create(
         email=DEFAULT_ADMIN["email"],
         display_name=DEFAULT_ADMIN["display_name"],
         hashed_password=hash_password(DEFAULT_ADMIN["password"]),
