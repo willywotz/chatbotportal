@@ -1311,3 +1311,26 @@ Result: local `docker compose up` no longer auto-merges dev overrides (no dev bu
 targets, no file-watch hot-reload, no Cloudflare Quick Tunnel). Historical design docs
 under `docs/superpowers/` still reference the override and are left as-is (historical
 record).
+
+## 2026-08-18 — Full-read codebase re-audit
+
+Every source file was read in full again (backend `app`/`services`/`routers`/`tests`/
+`migrations`/`scripts` + frontend `features`/`shared`/`supabase` + compose/Caddy/CI). The
+architecture above held up end to end — the single-pipeline invariant (`stream.py:run_turn`
+shared by `/chat` WS+JSON and `/responses` SSE+WS+sync), the deny-by-default role chokepoint,
+the pg_trgm cache + failure-ratchet coupling, the EDA outbox, and the aerich migration
+history (0–29, `vector` added at 9 and its index dropped at 19 in favour of `pg_trgm`, roles
+collapsed five→two→three at 24/26) all match. No new code change; two small stale references
+found and recorded:
+- **`python-jose` is still a backend dependency** (`backend/pyproject.toml:26`, comment "JWT +
+  password hashing") even though JWT was fully removed — the only remaining mention in
+  `backend/app` is the `auth/dependencies.py:140` "JWT is gone" comment. Auth is API-key
+  (`tcg_` + SHA-256) or session cookie only; the dep is unused. Drop on the next dep-cleanup
+  branch.
+- **Frontend `SettingsPage.tsx:15` `RESTART_FIELDS` still lists `JWT_SECRET`/`JWT_ALGORITHM`** —
+  dead entries; those settings no longer exist backend-side, so the "restart required" hint can
+  never fire for them.
+Previously recorded latent defects (unauthenticated `PATCH /messages/{id}/rating` + rating
+double-count, MCP `authorization`-header redaction skip/None-crash, hardcoded-zero analytics
+stubs, and the several anonymously-reachable GETs that rely on the chokepoint alone) were
+re-confirmed present and are unchanged.
