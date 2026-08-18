@@ -81,8 +81,8 @@ def verify_token(token: str) -> Principal:
             audience=settings.KEYCLOAK_AUDIENCE,
             issuer=settings.keycloak_issuer,
         )
+        return principal_from_claims(claims)
     except InvalidToken:
         raise
-    except Exception as exc:  # jwt.* errors, key errors
+    except Exception as exc:  # jwt.* errors, key errors, malformed claims
         raise InvalidToken(str(exc)) from exc
-    return principal_from_claims(claims)
