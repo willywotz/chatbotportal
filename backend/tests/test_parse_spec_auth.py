@@ -32,9 +32,10 @@ def test_parse_spec_rejects_anonymous(monkeypatch):
     assert r.status_code in (401, 403)
 
 
-def test_parse_spec_allows_authenticated(monkeypatch):
+def test_parse_spec_allows_authenticated(monkeypatch, as_principal):
     app = _app(monkeypatch)
-    app.dependency_overrides[get_current_user] = lambda: object()
+    principal = as_principal()
+    app.dependency_overrides[get_current_user] = lambda: principal
     r = TestClient(app).post(_PATH, json={"spec_text": "openapi: 3.0.0"})
     assert r.status_code == 200
     assert r.json() == {"success": True, "data": {"name": "X", "endpoints": []}}
