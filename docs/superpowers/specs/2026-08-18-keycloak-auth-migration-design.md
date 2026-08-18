@@ -71,6 +71,17 @@ New module `app/auth/keycloak.py`.
 - `require_scope` — a `Security` dependency (see §5.2). `require_admin` is removed;
   admin-only routes require an admin-only scope instead.
 
+> **SUPERSEDED DURING IMPLEMENTATION (2026-08-19, user-approved).** The runtime
+> `enforce_access` gate described in §5.1 and the agent-proxy ASGI re-mount in §5.1a/§7
+> were NOT built. A super-advisor consult found the runtime gate redundant with per-route
+> `require_scope` and incompatible with the test suite's override-based auth. Final design
+> (**Path X**): authorization is per-route `require_scope` (deny-by-default: no valid token
+> ⇒ 401, missing scope ⇒ 403); the "no route silently unprotected" guarantee is the CI test
+> `tests/test_route_audit.py`; there is NO runtime global gate; agent-proxy stays a plain
+> anonymous router (no re-mount), whitelisted in the route-audit. See the ledger rulings and
+> the "Auth & RBAC" section of `CONTEXT.md`. The rest of this section is retained as the
+> design's reasoning; read §5.2–§5.5 as built, §5.1/§5.1a as superseded.
+
 ## 5. Authorization — fail-closed gate + Keycloak scopes
 
 The old code allowlist is replaced. Authorization decisions (which role may reach
