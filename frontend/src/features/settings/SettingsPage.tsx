@@ -12,7 +12,7 @@ import { Navigate } from "react-router-dom";
 import { flushCache, getSettings, updateSettings } from "@/features/settings/settingsApi";
 import { FieldInput } from "@/shared/components/FieldInput";
 
-const RESTART_FIELDS = new Set(["DATABASE_URL", "CORS_ORIGINS", "JWT_SECRET", "JWT_ALGORITHM"]);
+const RESTART_FIELDS = new Set(["DATABASE_URL", "CORS_ORIGINS"]);
 
 export default function SettingsPage() {
   const { isAdmin } = useAuth();

@@ -1402,3 +1402,19 @@ MSW mocks + tests updated to match byte-for-byte (`dashboardApi.ts`, `feedbackAp
 Backend **849 pass / 2 skip**; frontend **431 pass**, `tsc` clean. Remaining: Phase 3 (dead-config
 nits), Phase 4 (EDA decision gate). OpenAI-contract routes, `/mcp`, `/api-keys` intentionally
 left unchanged.
+
+## 2026-08-18 — Phase 3: dead JWT-era config removed
+
+Branch `chore/dead-jwt-config`. Two dead-config nits from the audit, no behavior change:
+- **`python-jose` dropped** from `backend/pyproject.toml` (JWT was fully removed; auth is API-key +
+  session-cookie). `uv lock` regenerated — surgically removed the jose tree (`python-jose`,
+  `ecdsa`, `pyasn1`, `rsa`, `six`) with zero bumps to kept packages; `cryptography` stays (needed
+  elsewhere). `import app.main` OK, full suite 849 pass / 2 skip.
+- **Frontend `RESTART_FIELDS` trimmed** (`features/settings/SettingsPage.tsx`) from
+  `{DATABASE_URL, CORS_ORIGINS, JWT_SECRET, JWT_ALGORITHM}` to `{DATABASE_URL, CORS_ORIGINS}` — the
+  two JWT settings no longer exist backend-side, so their "restart required" hint was dead. `tsc`
+  clean, settings tests pass.
+Deliberately left: the `main.py:23` `os.getenv("LOG_LEVEL")` bootstrap read (untangling the
+logging-before-config ordering isn't worth it — low value, YAGNI). This closes the audit's
+15-Factor nits. Phase 4 (EDA) remains a decision gate — recommendation stands to keep the
+documented outbox-seam YAGNI stance rather than force-convert every state change to events.
