@@ -22,8 +22,9 @@ keys. It trusts a Keycloak-signed access token (OIDC) on each request.
 | Data migration | Greenfield. No production users to migrate. Seed one admin in Keycloak. |
 | Chat WebSocket | Drop it. Chat keeps JSON and SSE only. |
 | User management | Keep the portal Users page. Proxy it to the Keycloak Admin REST API. |
-| Authorization model | Keycloak owns role → permission. Endpoints declare a required scope. The code keeps only a public/guest allow-list. |
-| Gate posture | Fail-closed. Every route needs a valid token except the public/guest allow-list. |
+| Authorization model | Keycloak owns role → permission. Endpoints declare a required scope. No code allow-list. |
+| Gate posture | Fail-closed. Every `/api/v1` route needs a valid token except the `/api/v1/public/*` namespace. |
+| Anonymous surface | A URL namespace (`/api/v1/public/*`), not a list. Guest chat and the logo move there; agent-proxy becomes its own mount. |
 | Invalid token | Reject at the gate with 401. `no token` (guest) and `bad token` (401) are different. |
 
 ## 3. End state
@@ -73,27 +74,44 @@ New module `app/auth/keycloak.py`.
 ## 5. Authorization — fail-closed gate + Keycloak scopes
 
 The old code allowlist is replaced. Authorization decisions (which role may reach
-which resource) move into Keycloak. The code keeps only two things: the fail-closed
-gate and a small public/guest allow-list.
+which resource) move into Keycloak. The code keeps only the fail-closed gate and a
+single anonymous URL namespace — no per-endpoint list.
 
 ### 5.1 The gate (`app/auth/dependencies.py`, rename `enforce_role_allowlist` → `enforce_access`)
 
-Runs once per request as the global dependency:
+Runs once per request as the global dependency. There is **no endpoint allow-list** —
+the anonymous surface is a URL namespace, not a maintained list:
 
 ```
-not http?                            → pass  (WebSocket path is gone anyway)
-path in PUBLIC_OR_GUEST allow-list?  → pass
-token missing?                       → 401
-token invalid (sig / iss / aud / exp)→ 401
-else                                 → pass to the route's own require_scope
+path not under /api/v1/ ?             → pass   (health, docs, redoc, openapi, sub-app mounts)
+path under /api/v1/public/ ?          → pass   (auth-optional zone; token read if present, never required)
+token missing?                        → 401
+token invalid (sig / iss / aud / exp) → 401
+else                                  → pass to the route's own require_scope
 ```
 
-- The gate knows **no role rules**. It enforces only: public/guest, or a valid token.
-- `PUBLIC_OR_GUEST` is the small exception list that cannot be scope-gated because
-  guests carry no token: public GETs (`/api/v1/public/...`), `POST /api/v1/chat`,
-  the agent-proxy callback, the agency-logo GET, and `GET /authentication/me`.
-  These keep the existing helper predicates (`_is_public_get`, the agent-proxy and
-  logo regexes) as the source of truth for the list.
+- The gate knows **no role rules**. It enforces only: in the public namespace, or a
+  valid token.
+- **`/api/v1/public/*` is the auth-optional zone.** `public` means *token not
+  required*, not *token forbidden* — an authenticated caller still sends a bearer,
+  and it is still read (e.g. to attach `user_id` on guest chat).
+- Everything that must be reachable without a token lives under this one prefix, so
+  adding a future anonymous endpoint is a routing choice, not a gate edit.
+- `GET /authentication/me` is the one **authenticated-but-scope-free** route: it needs
+  a valid token (the gate enforces it) but no scope. The route-audit test (§5.5)
+  whitelists it explicitly.
+
+### 5.1a Routes that move into the public namespace
+
+| Endpoint | From | To |
+| --- | --- | --- |
+| Guest chat | `POST /api/v1/chat` | `POST /api/v1/public/chat` |
+| Agency logo | `GET /api/v1/agencies/{id}/logo` | `GET /api/v1/public/agencies/{id}/logo` |
+| Public status / popular questions | already `/api/v1/public/...` | unchanged |
+
+`agent-proxy` leaves the gate entirely: it is re-mounted as its own ASGI sub-app
+(see §7), like `/mcp`. Mounts bypass FastAPI dependencies, so no gate exception is
+needed for it.
 
 ### 5.2 Per-route scope — `require_scope`
 
@@ -134,9 +152,10 @@ conversation; otherwise `conversation:read:own` filters to `principal.id` (the
 
 ### 5.5 Route-audit test (second net)
 
-A test walks every registered FastAPI route and asserts each route is **either** in
-`PUBLIC_OR_GUEST` **or** carries a `require_scope` dependency. A new endpoint with
-neither fails CI, closing the silent-open footgun structurally.
+A test walks every registered FastAPI route and asserts each `/api/v1/*` route is
+**either** under `/api/v1/public/` **or** carries a `require_scope` dependency (with a
+one-entry whitelist for `GET /authentication/me`). A new protected endpoint that
+forgets its scope fails CI, closing the silent-open footgun structurally.
 
 ## 6. Data model and migration
 
@@ -164,7 +183,9 @@ set the user relation — they now set `user_id=principal.id if principal else N
 | `app/auth/security.py`, `app/auth/ws.py` | Delete. |
 | `app/models/user.py`, `app/models/session.py` | Delete. |
 | `app/repositories/user.py` | Delete. Update `models/__init__.py` star-import. |
-| `app/routers/chat.py` | Remove the WebSocket handler and its imports. Keep POST (JSON + SSE). |
+| `app/routers/chat.py` | Remove the WebSocket handler and its imports. Move the POST to the `/public/chat` prefix (auth-optional, JSON + SSE). |
+| `app/routers/agencies/logo.py` | Move the logo GET under `/public` → `/api/v1/public/agencies/{id}/logo`. |
+| `app/routers/agent_proxy.py` | Re-mount as its own ASGI sub-app in `main.py` (`app.mount("/api/v1/agent-proxy", ...)`), outside the gate, like `/mcp`. Auth unchanged (UUID + agency credentials). |
 | `app/services/chat/ws.py` | Delete. |
 | `app/services/chat/stream.py`, `turn.py` | Set `user_id` from the Principal; no other change. |
 | `app/mcp/server.py` | `AuthMiddleware` verifies a Keycloak bearer when present (same JWKS path), else anonymous. `user_is_admin` from the role claim. OneChat loop unchanged. |
@@ -219,6 +240,8 @@ Keycloak service:
 - Run OIDC Authorization Code + PKCE against the SPA public client.
 - Send `Authorization: Bearer <access token>` on every API call.
 - Drop the cookie/Supabase auth path and the API-keys page.
+- Update two moved URLs: chat `POST /api/v1/chat` → `/api/v1/public/chat`, and the
+  agency logo `GET /api/v1/agencies/{id}/logo` → `/api/v1/public/agencies/{id}/logo`.
 - Remove the chat WebSocket client; use the SSE stream.
 - Refresh the access token with the refresh token; keep the access-token lifetime short.
 
