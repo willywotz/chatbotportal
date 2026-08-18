@@ -17,10 +17,11 @@ async def test_by_id_present_and_absent(db):
 @pytest.mark.asyncio
 async def test_active_lookups_skip_inactive(db):
     active = await _mk("live@x.com", role="user", is_active=True)
-    await _mk("dead@x.com", role="user", is_active=False)
+    dead = await _mk("dead@x.com", role="user", is_active=False)
     assert (await repo.active_by_id(active.id)).id == active.id
     assert (await repo.active_by_email("live@x.com")).id == active.id
     assert await repo.active_by_email("dead@x.com") is None
+    assert await repo.active_by_id(dead.id) is None
 
 
 @pytest.mark.asyncio
@@ -50,6 +51,10 @@ async def test_search_filters(db):
     assert [u.email for u in admins] == ["alice@x.com"]
     hits = await repo.search(search_text="ali", role=None, is_active=None)
     assert [u.email for u in hits] == ["alice@x.com"]
+    active_only = await repo.search(search_text=None, role=None, is_active=True)
+    assert {u.email for u in active_only} == {"alice@x.com"}
+    inactive_only = await repo.search(search_text=None, role=None, is_active=False)
+    assert {u.email for u in inactive_only} == {"bob@x.com"}
 
 
 @pytest.mark.asyncio
