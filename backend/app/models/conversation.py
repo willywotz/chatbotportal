@@ -23,12 +23,7 @@ class Conversation(Model):
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 
-    user = fields.ForeignKeyField(
-        "models.User",
-        related_name="conversations",
-        on_delete=fields.SET_NULL,
-        null=True,
-    )
+    user_id = fields.UUIDField(null=True)  # Keycloak sub — not a local User FK
 
     class Meta:
         table = "conversations"
@@ -67,12 +62,7 @@ class Message(Model):
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
     
-    user = fields.ForeignKeyField(
-        "models.User",
-        related_name="messages",
-        on_delete=fields.SET_NULL,
-        null=True,
-    )
+    user_id = fields.UUIDField(null=True)  # Keycloak sub — not a local User FK
 
     class Meta:
         table = "messages"

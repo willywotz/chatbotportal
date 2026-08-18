@@ -1,9 +1,4 @@
-"""Service-layer tests for conversation data access (moved out of the router).
-
-NOTE: `Conversation.user` is still an FK to the local `User` table (decoupling
-it into a plain Keycloak-sub column is Task 8, not yet landed), so rows here
-are seeded via real `User` records with the Principal's `id` set to match.
-"""
+"""Service-layer tests for conversation data access (moved out of the router)."""
 
 import uuid
 
@@ -12,14 +7,13 @@ import pytest
 from app.auth.keycloak import Principal
 from app.errors import ApiError
 from app.models.conversation import Conversation, Message
-from app.models.user import User
 from app.schemas.conversation import MessageIn, SaveConversationRequest
 from app.services import conversation as conversation_service
 
 
 async def _principal(*, scopes=("conversation:read:own",)):
-    user = await User.create(email=f"{uuid.uuid4()}@x.com", hashed_password="h", role="user", is_admin=False)
-    return Principal(id=str(user.id), email=None, display_name=None, role="user", scopes=frozenset(scopes))
+    return Principal(id=str(uuid.uuid4()), email=None, display_name=None, role="user",
+                      scopes=frozenset(scopes))
 
 
 async def test_create_conversation_persists_conversation_and_messages(db):

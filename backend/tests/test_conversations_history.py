@@ -2,13 +2,13 @@
 
 SQLite-portable (db fixture). Auth is mocked via the as_principal fixture.
 """
+import uuid
 from datetime import timedelta
 
 import pytest
 
 from app.main import app
 from app.models.conversation import Conversation
-from app.models.user import User
 from app.utils import now
 from httpx import ASGITransport, AsyncClient
 
@@ -66,11 +66,10 @@ async def test_history_date_range_filters_in_query(as_principal):
 
 @pytest.mark.usefixtures("db")
 async def test_history_own_scope_sees_only_own_conversations(as_principal):
-    owner = await User.create(email="owner@x.com", hashed_password="h", role="user", is_admin=False)
-    other = await User.create(email="other@x.com", hashed_password="h", role="user", is_admin=False)
-    as_principal(role="user", scopes=["conversation:read:own"], sub=str(owner.id))
-    await Conversation.create(title="mine", preview="p", status="success", message_count=1, user_id=owner.id)
-    await Conversation.create(title="other", preview="p", status="success", message_count=1, user_id=other.id)
+    owner_id, other_id = str(uuid.uuid4()), str(uuid.uuid4())
+    as_principal(role="user", scopes=["conversation:read:own"], sub=owner_id)
+    await Conversation.create(title="mine", preview="p", status="success", message_count=1, user_id=owner_id)
+    await Conversation.create(title="other", preview="p", status="success", message_count=1, user_id=other_id)
     async with await _client() as c:
         r = await c.get("/api/v1/history")
     assert [d["title"] for d in r.json()["data"]] == ["mine"]

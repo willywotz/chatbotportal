@@ -11,7 +11,6 @@ import pytest
 from app.auth.keycloak import Principal
 from app.errors import ApiError
 from app.models.conversation import Conversation
-from app.models.user import User
 from app.routers.conversations import (
     delete_conversation,
     get_conversation,
@@ -24,12 +23,11 @@ async def _anonymous_conversation() -> Conversation:
 
 
 async def _principal(*, read_all: bool = False) -> Principal:
-    user = await User.create(email=f"{uuid.uuid4()}@x.com", hashed_password="h", role="user")
     scopes = {"conversation:read:own", "conversation:write:own"}
     if read_all:
         scopes.add("conversation:read:all")
-    return Principal(id=str(user.id), email=None, display_name=None, role="admin" if read_all else "user",
-                      scopes=frozenset(scopes))
+    return Principal(id=str(uuid.uuid4()), email=None, display_name=None,
+                      role="admin" if read_all else "user", scopes=frozenset(scopes))
 
 
 async def test_non_admin_denied_read_of_anonymous_conversation(db):
