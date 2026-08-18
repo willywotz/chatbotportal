@@ -1,9 +1,11 @@
 """Changing a connection-identity field on an active/maintenance agency must
 demote it to draft and clear its conformance_report, atomically."""
+import uuid
+
 import pytest
 
+from app.auth.keycloak import Principal
 from app.models import Agency
-from app.models.user import User
 from app.routers.agencies import crud
 from app.schemas.agency import AgencyUpdate
 
@@ -11,7 +13,7 @@ _CONFORMANCE = {"passed": True, "checks": []}
 
 
 async def _admin():
-    return await User.create(email="a@e.com", hashed_password="x", role="admin", is_active=True)
+    return Principal(id=str(uuid.uuid4()), email="a@e.com", display_name=None, role="admin", scopes=frozenset())
 
 
 async def _agency(**overrides):

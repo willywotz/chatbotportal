@@ -41,9 +41,6 @@ class Settings(BaseSettings):
     # ── CORS ─────────────────────────────────────────────────────────────────
     CORS_ORIGINS: list[str] = ["*"]
 
-    # ── Auth ─────────────────────────────────────────────────────────────────
-    MIN_PASSWORD_LENGTH: int = 6
-
     # ── Keycloak ─────────────────────────────────────────────────────────────
     KEYCLOAK_URL: str = "http://keycloak:8080"
     KEYCLOAK_REALM: str = "chatbotportal"

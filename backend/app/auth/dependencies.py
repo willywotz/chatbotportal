@@ -58,12 +58,6 @@ async def get_current_user(request: Request) -> Principal:
     return p
 
 
-async def get_current_user_non_ephemeral(
-    principal: Principal = Depends(get_current_user),
-) -> Principal:
-    return principal
-
-
 async def require_scope(
     security_scopes: SecurityScopes,
     principal: Principal = Depends(get_current_user),

@@ -1,14 +1,16 @@
+import uuid
+
 import pytest
 
+from app.auth.keycloak import Principal
 from app.models import Agency, ConnectionLog
-from app.models.user import User
 from app.routers.agencies import lifecycle
 from app.services import agency as agency_service
 from app.utils import now
 
 
 async def _admin():
-    return await User.create(email="a@e.com", hashed_password="x", role="admin", is_active=True)
+    return Principal(id=str(uuid.uuid4()), email="a@e.com", display_name=None, role="admin", scopes=frozenset())
 
 
 def _fake_result(success):

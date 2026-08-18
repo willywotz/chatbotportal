@@ -1,5 +1,6 @@
 """Integration tests verifying that sensitive mutation handlers write AuditLog rows."""
 
+import uuid
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock
 
@@ -7,7 +8,6 @@ import pytest
 
 from app.auth.keycloak import Principal
 from app.models import Agency, AuditLog
-from app.models.user import User
 from app.routers import agencies as agencies_router
 from app.routers import users as users_router
 from app.schemas.agency import StatusUpdateRequest
@@ -16,7 +16,7 @@ from app.services import keycloak_admin
 
 
 async def _admin(email="admin@audit.com"):
-    return await User.create(email=email, hashed_password="x", role="admin", is_active=True)
+    return Principal(id=str(uuid.uuid4()), email=email, display_name=None, role="admin", scopes=frozenset())
 
 
 @pytest.mark.asyncio
@@ -29,7 +29,7 @@ async def test_update_agency_status_writes_audit(db):
     await agencies_router.update_agency_status(ag.id, StatusUpdateRequest(status="active"), user=admin)
     row = await AuditLog.filter(action="agency.status_change").first()
     assert row is not None
-    assert row.actor_id == admin.id
+    assert str(row.actor_id) == admin.id
     assert row.object_type == "agency"
     assert row.object_id == str(ag.id)
     assert row.detail == {"from": "draft", "to": "active"}

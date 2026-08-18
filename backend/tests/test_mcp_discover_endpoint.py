@@ -1,15 +1,16 @@
+import uuid
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import HTTPException
 
-from app.models.user import User
+from app.auth.keycloak import Principal
 from app.routers import agencies as r
 from app.schemas.agency import McpDiscoverRequest
 
 
 async def _admin():
-    return await User.create(email="a@e.com", hashed_password="x", role="admin", is_active=True)
+    return Principal(id=str(uuid.uuid4()), email="a@e.com", display_name=None, role="admin", scopes=frozenset())
 
 
 @pytest.mark.asyncio

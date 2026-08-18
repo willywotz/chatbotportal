@@ -1,14 +1,16 @@
+import uuid
+
 import pytest
 
+from app.auth.keycloak import Principal
 from app.errors import ApiError
 from app.models import Agency
-from app.models.user import User
 from app.routers import agencies as r
 from app.schemas.agency import StatusUpdateRequest
 
 
 async def _admin():
-    return await User.create(email="a@e.com", hashed_password="x", role="admin", is_active=True)
+    return Principal(id=str(uuid.uuid4()), email="a@e.com", display_name=None, role="admin", scopes=frozenset())
 
 
 @pytest.mark.asyncio
