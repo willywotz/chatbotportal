@@ -43,7 +43,7 @@ from app.mcp.server import mcp
 from app.routers import agencies, audit_log, conversations, messages, dashboard, feedback, auth, chat, connection_logs, executive_summary, insight, popular_questions, public_status, users, settings as settings_router
 from app.routers import agent_proxy
 from app.routers import llm as llm_router
-from app.services.seed import run_seed_admin, run_seed_agencies
+from app.services.seed import run_seed_agencies
 from app.services.popular_questions import seed_popular_questions
 from app.scheduler import start_scheduler, stop_scheduler
 from app.trace_util import QueryTraceparentASGI
@@ -85,7 +85,6 @@ mcp_app = mcp.http_app(path="/", stateless_http=True)
 async def lifespan(app: FastAPI):
     await init_db()
     await load_settings_from_db()
-    await run_seed_admin()
     await run_seed_agencies()
     await start_scheduler()
 
@@ -153,8 +152,8 @@ app.include_router(agent_proxy.router, prefix="/api/v1")
 #
 # Mounted sub-apps (app.mount) bypass FastAPI's per-request dependency
 # injection by design, so the REST routers' `require_scope` never runs for
-# this mount. MCP auth is enforced in app/mcp/server.py via API key: any
-# active user is admitted with no role check — see
+# this mount. MCP auth is enforced in app/mcp/server.py via a Keycloak bearer
+# token: any authenticated principal is admitted with no role check — see
 # backend/tests/test_mcp_role_access.py.
 # ---------------------------------------------------------------------------
 

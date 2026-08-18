@@ -1,20 +1,11 @@
-"""Default-data seeding logic (admin account + government agencies).
+"""Default-data seeding logic (government agencies).
 
 Kept out of the router so the seed operations can be reused by app startup and a
 future management command, and unit-tested directly.
 """
 
-from app.auth.security import hash_password
 from app.repositories import agency as agency_repo
-from app.repositories import user as user_repo
 
-
-DEFAULT_ADMIN = {
-    "email": "admin@example.com",
-    "display_name": "Admin",
-    "password": "admin1234",
-    "role": "admin",
-}
 
 DEFAULT_AGENCIES = [
     {
@@ -66,23 +57,6 @@ DEFAULT_AGENCIES = [
         "endpoint_url": "https://api.dol.go.th/mcp",
     },
 ]
-
-async def run_seed_admin() -> dict:
-    existing = await user_repo.count_all()
-    if existing > 0:
-        return {"status": "skipped", "message": f"{existing} users already exist"}
-
-    if await user_repo.email_exists(DEFAULT_ADMIN["email"]):
-        return {"status": "skipped", "message": f"{DEFAULT_ADMIN['email']} already exists"}
-
-    await user_repo.create(
-        email=DEFAULT_ADMIN["email"],
-        display_name=DEFAULT_ADMIN["display_name"],
-        hashed_password=hash_password(DEFAULT_ADMIN["password"]),
-        role=DEFAULT_ADMIN["role"],
-    )
-    return {"status": "created", "message": f"Admin {DEFAULT_ADMIN['email']} created"}
-
 
 async def run_seed_agencies() -> dict:
     existing = await agency_repo.count_all()

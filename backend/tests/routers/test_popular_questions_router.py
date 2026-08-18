@@ -8,11 +8,9 @@ from unittest.mock import AsyncMock
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app.auth.security import generate_api_key, hash_api_key
 from app.main import app
 from app.models import Agency
 from app.models.popular_question import PopularQuestion
-from app.models.user import User, UserAPIKey
 
 _PUBLIC = "/api/v1/public/popular-questions"
 _ADMIN = "/api/v1/popular-questions"
@@ -35,19 +33,17 @@ async def test_public_get_works_without_auth():
 
 @pytest.mark.usefixtures("db")
 @pytest.mark.parametrize("role", ["user", "viewer", "auditor"])
-async def test_public_get_allowed_for_authenticated_read_only_roles(role):
+async def test_public_get_allowed_for_authenticated_read_only_roles(role, make_token):
     """Regression: the role allowlist chokepoint must not 403 a public GET.
 
-    The frontend calls this from the authenticated chat page with an API key
-    attached — it must not be blocked for user/viewer/auditor, none of whom
-    are otherwise allowlisted for this path.
+    The frontend calls this from the authenticated chat page with a bearer
+    token attached — it must not be blocked for user/viewer/auditor, none of
+    whom are otherwise allowlisted for this path.
     """
     await PopularQuestion.create(text="q1", text_key="q1", source="seed")
-    user = await User.create(email=f"pub-{role}@x.io", hashed_password="h", role=role)
-    raw = generate_api_key()
-    await UserAPIKey.create(user_id=user.id, name="n", key_hash=hash_api_key(raw), key_prefix=raw[:12])
+    token = make_token(role=role)
     async with await _client() as c:
-        r = await c.get(_PUBLIC, headers={"Authorization": f"Bearer {raw}"})
+        r = await c.get(_PUBLIC, headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 200
     assert r.json()["data"][0]["text"] == "q1"
 

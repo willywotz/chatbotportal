@@ -44,13 +44,6 @@ class Settings(BaseSettings):
     # ── Auth ─────────────────────────────────────────────────────────────────
     MIN_PASSWORD_LENGTH: int = 6
 
-    # ── Session cookie auth ──────────────────────────────────────────────────
-    SESSION_COOKIE_NAME: str = "session_id"
-    AUTH_COOKIE_SECURE: bool = True
-    SESSION_TTL_MINUTES: int = 60 * 24 * 7
-    SESSION_REFRESH_BELOW_MINUTES: int = 60 * 24 * 3  # re-rotate below ~half TTL
-    SESSION_ROTATE_GRACE_SECONDS: int = 60
-
     # ── Keycloak ─────────────────────────────────────────────────────────────
     KEYCLOAK_URL: str = "http://keycloak:8080"
     KEYCLOAK_REALM: str = "chatbotportal"
