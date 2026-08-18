@@ -27,18 +27,6 @@ def test_parse_sse_block():
     assert parse_sse_block("data: not-json") is None
 
 
-async def test_stream_v5_yields_events_in_order():
-    rec: dict = {}
-    client = OneChatClient("http://oc:8000", transport=_sse_transport(rec))
-    events = [ev async for ev in client.stream_v5("q", "http://mcp", "c")]
-    assert rec["url"] == "http://oc:8000/v5/chat"
-    assert events == [
-        ("status", {"stage": "routing"}),
-        ("answer", {"answer": "final"}),
-        ("done", {"session_id": "s1", "total_ms": 12}),
-    ]
-
-
 async def test_events_selects_v4_stream():
     rec: dict = {}
     client = OneChatClient("http://oc:8000", transport=_sse_transport(rec), version="v4")
@@ -50,7 +38,7 @@ async def test_stream_non_200_raises_onechat_error():
     rec: dict = {}
     client = OneChatClient("http://oc:8000", transport=_sse_transport(rec, status=500))
     with pytest.raises(OneChatError) as exc:
-        _ = [ev async for ev in client.stream_v5("q", "http://mcp", "c")]
+        _ = [ev async for ev in client.events("q", "http://mcp", "c")]
     assert exc.value.status_code == 500
 
 
@@ -59,5 +47,5 @@ async def test_stream_read_timeout_maps_to_504():
         raise httpx.ReadTimeout("slow", request=request)
     client = OneChatClient("http://oc:8000", transport=httpx.MockTransport(handler))
     with pytest.raises(OneChatError) as exc:
-        _ = [ev async for ev in client.stream_v5("q", "http://mcp", "c")]
+        _ = [ev async for ev in client.events("q", "http://mcp", "c")]
     assert exc.value.status_code == 504

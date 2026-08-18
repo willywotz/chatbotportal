@@ -42,7 +42,7 @@ dev = [
 ]
 
 #[project.scripts]
-#serve = "uvicorn app.main:app --reload"
+#serve = "uvicorn app.main:asgi_app --reload"
 
 # ---------------------------------------------------------------------------
 # uv
