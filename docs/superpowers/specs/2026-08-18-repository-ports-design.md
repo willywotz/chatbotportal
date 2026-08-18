@@ -66,6 +66,7 @@ Semantics:
 - `create(**fields)`: thin pass-through to `Conversation.create(**fields)`.
 - `save(conv, update_fields=None)`: `await conv.save(update_fields=update_fields)`.
 - `delete(conv)`: `await conv.delete()` (hard delete).
+- Repository functions are transaction-agnostic — they run on Tortoise's ambient connection, so when a use-case wraps calls in `async with in_transaction():` the repository operations join that same transaction; repositories must NOT open their own transactions.
 
 ## 5. Service refactor (this branch)
 

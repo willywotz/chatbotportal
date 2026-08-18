@@ -19,12 +19,19 @@ async def list_and_count(
         qs = qs.filter(user_id=user_id)
     if title_contains:
         qs = qs.filter(title__icontains=title_contains)
-    if agency_contains:
-        qs = qs.filter(agencies__contains=agency_contains)
     if created_from is not None:
         qs = qs.filter(created_at__gte=created_from)
     if created_to is not None:
         qs = qs.filter(created_at__lt=created_to)
+    # Filter by agency in Python since JSONField doesn't support text lookups
+    if agency_contains:
+        all_rows = await qs.all()
+        filtered = [c for c in all_rows if agency_contains in c.agencies]
+        total = len(filtered)
+        page_qs = sorted(filtered, key=lambda c: c.created_at, reverse=True)
+        if limit is not None:
+            page_qs = page_qs[offset or 0:(offset or 0) + limit]
+        return page_qs, total
     total = await qs.count()
     page_qs = qs.order_by("-created_at")
     if limit is not None:
