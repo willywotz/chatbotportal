@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import time
 from collections import defaultdict
 from dataclasses import dataclass
@@ -8,8 +7,6 @@ import httpx
 
 from app.services.llm.purpose import KNOWN_PURPOSES, Purpose
 from app.services.rate_limit import build_limiter
-
-logger = logging.getLogger(__name__)
 
 _CACHE_TTL_S = 30.0
 
