@@ -1,10 +1,10 @@
 import uuid
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Query, Security, status
 from pydantic import BaseModel
 
-from app.auth.dependencies import require_admin
-from app.models.user import User
+from app.auth.dependencies import require_scope
+from app.auth.keycloak import Principal
 from app.services import agency as agency_service
 from app.services import agency_golden
 
@@ -42,7 +42,7 @@ class EvalResultResponse(BaseModel):
     summary="Create a golden question for an agency (admin)",
 )
 async def create_golden_question(
-    agency_id: str, body: GoldenQuestionCreate, _: User = Depends(require_admin)
+    agency_id: str, body: GoldenQuestionCreate, _: Principal = Security(require_scope, scopes=["agency:write"])
 ) -> GoldenQuestionResponse:
     agency = await agency_service.get_agency_or_404(agency_id)
     gq = await agency_golden.create_golden_question(agency, body.question, body.expected_topics)
@@ -55,7 +55,7 @@ async def create_golden_question(
     summary="List golden questions for an agency (admin)",
 )
 async def list_golden_questions(
-    agency_id: str, _: User = Depends(require_admin)
+    agency_id: str, _: Principal = Security(require_scope, scopes=["agency:read"])
 ) -> list[GoldenQuestionResponse]:
     agency = await agency_service.get_agency_or_404(agency_id)
     questions = await agency_golden.list_golden_questions(agency)
@@ -71,7 +71,7 @@ async def list_golden_questions(
     summary="Delete a golden question (admin)",
 )
 async def delete_golden_question(
-    agency_id: str, gq_id: uuid.UUID, _: User = Depends(require_admin)
+    agency_id: str, gq_id: uuid.UUID, _: Principal = Security(require_scope, scopes=["agency:write"])
 ) -> None:
     agency = await agency_service.get_agency_or_404(agency_id)
     await agency_golden.delete_golden_question(agency, gq_id)
@@ -85,7 +85,7 @@ async def delete_golden_question(
 async def list_eval_results(
     agency_id: str,
     limit: int = Query(50, ge=1, le=200),
-    _: User = Depends(require_admin),
+    _: Principal = Security(require_scope, scopes=["agency:read"]),
 ) -> list[EvalResultResponse]:
     agency = await agency_service.get_agency_or_404(agency_id)
     results = await agency_golden.list_eval_results(agency, limit)
