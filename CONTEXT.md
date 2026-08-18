@@ -1334,3 +1334,26 @@ Previously recorded latent defects (unauthenticated `PATCH /messages/{id}/rating
 double-count, MCP `authorization`-header redaction skip/None-crash, hardcoded-zero analytics
 stubs, and the several anonymously-reachable GETs that rely on the chokepoint alone) were
 re-confirmed present and are unchanged.
+
+## 2026-08-18 — Methodology-compliance re-audit + remediation plan
+
+Deep audit of the four mandated rules against HEAD, written to
+`docs/assessment-methodology-compliance-2026-08-18.md` (supersedes the 2026-08-17 assessment,
+which predates the Clean-Arch router sweep + route renames + EDA outbox). No code change. Verdicts:
+- **Full-English route names — near-compliant.** 3 short-form segments remain: `stats`
+  (`dashboard.py:14`, `feedback.py:25`) → `statistics`; `info` (`connection_logs.py:98`) →
+  `information`; `parse-spec` (`agencies/spec.py:29`) → `specification`. OpenAI-contract and
+  `/mcp`, `/api-keys` correctly exempt.
+- **Clean Architecture — partial.** Routers build zero ORM querysets (refactor holds), but **15
+  service modules import FastAPI** (`HTTPException`/`status` ×12, `BackgroundTasks` ×2) — the
+  dependency rule broken inward. Fix: raise domain errors (`ApiError`/`LlmError`/…), inject a
+  scheduling port.
+- **EDA — seam only.** Correct transactional outbox, but 1 producer / 1 consumer; 17 direct
+  `record_audit`, 30 counter mutations, 4 `ConnectionLog` writes remain imperative. Repo chose
+  YAGNI here; strict compliance is a decision gate.
+- **15-Factor — strong.** Factor VI (local-disk uploads) is the one documented exception; nits =
+  dead `python-jose` dep + dead frontend JWT `RESTART_FIELDS`.
+
+Phased remediation (TDD, branch-per-phase, no behavior drift in phases 1–3):
+`docs/superpowers/plans/2026-08-18-methodology-compliance-remediation.md`. Not yet started —
+awaiting go-ahead on Phase 1 (strip FastAPI from the service layer).
