@@ -1,74 +1,90 @@
 from __future__ import annotations
 
-import uuid
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Query, Security, status
 
-from app.auth.dependencies import require_admin
-from app.models.user import User
+from app.auth.dependencies import require_scope
+from app.errors import ApiError, ErrorCode
 from app.schemas.user import Role, UserCreate, UserCreateResponse, UserListResponse, UserResponse, UserUpdate
-from app.services import user as user_service
+from app.services import keycloak_admin
 from app.services.audit import record_audit
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
 
+def _map_error(exc: keycloak_admin.KeycloakAdminError) -> ApiError:
+    if isinstance(exc, keycloak_admin.NotFound):
+        return ApiError(ErrorCode.NOT_FOUND, str(exc), status=404)
+    code = ErrorCode.CONFLICT if exc.status == 409 else ErrorCode.INVALID_REQUEST
+    return ApiError(code, str(exc), status=exc.status if exc.status in (400, 409) else 400)
+
+
 @router.get("", response_model=UserListResponse, summary="List users")
 async def list_users(
     search: str | None = Query(None, description="Search email or display name"),
-    role: Role | None = Query(None, description="Filter by role: user | admin"),
+    role: Role | None = Query(None, description="Filter by role: user | staff | admin"),
     status_filter: Literal["active", "inactive", "all"] = Query(
         "all", alias="status", description="Filter by active status"
     ),
-    admin: User = Depends(require_admin),
+    admin=Security(require_scope, scopes=["user:manage"]),
 ) -> UserListResponse:
-    rows = await user_service.list_users(search=search, role=role, status_filter=status_filter)
-    return UserListResponse(
-        data=[UserResponse.from_user(u) for u in rows],
-        total=len(rows),
-    )
+    is_active = None if status_filter == "all" else (status_filter == "active")
+    try:
+        rows, total = await keycloak_admin.list_users(search=search, role=role, is_active=is_active)
+    except keycloak_admin.KeycloakAdminError as exc:
+        raise _map_error(exc) from exc
+    return UserListResponse(data=rows, total=total)
 
 
 @router.post("", response_model=UserCreateResponse, status_code=status.HTTP_201_CREATED, summary="Create a user")
-async def create_user(body: UserCreate, admin: User = Depends(require_admin)) -> dict:
-    new_user = await user_service.create_user(body)
+async def create_user(body: UserCreate, admin=Security(require_scope, scopes=["user:manage"])) -> dict:
+    try:
+        new_user = await keycloak_admin.create_user(body)
+    except keycloak_admin.KeycloakAdminError as exc:
+        raise _map_error(exc) from exc
     await record_audit(admin, "user.create", object_type="user", object_id=new_user.id, detail={"email": new_user.email, "role": new_user.role})
-    return {"user": UserResponse.from_user(new_user).model_dump()}
+    return {"user": new_user.model_dump()}
 
 
 @router.get("/{user_id}", response_model=UserResponse, summary="Get user by ID")
-async def get_user(user_id: uuid.UUID, admin: User = Depends(require_admin)) -> UserResponse:
-    user = await user_service.get_user_or_404(user_id)
-    return UserResponse.from_user(user)
+async def get_user(user_id: str, admin=Security(require_scope, scopes=["user:manage"])) -> UserResponse:
+    try:
+        return await keycloak_admin.get_user(user_id)
+    except keycloak_admin.KeycloakAdminError as exc:
+        raise _map_error(exc) from exc
 
 
 @router.patch("/{user_id}", response_model=UserResponse, summary="Update a user")
-async def update_user(
-    user_id: uuid.UUID, body: UserUpdate, admin: User = Depends(require_admin)
-) -> UserResponse:
-    user = await user_service.get_user_or_404(user_id)
-    changed = await user_service.apply_update(admin.id, user, body)
+async def update_user(user_id: str, body: UserUpdate, admin=Security(require_scope, scopes=["user:manage"])) -> UserResponse:
+    try:
+        user = await keycloak_admin.update_user(user_id, body)
+    except keycloak_admin.KeycloakAdminError as exc:
+        raise _map_error(exc) from exc
+    changed = [f for f in ("role", "display_name", "password") if getattr(body, f) is not None]
     if changed:
-        audit_changed = ["password" if c == "hashed_password" else c for c in changed]
         await record_audit(
             admin, "user.update", object_type="user", object_id=user.id,
-            detail={"changed": audit_changed, "role": user.role},
+            detail={"changed": changed, "role": user.role},
         )
-    return UserResponse.from_user(user)
+    return user
 
 
-@router.post("/{user_id}/deactivate", response_model=UserResponse, summary="Deactivate (soft-delete) a user")
-async def deactivate_user(user_id: uuid.UUID, admin: User = Depends(require_admin)) -> UserResponse:
-    user = await user_service.get_user_or_404(user_id)
-    await user_service.deactivate(admin.id, user)
+@router.post("/{user_id}/deactivate", response_model=UserResponse, summary="Deactivate a user")
+async def deactivate_user(user_id: str, admin=Security(require_scope, scopes=["user:manage"])) -> UserResponse:
+    try:
+        user = await keycloak_admin.set_enabled(user_id, False)
+    except keycloak_admin.KeycloakAdminError as exc:
+        raise _map_error(exc) from exc
     await record_audit(admin, "user.deactivate", object_type="user", object_id=user.id)
-    return UserResponse.from_user(user)
+    return user
 
 
 @router.post("/{user_id}/activate", response_model=UserResponse, summary="Reactivate a user")
-async def activate_user(user_id: uuid.UUID, admin: User = Depends(require_admin)) -> UserResponse:
-    user = await user_service.get_user_or_404(user_id)
-    await user_service.activate(user)
+async def activate_user(user_id: str, admin=Security(require_scope, scopes=["user:manage"])) -> UserResponse:
+    try:
+        user = await keycloak_admin.set_enabled(user_id, True)
+    except keycloak_admin.KeycloakAdminError as exc:
+        raise _map_error(exc) from exc
     await record_audit(admin, "user.activate", object_type="user", object_id=user.id)
-    return UserResponse.from_user(user)
+    return user
