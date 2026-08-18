@@ -20,7 +20,7 @@ def _mock_httpx(json_body, status=200):
 
 
 @pytest.mark.asyncio
-async def test_chat_returns_result_and_records_usage(db):
+async def test_client_chat_is_transport_only(db):
     c.invalidate()
     p = await LlmProvider.create(name="openrouter", base_url="https://api/x", api_key="sk",
                                  auth_header="Authorization", auth_scheme="Bearer", request_usage=True)
@@ -34,6 +34,22 @@ async def test_chat_returns_result_and_records_usage(db):
     _, kwargs = client.post.call_args
     assert kwargs["headers"]["Authorization"] == "Bearer sk"
     assert kwargs["json"]["usage"] == {"include": True}
+    assert await LlmUsage.filter(purpose="classification").count() == 0  # transport records nothing
+
+
+@pytest.mark.asyncio
+async def test_package_chat_records_usage(db):
+    from app.services.llm import chat as pkg_chat
+    c.invalidate()
+    p = await LlmProvider.create(name="openrouter", base_url="https://api/x", api_key="sk",
+                                 auth_header="Authorization", auth_scheme="Bearer", request_usage=True)
+    await LlmRoute.create(purpose="classification", provider=p, model="m1")
+    body = {"model": "m1", "choices": [{"message": {"content": "hi", "tool_calls": None}}],
+            "usage": {"prompt_tokens": 3, "completion_tokens": 2, "cost": 0.001}}
+    factory, _ = _mock_httpx(body)
+    with patch.object(c.httpx, "AsyncClient", factory):
+        res = await pkg_chat(purpose="classification", messages=[{"role": "user", "content": "x"}])
+    assert res.content == "hi"
     assert await LlmUsage.filter(purpose="classification").count() == 1
 
 
@@ -86,3 +102,15 @@ async def test_ping_disabled_route_reports_error(db):
     assert res.ok is False
     assert res.model is None
     assert "no enabled route" in res.error
+
+
+@pytest.mark.asyncio
+async def test_ping_records_no_usage(db):
+    c.invalidate()
+    p = await LlmProvider.create(name="p", base_url="u", api_key="k")
+    await LlmRoute.create(purpose="classification", provider=p, model="m1")
+    body = {"model": "m1", "choices": [{"message": {"content": "pong"}}]}
+    factory, _ = _mock_httpx(body)
+    with patch.object(c.httpx, "AsyncClient", factory):
+        await c.ping("classification")
+    assert await LlmUsage.all().count() == 0
