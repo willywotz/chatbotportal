@@ -5,8 +5,8 @@ import uuid
 from tortoise.exceptions import DoesNotExist
 
 from app.errors import ApiError, ErrorCode
-from app.models.agency import Agency
 from app.models.conversation import Message
+from app.repositories import agency as agency_repo
 from app.schemas.conversation import RatingUpdate
 from app.utils import clean_agency_ids
 
@@ -28,15 +28,14 @@ async def update_rating(message_id: uuid.UUID, body: RatingUpdate) -> Message:
 
     if msg.rating in ("up", "down") and msg.agency_ids:
         for agency_id in clean_agency_ids(msg.agency_ids):
-            try:
-                agency = await Agency.get(id=agency_id)
-                if msg.rating == "up":
-                    agency.rating_up += 1
-                elif msg.rating == "down":
-                    agency.rating_down += 1
-                await agency.save(update_fields=["rating_up", "rating_down"])
-            except DoesNotExist:
+            agency = await agency_repo.by_id(agency_id)
+            if agency is None:
                 continue
+            if msg.rating == "up":
+                agency.rating_up += 1
+            elif msg.rating == "down":
+                agency.rating_down += 1
+            await agency_repo.save(agency, update_fields=["rating_up", "rating_down"])
 
     await msg.save(update_fields=update_fields)
     return msg

@@ -1520,3 +1520,25 @@ Out of scope (read-model / other aggregate): `analytics/usage.py` `id__in`, `Use
 Suite 720 → **726 pass / 2 skip**, green. Template note added to spec §7: an auth/soft-state filter
 may be its own named method (`active_by_id`) rather than a `by_id` flag — repos need not be
 mechanically identical.
+
+## 2026-08-18 — P1 aggregate 3: Agency repository (adds increment_*)
+
+Branch `refactor/repo-port-agency`. Plan `docs/superpowers/plans/2026-08-18-repo-port-agency.md`.
+New `app/repositories/agency.py` (`by_id`, `list_and_count`, `create`, `save`, `delete`,
+**`increment_calls`**, `count_all`). This is the template EXTENSION: the atomic `total_calls`
+counter becomes `increment_calls` — `Agency.filter(id=...).update(total_calls=F("total_calls")+1)`
++ fields-scoped `refresh_from_db`, NEVER a mutate-then-`save()`. Routed the core Agency command
+access in `services/agency.py`, `services/message.py` (rating fan-out), `services/seed.py`.
+- **Scoped/deferred (documented):** peripheral single Agency sites (`agency_lifecycle`,
+  `conformance`, `connection_log`, `feedback`, `popular_questions`, `agency_reconcile`, `scheduler`)
+  and ALL analytics `.values()` reads (`analytics/*`, `mcp/server.py`, `public_status.py`) adopt the
+  repo in a later branch — kept this branch focused/reviewable.
+- **Behavior note:** the `rating_up`/`rating_down` write stays a NON-atomic read-modify-save (its
+  existing legacy behavior — only `total_calls` had Go-parity atomicity); routed through the repo
+  unchanged. Making the rating counter atomic is a separate future change.
+Final review (sonnet): ready to merge, `increment_calls` verified atomic. Suite 726 → **730 pass /
+2 skip**, green. Spec §7 extended with the `increment_*` counter guidance (keep update+refresh
+together; a future bulk/high-concurrency variant may take an id and skip the refresh).
+
+**Remaining P1:** `Message` command-slice (analytics reads stay in the read-model), then the
+deferred Agency peripheral sites, then the rest of the ~16 aggregates as needed.

@@ -5,7 +5,7 @@ future management command, and unit-tested directly.
 """
 
 from app.auth.security import hash_password
-from app.models.agency import Agency
+from app.repositories import agency as agency_repo
 from app.repositories import user as user_repo
 
 
@@ -85,13 +85,13 @@ async def run_seed_admin() -> dict:
 
 
 async def run_seed_agencies() -> dict:
-    existing = await Agency.all().count()
+    existing = await agency_repo.count_all()
     if existing > 0:
         return {"status": "skipped", "message": f"{existing} agencies already exist"}
 
     created = []
     for data in DEFAULT_AGENCIES:
-        await Agency.create(**data)
+        await agency_repo.create(**data)
         created.append(data["name"])
 
     return {"status": "created", "message": f"{len(created)} agencies created", "agencies": created}

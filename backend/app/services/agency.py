@@ -5,13 +5,12 @@ from typing import Any
 from uuid import UUID
 
 import httpx
-from tortoise.exceptions import DoesNotExist
-from tortoise.expressions import F
 
 from app.config import settings
 from app.errors import ApiError, ErrorCode
 from app.models.agency import Agency
 from app.models.connection_log import ConnectionLog
+from app.repositories import agency as agency_repo
 from app.schemas.agency import AgencyCreate, AgencyUpdate
 from app.services.cache_flush import flush_similarity_cache
 from app.services.log_sanitize import sanitize_body
@@ -29,23 +28,17 @@ _CONNECTION_IDENTITY_FIELDS = frozenset(
 
 
 async def get_agency_or_404(agency_id: UUID) -> Agency:
-    try:
-        return await Agency.get(id=agency_id)
-    except DoesNotExist:
+    agency = await agency_repo.by_id(agency_id)
+    if agency is None:
         raise ApiError(ErrorCode.NOT_FOUND, "Agency not found", status=404)
+    return agency
 
 
 async def list_agencies(
     *, status_filter: str, connection_type: str | None, search: str | None
 ) -> tuple[list[Agency], int]:
-    qs = Agency.all()
-    if status_filter != "all":
-        qs = qs.filter(status=status_filter)
-    if connection_type:
-        qs = qs.filter(connection_type=connection_type.upper())
-    if search:
-        qs = qs.filter(name__icontains=search)
-    return await qs, await qs.count()
+    return await agency_repo.list_and_count(
+        status=status_filter, connection_type=connection_type, search_text=search)
 
 
 def _flatten_agency_payload(body: AgencyCreate) -> dict:
@@ -58,7 +51,7 @@ def _flatten_agency_payload(body: AgencyCreate) -> dict:
 
 
 async def create_agency(body: AgencyCreate) -> Agency:
-    return await Agency.create(**_flatten_agency_payload(body))
+    return await agency_repo.create(**_flatten_agency_payload(body))
 
 
 async def _flush_similarity_cache_best_effort() -> None:
@@ -69,7 +62,8 @@ async def _flush_similarity_cache_best_effort() -> None:
 
 
 async def replace_agency(agency: Agency, body: AgencyCreate) -> Agency:
-    await agency.update_from_dict(_flatten_agency_payload(body)).save()
+    agency.update_from_dict(_flatten_agency_payload(body))
+    await agency_repo.save(agency)
     await _flush_similarity_cache_best_effort()
     return agency
 
@@ -89,29 +83,23 @@ async def update_agency(agency: Agency, body: AgencyUpdate) -> Agency:
         update_data["status"] = "draft"
         update_data["conformance_report"] = None
 
-    await agency.update_from_dict(update_data).save()
+    agency.update_from_dict(update_data)
+    await agency_repo.save(agency)
     await _flush_similarity_cache_best_effort()
     return agency
 
 
 async def delete_agency(agency: Agency) -> None:
-    await agency.delete()
+    await agency_repo.delete(agency)
 
 
 async def increment_calls(agency: Agency) -> Agency:
-    """Atomically add one to total_calls, then refresh the readable value.
-
-    A read-modify-write loses concurrent increments; the atomic SQL update
-    matches the Go original and is race-safe.
-    """
-    await Agency.filter(id=agency.id).update(total_calls=F("total_calls") + 1)
-    await agency.refresh_from_db(fields=["total_calls"])
-    return agency
+    return await agency_repo.increment_calls(agency)
 
 
 async def update_logo(agency: Agency, logo_url: str) -> Agency:
     agency.logo = logo_url
-    await agency.save(update_fields=["logo", "updated_at"])
+    await agency_repo.save(agency, update_fields=["logo", "updated_at"])
     return agency
 
 
@@ -188,7 +176,7 @@ async def run_connection_test(agency: Agency) -> dict[str, Any]:
         agency.status = "active"
         agency.auto_maintenance = False
         update_fields += ["status", "auto_maintenance"]
-    await agency.save(update_fields=update_fields)
+    await agency_repo.save(agency, update_fields=update_fields)
 
     latency_ms = int(raw["latency"].replace("ms", ""))
     status_code = raw.get("statusCode")

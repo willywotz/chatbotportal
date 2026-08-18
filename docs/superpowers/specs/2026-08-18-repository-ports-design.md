@@ -111,3 +111,13 @@ used at an aggregate/auth boundary may be exposed as its own named method
 (e.g. User's `active_by_id`, which always applies `is_active=True`) rather than
 a boolean flag on `by_id` (as Conversation does with `exclude_deleted=`). Name
 the method after the intent; do not force one shape across aggregates.
+
+Atomic counters get a dedicated `increment_*` method, never a `save()`
+(Agency's `increment_calls` is the reference: `Model.filter(id=...).update(
+field=F(field)+1)` THEN a fields-scoped `refresh_from_db`). Keep the update and
+the refresh together — the `update()` alone leaves the caller's in-memory
+object stale. The reference method mutates the passed instance for its single
+caller; a future high-concurrency or bulk counter may instead take an id and
+skip the refresh (no in-memory object to update) — prefer that when the caller
+does not need the fresh value, to avoid copying an implicit mutate-the-argument
+footgun across aggregates.
