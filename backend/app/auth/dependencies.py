@@ -209,6 +209,8 @@ async def enforce_role_allowlist(conn: HTTPConnection) -> None:
     path = conn.scope["path"]
     if _is_public_get(method, path):
         return
+    if path.startswith("/api/v1/public/"):
+        return
     if _AGENT_PROXY_PATTERN.match(path):
         return
     role = await _resolve_role(conn)

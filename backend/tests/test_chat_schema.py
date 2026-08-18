@@ -1,6 +1,6 @@
 """
 Verify that the OpenAPI schema exposes only the canonical chat surface
-(/chat) and hides the internal/external variants.
+(/public/chat) and hides the internal/external variants.
 """
 
 from fastapi import FastAPI
@@ -18,7 +18,7 @@ def _app() -> FastAPI:
 def test_openapi_hides_internal_chat_variants():
     schema = TestClient(_app()).get("/openapi.json").json()
     paths = schema["paths"]
-    assert "/api/v1/chat" in paths
+    assert "/api/v1/public/chat" in paths
     assert "/api/v1/chat/stream" not in paths
     assert "/api/v1/chat/external" not in paths
     assert "/api/v1/chat/internal" not in paths

@@ -88,11 +88,10 @@ async def upload_agency_logo(
     path.write_bytes(data)
     path.chmod(0o644)
 
-    agency = await agency_service.update_logo(agency, f"/api/v1/agencies/{agency_id}/logo?v={digest}")
+    agency = await agency_service.update_logo(agency, f"/api/v1/public/agencies/{agency_id}/logo?v={digest}")
     return await _with_health(agency)
 
 
-@router.get("/{agency_id}/logo", summary="Get agency logo image")
 async def get_agency_logo(agency_id: uuid.UUID):
     matches = sorted(_logos_dir().glob(f"{agency_id}-*"))
     if not matches:

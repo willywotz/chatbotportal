@@ -26,7 +26,7 @@ from app.services.chat.stream import (
 )
 from app.utils import generate_uuid
 
-router = APIRouter(prefix="/chat", tags=["Chat"])
+router = APIRouter(prefix="/public/chat", tags=["Chat"])
 tracer = trace.get_tracer(__name__)
 
 

@@ -2,7 +2,7 @@
 
 Mirrors tests/routers/test_popular_questions_router.py: `db` fixture (in-memory
 SQLite) + httpx AsyncClient over the real ASGI app, auth via the as_principal
-fixture (API-key-based tests still create real Users).
+fixture. The logo GET lives under /public, so it needs no auth.
 """
 import hashlib
 from pathlib import Path
@@ -10,12 +10,9 @@ from pathlib import Path
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app.auth.dependencies import get_current_user
-from app.auth.security import generate_api_key, hash_api_key
 from app.config import settings
 from app.main import app
 from app.models import Agency
-from app.models.user import User, UserAPIKey
 
 _PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
 _JPEG_BYTES = b"\xff\xd8\xff" + b"\x00" * 32
@@ -51,10 +48,10 @@ async def test_upload_valid_png_sets_logo_url_and_writes_file(_tmp_upload_dir, a
     assert r.status_code == 200
     body = r.json()
     digest = hashlib.sha256(_PNG_BYTES).hexdigest()[:8]
-    assert body["logo"] == f"/api/v1/agencies/{ag.id}/logo?v={digest}"
+    assert body["logo"] == f"/api/v1/public/agencies/{ag.id}/logo?v={digest}"
 
     refreshed = await Agency.get(id=ag.id)
-    assert refreshed.logo == f"/api/v1/agencies/{ag.id}/logo?v={digest}"
+    assert refreshed.logo == f"/api/v1/public/agencies/{ag.id}/logo?v={digest}"
 
     written = list(_logos_dir(_tmp_upload_dir).glob(f"{ag.id}-*"))
     assert len(written) == 1
@@ -139,7 +136,7 @@ async def test_reupload_sweeps_orphaned_old_file(_tmp_upload_dir, as_principal):
     assert r2.status_code == 200
     new_digest = hashlib.sha256(new_bytes).hexdigest()[:8]
     assert new_digest != old_digest
-    assert r2.json()["logo"] == f"/api/v1/agencies/{ag.id}/logo?v={new_digest}"
+    assert r2.json()["logo"] == f"/api/v1/public/agencies/{ag.id}/logo?v={new_digest}"
 
     remaining = sorted(p.name for p in _logos_dir(_tmp_upload_dir).glob(f"{ag.id}-*"))
     assert remaining == [f"{ag.id}-{new_digest}.png"]
@@ -167,8 +164,7 @@ async def test_get_logo_returns_bytes_with_cache_headers(as_principal):
             files={"file": ("logo.png", _PNG_BYTES, "image/png")},
         )
         assert upload.status_code == 200
-        logo_url = upload.json()["logo"]
-        r = await c.get(logo_url)
+        r = await c.get(f"/api/v1/public/agencies/{ag.id}/logo")
 
     assert r.status_code == 200
     assert r.content == _PNG_BYTES
@@ -181,15 +177,13 @@ async def test_get_logo_returns_bytes_with_cache_headers(as_principal):
 async def test_get_logo_404_for_emoji_only_agency():
     ag = await Agency.create(name="A", status="draft", logo="🏛️")
     async with await _client() as c:
-        r = await c.get(f"/api/v1/agencies/{ag.id}/logo")
+        r = await c.get(f"/api/v1/public/agencies/{ag.id}/logo")
     assert r.status_code == 404
 
 
 @pytest.mark.usefixtures("db")
-@pytest.mark.parametrize("role", ["user", "viewer", "auditor"])
-async def test_get_logo_allowed_for_authenticated_read_only_roles(role, as_principal):
-    """Regression: the role allowlist chokepoint must not 403 an <img> fetch
-    carrying an API key for a role that isn't otherwise allowlisted for this path."""
+async def test_get_logo_allowed_with_no_token(as_principal):
+    """The logo GET now lives under /public: an anonymous <img> fetch must succeed."""
     as_principal()
     ag = await Agency.create(name="A", status="draft")
     async with await _client() as c:
@@ -197,16 +191,8 @@ async def test_get_logo_allowed_for_authenticated_read_only_roles(role, as_princ
             f"/api/v1/agencies/{ag.id}/logo",
             files={"file": ("logo.png", _PNG_BYTES, "image/png")},
         )
-    # Drop the admin override so the next request exercises the real
-    # API-key auth path this test is actually regression-guarding.
-    app.dependency_overrides.pop(get_current_user, None)
-    logo_url = upload.json()["logo"]
-
-    user = await User.create(email=f"logo-{role}@x.io", hashed_password="h", role=role)
-    raw = generate_api_key()
-    await UserAPIKey.create(user_id=user.id, name="n", key_hash=hash_api_key(raw), key_prefix=raw[:12])
-    async with await _client() as c:
-        r = await c.get(logo_url, headers={"Authorization": f"Bearer {raw}"})
+        assert upload.status_code == 200
+        r = await c.get(f"/api/v1/public/agencies/{ag.id}/logo")
     assert r.status_code == 200
 
 
