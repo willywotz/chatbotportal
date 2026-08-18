@@ -534,13 +534,18 @@ async def require_admin(request: Request) -> Principal:
     return p
 
 
-async def require_scope(security_scopes: SecurityScopes, request: Request) -> Principal:
-    p = await get_current_user(request)
-    missing = set(security_scopes.scopes) - p.scopes
+async def require_scope(
+    security_scopes: SecurityScopes,
+    principal: Principal = Depends(get_current_user),
+) -> Principal:
+    # Resolve via Depends(get_current_user) — NOT a direct call — so that
+    # app.dependency_overrides[get_current_user] in tests continues to control
+    # this route's identity. A direct call would bypass the override.
+    missing = set(security_scopes.scopes) - principal.scopes
     if missing:
         raise HTTPException(status_code=403,
                             detail="This token lacks the required scope")
-    return p
+    return principal
 
 
 async def _resolve_role(conn: HTTPConnection) -> str | None:
@@ -550,6 +555,38 @@ async def _resolve_role(conn: HTTPConnection) -> str | None:
 
 Keep the existing `enforce_role_allowlist` and every `_is_*` predicate exactly as
 they are (they call the new `_resolve_role`).
+
+- [ ] **Step 3b: Add the `as_principal` fixture to the ROOT `tests/conftest.py`** — the single seam the 8 override-based tests will migrate to (Task 5b):
+
+```python
+import pytest
+from app.auth.keycloak import Principal
+from app.auth.dependencies import get_current_user
+
+_ALL_SCOPES = frozenset({
+    "agency:list","agency:read","agency:write","conversation:read:own",
+    "conversation:read:all","conversation:write:own","message:rate","dashboard:read",
+    "executive:read","executive:write","health:read","usage:read","analytics:read",
+    "feedback:read","feedback:read:detail","audit:read","connlog:read","llm:read",
+    "llm:write","settings:read","settings:write","popular:read","popular:write","user:manage",
+})
+
+@pytest.fixture
+def as_principal():
+    """Override get_current_user with a fake Principal. Defaults to admin+all scopes.
+    Returns a callable so a test can pin narrower scopes/role for denial cases.
+    Import the FastAPI `app` lazily inside the test to install the override."""
+    from app.main import app
+    installed = {"app": app}
+    def _install(*, scopes=_ALL_SCOPES, role="admin",
+                 sub="00000000-0000-0000-0000-000000000001", email="admin@example.com"):
+        p = Principal(id=sub, email=email, display_name="Admin", role=role,
+                      scopes=frozenset(scopes))
+        installed["app"].dependency_overrides[get_current_user] = lambda: p
+        return p
+    yield _install
+    installed["app"].dependency_overrides.pop(get_current_user, None)
+```
 
 - [ ] **Step 4: Update the usage-context reset fixture** in `tests/conftest.py`: drop `current_api_key_id` (it no longer exists after Task 11; if referenced now, leave it until Task 11 and only remove the import there). For this task, ensure `tests/conftest.py` still imports cleanly.
 
@@ -564,6 +601,22 @@ Expected: new tests PASS. Some legacy cookie/API-key auth tests now fail — tha
 git add backend/app/auth/dependencies.py backend/tests/auth/test_dependencies_token.py
 git commit -m "feat(auth): resolve identity from Keycloak token; add require_scope"
 ```
+
+### Task 5b: Centralize the override-based tests on `as_principal`
+
+**Files:** the 8 test files that do `app.dependency_overrides[get_current_user] = ...`, plus the 2 that inject a bare `object()`. Find them with:
+`grep -rl "dependency_overrides\[get_current_user\]" backend/tests` and `grep -rln "= object()" backend/tests`.
+
+**Interfaces:** consumes `as_principal` (Task 5). After this task, no test constructs a fake `User` for auth; all use `as_principal(...)`.
+
+- [ ] **Step 1:** For each file, replace the local `_admin()`/`_user()` fake-`User` factory and its `app.dependency_overrides[get_current_user] = _admin` install with a call to the `as_principal` fixture: `as_principal()` for an admin (all scopes), or `as_principal(scopes=[...], role="user")` where the test asserts a specific role/permission. Remove now-unused `User` imports.
+- [ ] **Step 2:** Fix the two `object()`-injecting tests (`test_parse_spec_auth.py`, `test_parse_spec_endpoint.py`) the same way — they will break the moment `require_scope` reads `.scopes`, so give them a real `Principal` via `as_principal`.
+- [ ] **Step 3:** Run the full suite
+
+Run: `cd backend && OTEL_SDK_DISABLED=true uv run pytest -q -k "not (api_key or session or ws or auth_login)"`
+Expected: PASS (the auth-transport tests slated for deletion in Task 17 remain the only failures).
+
+- [ ] **Step 4: Commit** `test(auth): centralize dependency-override auth on as_principal fixture`.
 
 ---
 
@@ -821,58 +874,45 @@ with the matrix scope. Import `User` type hints are replaced by `Principal`.
 
 ---
 
-## Phase 7 — Swap to the fail-closed gate; MCP; delete dead auth
+## Phase 7 — Remove the role allowlist; MCP; delete dead auth
 
-### Task 15: Replace the role allowlist with the fail-closed gate
+> **Design decision (user-approved):** there is NO runtime global gate. Authorization
+> is per-route `require_scope` (deny-by-default: no valid token ⇒ 401 via
+> `get_current_user`, missing scope ⇒ 403). Public routes carry no auth dependency.
+> The "no route silently unprotected" guarantee is the CI **route-audit test** (Task 18),
+> not a request-path chokepoint. This preserves the fail-closed *property* while keeping
+> the suite green (the override-based tests never send a token, so a runtime token gate
+> would 401 them — hence no runtime gate).
 
-**Files:** `backend/app/routers/public_status.py` (ensure popular-questions public GET stays public), `backend/app/auth/dependencies.py`, `backend/app/main.py`, `backend/app/middleware/session_refresh.py`; tests.
+### Task 15: Delete the role allowlist (no runtime gate)
 
-**Interfaces:**
-- Produces: `enforce_access(conn)` — the two-prefix fail-closed gate (spec §5.1); `require_admin` deleted; `enforce_role_allowlist` and all `_is_*` helpers deleted.
-
-- [ ] **Step 1:** Write the gate tests (`tests/auth/test_gate.py`): a request to a `/api/v1/*` route with no token ⇒ 401; a `/api/v1/public/...` route with no token ⇒ passes to the handler; a request to `/health` with no token ⇒ 200; an invalid token anywhere ⇒ 401.
-- [ ] **Step 2:** Run — confirm failure (old allowlist passes anonymous through).
-- [ ] **Step 3:** Replace `enforce_role_allowlist` (and delete every `_is_*` predicate and `_STAFF_GET_EXACT`) with:
-
-```python
-_PUBLIC_PREFIX = "/api/v1/public/"
-
-async def enforce_access(conn: HTTPConnection) -> None:
-    if conn.scope["type"] != "http":
-        return
-    path = conn.scope["path"]
-    if not path.startswith("/api/v1/"):
-        return
-    if path.startswith(_PUBLIC_PREFIX):
-        return
-    # Any /api/v1 non-public route: a valid token is mandatory. Per-route
-    # require_scope then decides authorization. `_principal` raises 401 on an
-    # invalid token; None (no token) also 401 here.
-    if _principal(conn) is None:
-        raise _invalid
-```
-
-Delete `require_admin` (no longer referenced after Phase 6). In `app/main.py`, change the global dependency to `Depends(enforce_access)`, delete `app.add_middleware(SessionRefreshMiddleware)` and its import, and delete `app/middleware/session_refresh.py`.
-
-- [ ] **Step 4:** Run the full suite (auth-transport legacy tests are removed in Task 17; run without them):
-
-Run: `cd backend && uv run pytest -q -k "not (cookie or api_key_rest or ws_auth)"`
-Expected: PASS.
-
-- [ ] **Step 5:** Commit `feat(auth): fail-closed gate over /api/v1; drop role allowlist`.
-
-### Task 16: Mount agent-proxy outside the gate
-
-**Files:** `backend/app/main.py`, `backend/app/routers/agent_proxy.py`; tests.
+**Files:** `backend/app/auth/dependencies.py`, `backend/app/main.py`, `backend/app/middleware/session_refresh.py`; tests.
 
 **Interfaces:**
-- Produces: agent-proxy served at `/api/v1/agent-proxy/{agency_id}` via `app.mount`, bypassing the global dependency, auth unchanged.
+- Produces: `enforce_role_allowlist`, every `_is_*` predicate, `_STAFF_GET_EXACT`, and `require_admin` are **deleted**. No `enforce_access` replacement — there is no global auth dependency. `SessionRefreshMiddleware` deleted.
 
-- [ ] **Step 1:** Write/adjust a test: `POST /api/v1/agent-proxy/{uuid}` with no token still reaches the proxy service (mock the upstream), i.e. not 401 from the gate.
-- [ ] **Step 2:** Run — confirm failure (gate 401s it while it is still a normal router).
-- [ ] **Step 3:** Convert `agent_proxy.py` to a small ASGI app (a `Starlette` sub-app or a dedicated `FastAPI()` with the one route) and `app.mount("/api/v1/agent-proxy", agent_proxy_app)` in `main.py`; remove `app.include_router(agent_proxy.router, ...)`.
+- [ ] **Step 1:** Write `tests/auth/test_no_gate_access.py`: with `as_principal(scopes=["dashboard:read"], role="staff")`, `GET /api/v1/dashboard/statistics` ⇒ 200; a public route (`GET /api/v1/public/status`) ⇒ 200 with no override and no token; a scoped route with NO token and NO override ⇒ 401 (from `require_scope`'s `get_current_user`).
+- [ ] **Step 2:** Run — confirm the no-token-401 case behaves (it may already pass via require_scope; the point is to lock it before deleting the allowlist).
+- [ ] **Step 3:** In `app/auth/dependencies.py`, delete `enforce_role_allowlist`, all `_is_*` predicates, `_STAFF_GET_EXACT`, and `require_admin` (no longer referenced after Phase 6). In `app/main.py`, **remove the global `dependencies=[Depends(enforce_role_allowlist)]` argument entirely** (do not add a replacement), delete `app.add_middleware(SessionRefreshMiddleware)` and its import, and delete `app/middleware/session_refresh.py`.
+- [ ] **Step 4:** Run the full suite (auth-transport legacy tests are removed in Task 17):
+
+Run: `cd backend && OTEL_SDK_DISABLED=true uv run pytest -q -k "not (cookie or api_key_rest or ws_auth or session_refresh or auth_session)"`
+Expected: PASS (baseline 6 OTEL failures aside).
+
+- [ ] **Step 5:** Commit `feat(auth): remove role allowlist; enforcement is per-route scopes`.
+
+### Task 16: Keep agent-proxy anonymous (no gate to bypass)
+
+**Files:** `backend/app/routers/agent_proxy.py` (likely unchanged); `backend/tests`.
+
+**Interfaces:**
+- Produces: agent-proxy stays a normal router at `/api/v1/agent-proxy/{agency_id}` with **no `require_scope`**, so it is anonymously reachable (its own auth = UUID check + agency credentials, unchanged). It is added to the route-audit whitelist in Task 18. No re-mount — the spec's re-mount rationale was to bypass the runtime gate, which no longer exists.
+
+- [ ] **Step 1:** Write/confirm a test: `POST /api/v1/agent-proxy/{uuid}` with no token reaches the proxy service (mock the upstream) — i.e. not 401.
+- [ ] **Step 2:** Run it. If it already passes (no gate, no scope on the route), the task is a no-op beyond the test + the Task 18 whitelist entry — record that and proceed.
+- [ ] **Step 3:** Ensure `agent_proxy.py` has no `require_scope`/`get_current_user` dependency (it should not). Do NOT re-mount.
 - [ ] **Step 4:** Run `uv run pytest -q -k "agent_proxy"`. Expected: PASS.
-- [ ] **Step 5:** Commit `refactor(agent-proxy): mount outside the auth gate`.
+- [ ] **Step 5:** Commit `test(agent-proxy): confirm anonymous reachability under scope model` (skip if no changes were needed beyond Task 18).
 
 ### Task 17: MCP bearer auth; delete dead auth surfaces; trim auth router
 
@@ -910,7 +950,7 @@ git commit -m "feat(auth): MCP bearer auth; remove password/session/API-key surf
 
 **Files:** Create `backend/tests/test_route_audit.py`.
 
-**Interfaces:** asserts every `/api/v1/*` route is either under `/api/v1/public/` or carries a `require_scope` dependency (whitelist: `GET /authentication/me`).
+**Interfaces:** asserts every `/api/v1/*` route is either under `/api/v1/public/` or carries a `require_scope` dependency. This test is the sole "no route silently unprotected" guarantee (there is no runtime gate), so it must be exhaustive. Explicit auth-exempt whitelist: `GET /authentication/me` (valid token, no scope) and every `POST/GET/PUT/PATCH/DELETE /api/v1/agent-proxy/{agency_id}` method (external OneChat callback, its own auth). Any other un-scoped, non-public route is a FAIL.
 
 - [ ] **Step 1: Write the test**
 
@@ -918,7 +958,8 @@ git commit -m "feat(auth): MCP bearer auth; remove password/session/API-key surf
 from app.main import app
 from app.auth.dependencies import require_scope
 
-_WHITELIST = {("GET", "/api/v1/authentication/me")}
+_WHITELIST_EXACT = {("GET", "/api/v1/authentication/me")}
+_WHITELIST_PREFIX = ("/api/v1/agent-proxy/",)  # external OneChat callback, own auth
 
 def _uses_require_scope(route) -> bool:
     for dep in getattr(route.dependant, "dependencies", []):
@@ -935,8 +976,10 @@ def test_every_api_route_is_classified():
             continue
         if path.startswith("/api/v1/public/"):
             continue
+        if any(path.startswith(p) for p in _WHITELIST_PREFIX):
+            continue
         for m in methods:
-            if (m, path) in _WHITELIST:
+            if (m, path) in _WHITELIST_EXACT:
                 continue
             if not _uses_require_scope(route):
                 offenders.append(f"{m} {path}")
