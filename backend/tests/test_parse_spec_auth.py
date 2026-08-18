@@ -1,4 +1,4 @@
-"""POST /agencies/parse-spec must require authentication (it invokes an LLM).
+"""POST /agencies/parse-specification must require authentication (it invokes an LLM).
 
 Both tests mock `parse_spec`, so any 401/403 can only come from our auth layer —
 never from the upstream LLM rejecting the gateway's key (which would mean the
@@ -11,7 +11,7 @@ import app.routers.agencies.spec as spec_mod
 from app.auth.dependencies import get_current_user
 from app.routers.agencies import router
 
-_PATH = "/api/v1/agencies/parse-spec"
+_PATH = "/api/v1/agencies/parse-specification"
 
 
 async def _fake_parse_spec(_spec_text: str) -> dict:

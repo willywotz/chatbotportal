@@ -98,8 +98,8 @@ async def test_user_surface_is_exactly_this(db):
         ("GET", f"/api/v1/history/{_SAMPLE_ID}/messages"),
         ("POST", "/api/v1/authentication/logout"),
         ("POST", "/api/v1/authentication/anonymous"),
-        # NOTE: the six read-only ops dashboards (dashboard/stats, executive-summary,
-        # agency-health, usage-heatmap, insight/usage, feedback/stats) were moved to
+        # NOTE: the six read-only ops dashboards (dashboard/statistics, executive-summary,
+        # agency-health, usage-heatmap, insight/usage, feedback/statistics) were moved to
         # `staff`-only in the staff-role split — a plain `user` can no longer reach
         # them. Their staff access is pinned in test_staff_allowlist.py.
     }

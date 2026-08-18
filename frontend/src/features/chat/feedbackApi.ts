@@ -37,7 +37,7 @@ export async function fetchFeedbackStats(): Promise<FeedbackStats> {
     daily_trend: { date: string; up: number; down: number; rate: number }[];
     low_rated_questions: { content: string; feedback_text: string | null; agency: string; created_at: string }[];
     agency_breakdown: { agency: string; up: number; down: number; rate: number }[];
-  }>('/api/v1/feedback/stats');
+  }>('/api/v1/feedback/statistics');
 
   return {
     totalRatings: raw.total_ratings,

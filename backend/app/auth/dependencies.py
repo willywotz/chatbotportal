@@ -66,12 +66,12 @@ _AGENT_PROXY_PATTERN = re.compile(r"^/api/v1/agent-proxy/[^/]+$")
 # each page (e.g. POST /executive-summary/regenerate) stays admin-only, and a
 # plain `user` cannot reach these at all.
 _STAFF_GET_EXACT = frozenset({
-    "/api/v1/dashboard/stats",
+    "/api/v1/dashboard/statistics",
     "/api/v1/executive-summary",
     "/api/v1/agency-health",
     "/api/v1/usage-heatmap",
     "/api/v1/insight/usage",
-    "/api/v1/feedback/stats",
+    "/api/v1/feedback/statistics",
 })
 
 

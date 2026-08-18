@@ -32,7 +32,7 @@ describe("ConnectionLogsTable error state", () => {
   it("shows an error alert row when the connection-logs endpoint fails", async () => {
     server.use(
       http.get("*/api/v1/connection-logs", () => HttpResponse.error()),
-      http.get("*/api/v1/connection-logs/info", () => HttpResponse.json({})),
+      http.get("*/api/v1/connection-logs/information", () => HttpResponse.json({})),
     );
     renderPage();
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
@@ -42,7 +42,7 @@ describe("ConnectionLogsTable error state", () => {
   it("shows a retry button in the error row and clicking it triggers a refetch", async () => {
     server.use(
       http.get("*/api/v1/connection-logs", () => HttpResponse.error()),
-      http.get("*/api/v1/connection-logs/info", () => HttpResponse.json({})),
+      http.get("*/api/v1/connection-logs/information", () => HttpResponse.json({})),
     );
     renderPage();
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
@@ -60,7 +60,7 @@ describe("ConnectionLogsTable error state", () => {
   it("shows empty row (not error) when fetch succeeds but no logs", async () => {
     server.use(
       http.get("*/api/v1/connection-logs", () => HttpResponse.json(EMPTY_LOGS)),
-      http.get("*/api/v1/connection-logs/info", () => HttpResponse.json({})),
+      http.get("*/api/v1/connection-logs/information", () => HttpResponse.json({})),
     );
     renderPage();
     await waitFor(() => expect(screen.getByText("ไม่พบข้อมูล")).toBeInTheDocument());
@@ -76,7 +76,7 @@ describe("ConnectionLogs test-action toggle", () => {
         urls.push(request.url);
         return HttpResponse.json(EMPTY_LOGS);
       }),
-      http.get("*/api/v1/connection-logs/info", () => HttpResponse.json({})),
+      http.get("*/api/v1/connection-logs/information", () => HttpResponse.json({})),
     );
     renderPage();
     await waitFor(() => expect(screen.getByText("ไม่พบข้อมูล")).toBeInTheDocument());

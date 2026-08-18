@@ -1,4 +1,4 @@
-"""Test-action visibility on GET /connection-logs and /info."""
+"""Test-action visibility on GET /connection-logs and /information."""
 import uuid
 
 import pytest
@@ -56,8 +56,8 @@ async def test_info_excludes_test_by_default():
     ag = await Agency.create(name="A", status="active")
     await _seed_one_each(ag)
     async with await _client() as c:
-        default = (await c.get("/api/v1/connection-logs/info")).json()
-        with_test = (await c.get("/api/v1/connection-logs/info", params={"include_test": True})).json()
+        default = (await c.get("/api/v1/connection-logs/information")).json()
+        with_test = (await c.get("/api/v1/connection-logs/information", params={"include_test": True})).json()
     app.dependency_overrides.clear()
     assert default["total_connections"] == 1
     assert with_test["total_connections"] == 2

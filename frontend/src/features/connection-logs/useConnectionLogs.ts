@@ -86,7 +86,7 @@ export interface ConnectionLogInfo {
 
 async function fetchConnectionLogInfo(includeTest?: boolean): Promise<ConnectionLogInfo> {
   const query = includeTest ? '?include_test=true' : '';
-  return await api.get<ConnectionLogInfo>(`/api/v1/connection-logs/info${query}`);
+  return await api.get<ConnectionLogInfo>(`/api/v1/connection-logs/information${query}`);
 }
 
 export function useConnectionLogInfo(includeTest?: boolean) {

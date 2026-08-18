@@ -6,12 +6,12 @@ from app.auth.dependencies import (
 )
 
 _DASHBOARDS = [
-    "/api/v1/dashboard/stats",
+    "/api/v1/dashboard/statistics",
     "/api/v1/executive-summary",
     "/api/v1/agency-health",
     "/api/v1/usage-heatmap",
     "/api/v1/insight/usage",
-    "/api/v1/feedback/stats",
+    "/api/v1/feedback/statistics",
 ]
 
 
@@ -61,12 +61,12 @@ _PRE_SPLIT_USER_SURFACE = [
     ("GET", "/api/v1/history/abc-123/messages"),
     ("GET", "/api/v1/agencies"),
     ("GET", "/api/v1/authentication/me"),
-    ("GET", "/api/v1/dashboard/stats"),
+    ("GET", "/api/v1/dashboard/statistics"),
     ("GET", "/api/v1/executive-summary"),
     ("GET", "/api/v1/agency-health"),
     ("GET", "/api/v1/usage-heatmap"),
     ("GET", "/api/v1/insight/usage"),
-    ("GET", "/api/v1/feedback/stats"),
+    ("GET", "/api/v1/feedback/statistics"),
 ]
 
 

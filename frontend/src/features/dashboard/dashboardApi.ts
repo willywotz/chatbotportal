@@ -20,7 +20,7 @@ interface DashboardApiResponse {
 }
 
 async function fetchFromApi(): Promise<DashboardApiResponse> {
-  return api.get<DashboardApiResponse>('/api/v1/dashboard/stats')
+  return api.get<DashboardApiResponse>('/api/v1/dashboard/statistics')
 }
 
 export async function fetchDashboardStats(): Promise<typeof dashboardStats> {

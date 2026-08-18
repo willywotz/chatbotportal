@@ -10,7 +10,7 @@ allowlist layer that runs before any SQL.
 
 from app.auth.dependencies import _is_allowed_for_basic_user, _is_allowed_for_staff
 
-_PATH = "/api/v1/feedback/stats"
+_PATH = "/api/v1/feedback/statistics"
 
 
 def test_feedback_stats_denied_for_basic_user():

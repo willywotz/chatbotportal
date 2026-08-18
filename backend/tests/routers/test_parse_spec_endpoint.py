@@ -1,4 +1,4 @@
-"""POST /agencies/parse-spec must translate LlmError provider failures into HTTP 502.
+"""POST /agencies/parse-specification must translate LlmError provider failures into HTTP 502.
 
 `parse_spec` was migrated to the new LLM client and now raises `LlmError` on
 provider failure instead of `httpx` errors. The endpoint must not let that
@@ -12,7 +12,7 @@ from app.auth.dependencies import get_current_user
 from app.routers.agencies import router
 from app.services.llm import LlmError
 
-_PATH = "/api/v1/agencies/parse-spec"
+_PATH = "/api/v1/agencies/parse-specification"
 
 
 async def _raising_parse_spec(_spec_text: str) -> dict:

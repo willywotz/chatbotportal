@@ -27,7 +27,7 @@ describe("FeedbackSummaryCards", () => {
 
   it("shows an error alert (not skeletons) when the feedback-stats fetch fails", async () => {
     server.use(
-      http.get("*/api/v1/feedback/stats", () => HttpResponse.error()),
+      http.get("*/api/v1/feedback/statistics", () => HttpResponse.error()),
     );
     renderCards();
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());

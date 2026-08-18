@@ -3,7 +3,7 @@ Feedback stats route — port of the Supabase `feedback-stats` edge function.
 
 Endpoint
 --------
-  GET  /feedback/stats
+  GET  /feedback/statistics
 """
 
 from fastapi import APIRouter, Depends
@@ -22,7 +22,7 @@ async def get_agency_low_rated(agency_id: str, _: User = Depends(require_admin))
     return await agency_low_rated_or_404(agency_id)
 
 
-@router.get("/stats", response_model=FeedbackStats, summary="Get feedback and satisfaction metrics")
+@router.get("/statistics", response_model=FeedbackStats, summary="Get feedback and satisfaction metrics")
 async def feedback_stats(_user: User = Depends(get_current_user)) -> FeedbackStats:
     # Authorization is enforced by the global role allowlist: admin passes it;
     # a plain `user` is blocked upstream.

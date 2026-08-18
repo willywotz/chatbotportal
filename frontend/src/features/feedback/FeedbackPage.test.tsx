@@ -20,7 +20,7 @@ function renderPage() {
 
 describe("FeedbackPage error state", () => {
   it("shows an error alert when the feedback stats endpoint fails", async () => {
-    server.use(http.get("*/api/v1/feedback/stats", () => HttpResponse.error()));
+    server.use(http.get("*/api/v1/feedback/statistics", () => HttpResponse.error()));
     renderPage();
     // FeedbackSummaryCards shows inline error; QueryStateBoundary shows its own error card
     await waitFor(() => expect(screen.getAllByRole("alert").length).toBeGreaterThan(0));

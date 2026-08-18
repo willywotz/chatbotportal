@@ -11,7 +11,7 @@ router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
 # Authorization is enforced by the global role allowlist (enforce_role_allowlist):
 # admin passes the allowlist; a plain `user` is blocked upstream.
-@router.get("/stats", summary="Get dashboard statistics and charts data")
+@router.get("/statistics", summary="Get dashboard statistics and charts data")
 async def dashboard_stats(_user: User = Depends(get_current_user)) -> dict:
     start = time.time()
     data = await get_dashboard_stats()
