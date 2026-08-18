@@ -1,5 +1,6 @@
 import pytest
-from fastapi import HTTPException
+
+from app.errors import ApiError, ErrorCode
 
 
 @pytest.mark.asyncio
@@ -36,10 +37,11 @@ async def test_delete_golden_question_raises_404_when_missing(db):
     from app.services.agency_golden import delete_golden_question
 
     agency = await Agency.create(name="A", short_name="A", connection_type="API")
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ApiError) as exc:
         await delete_golden_question(agency, uuid.uuid4())
-    assert exc.value.status_code == 404
-    assert exc.value.detail == "Golden question not found"
+    assert exc.value.status == 404
+    assert exc.value.code == ErrorCode.NOT_FOUND
+    assert exc.value.message == "Golden question not found"
 
 
 @pytest.mark.asyncio

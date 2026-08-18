@@ -4,10 +4,10 @@ These pin current observable behavior for unchanged paths (_persist) and assert
 the NEW intended behavior for save_turn.
 SQLite-portable: no external HTTP, no Postgres-only SQL.
 """
+import asyncio
 import uuid
 
 import pytest
-from fastapi import BackgroundTasks
 
 from app.models.conversation import Conversation, Message
 from app.services.chat.stream import TurnPlan, _persist
@@ -19,6 +19,11 @@ def _plan(conv_id: str, query: str = "q") -> TurnPlan:
         query=query, conversation_id=conv_id, user=None, stream_version="v5",
         assistant_message_id=generate_uuid(),
     )
+
+
+def _inert_schedule(coro) -> None:
+    """Drop a scheduled coroutine without running it, like an unflushed BackgroundTasks."""
+    coro.close()
 
 
 async def _make_conv() -> Conversation:
@@ -36,7 +41,7 @@ async def test_save_stream_conversation_success_status_current():
         total_ms=10,
         latency_ms=5,
         thread_name=None,
-        background_tasks=BackgroundTasks(),
+        schedule=_inert_schedule,
     )
 
     conv = await Conversation.get(id=cid)
@@ -44,6 +49,27 @@ async def test_save_stream_conversation_success_status_current():
     assert conv.message_count == 2        # CURRENT behavior — pinned
     assert await Message.filter(conversation_id=cid, role="assistant").count() == 1
     assert str(assistant_id)
+
+
+@pytest.mark.usefixtures("db")
+async def test_persist_schedules_classification_via_injected_scheduler():
+    """_persist must hand the classification coroutine to the injected
+    Scheduler port, not to a concrete fastapi.BackgroundTasks."""
+    scheduled: list = []
+
+    def fake_schedule(coro) -> None:
+        scheduled.append(coro)
+        coro.close()  # never actually run it — this test only checks wiring
+
+    cid = str(uuid.uuid4())
+    await _persist(
+        _plan(cid), answer_data={"answer": "a", "sections": [], "errors": []},
+        session_id=None, total_ms=10, latency_ms=5, thread_name=None,
+        schedule=fake_schedule,
+    )
+
+    assert len(scheduled) == 1
+    assert asyncio.iscoroutine(scheduled[0])
 
 
 @pytest.mark.usefixtures("db")

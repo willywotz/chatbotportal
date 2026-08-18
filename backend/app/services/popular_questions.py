@@ -11,10 +11,10 @@ import re
 import uuid
 from datetime import timedelta
 
-from fastapi import HTTPException, status
 from tortoise.exceptions import DoesNotExist, IntegrityError
 
 from app.config import settings
+from app.errors import ApiError, ErrorCode
 from app.models.agency import Agency
 from app.models.conversation import Message
 from app.models.popular_question import PopularQuestion, PopularQuestionSource
@@ -253,12 +253,12 @@ async def get_question_or_404(question_id: uuid.UUID) -> PopularQuestion:
     try:
         return await PopularQuestion.get(id=question_id)
     except DoesNotExist:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Popular question not found")
+        raise ApiError(ErrorCode.NOT_FOUND, "Popular question not found", status=404)
 
 
 async def create_question(body: PopularQuestionCreate) -> PopularQuestion:
     if body.agency_id is not None and not await Agency.filter(id=body.agency_id).exists():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
+        raise ApiError(ErrorCode.NOT_FOUND, "Agency not found", status=404)
 
     text = body.text.strip()
     try:
@@ -272,14 +272,14 @@ async def create_question(body: PopularQuestionCreate) -> PopularQuestion:
             sort_order=body.sort_order,
         )
     except IntegrityError:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="a question with this text already exists")
+        raise ApiError(ErrorCode.CONFLICT, "a question with this text already exists", status=409)
 
 
 async def update_question(question_id: uuid.UUID, body: PopularQuestionUpdate) -> PopularQuestion:
     pq = await get_question_or_404(question_id)
 
     if body.agency_id is not None and not await Agency.filter(id=body.agency_id).exists():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
+        raise ApiError(ErrorCode.NOT_FOUND, "Agency not found", status=404)
 
     update_data = body.model_dump(exclude_unset=True)
     if update_data.get("text") is not None:
@@ -293,7 +293,7 @@ async def update_question(question_id: uuid.UUID, body: PopularQuestionUpdate) -
     try:
         await pq.update_from_dict(update_data).save()
     except IntegrityError:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="a question with this text already exists")
+        raise ApiError(ErrorCode.CONFLICT, "a question with this text already exists", status=409)
     return pq
 
 

@@ -13,11 +13,11 @@ import uuid
 from collections.abc import AsyncIterator, Mapping
 
 import httpx
-from fastapi import HTTPException, status
 from opentelemetry import trace
 from opentelemetry.propagate import inject
 
 from app.config import settings
+from app.errors import ApiError, ErrorCode
 from app.models import Agency, ConnectionLog
 from app.services import agency as agency_service
 
@@ -90,7 +90,7 @@ async def proxy(
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> tuple[int, httpx.Headers, AsyncIterator[bytes]]:
     if not _is_uuid(agency_id):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid id format")
+        raise ApiError(ErrorCode.INVALID_REQUEST, "invalid id format", status=400)
     agency = await agency_service.get_agency_or_404(uuid.UUID(agency_id))
 
     body_json = _safe_json(body)
@@ -108,7 +108,7 @@ async def proxy(
         latency_ms = int((time.monotonic() - started) * 1000)
         await client.aclose()
         await _log(agency, "error", latency_ms, body, "", f"error forwarding request: {exc}")
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Bad Gateway")
+        raise ApiError(ErrorCode.AGENCY_UNAVAILABLE, "Bad Gateway", status=502)
 
     # Latency is time-to-headers (Go measured right after the client returns),
     # not time-to-last-byte, so a slow client stream does not inflate it.

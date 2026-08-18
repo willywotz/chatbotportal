@@ -42,10 +42,12 @@ async def test_change_password_wrong_current(db):
 
 @pytest.mark.asyncio
 async def test_change_password_rejects_short_new(db):
+    from app.errors import ApiError
+
     user = await _user()
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ApiError) as exc:
         await auth_router.change_password(
             ChangePasswordRequest(current_password="oldsecret", new_password="123"),
             user=user,
         )
-    assert exc.value.status_code == 400
+    assert exc.value.status == 400

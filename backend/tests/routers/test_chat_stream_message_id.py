@@ -27,6 +27,11 @@ def _plan(conv_id: str, query: str = "q") -> TurnPlan:
     )
 
 
+def _inert_schedule(coro) -> None:
+    """Drop a scheduled coroutine without running it, like an unflushed BackgroundTasks."""
+    coro.close()
+
+
 @pytest.mark.asyncio
 async def test_save_stream_conversation_returns_assistant_id(db):
     conv_id = str(__import__("uuid").uuid4())
@@ -37,7 +42,7 @@ async def test_save_stream_conversation_returns_assistant_id(db):
         total_ms=0,
         latency_ms=0,
         thread_name=None,
-        background_tasks=BackgroundTasks(),
+        schedule=_inert_schedule,
     )
     saved = await Message.get(id=asst_id)
     assert saved.role == "assistant"
@@ -69,7 +74,7 @@ async def test_cached_stream_emits_message_id_in_done(db):
 async def test_error_event_marks_endpoint_span_as_error(db):
     """The endpoint span must be marked ERROR on upstream failure (pre-refactor behavior)."""
 
-    async def fake_run_turn(plan, *, background_tasks=None):
+    async def fake_run_turn(plan, *, schedule=None):
         yield ChatEvent("error", {"message": "OneChat v5 returned 502", "code": 502})
         yield ChatEvent("done", {"session_id": plan.conversation_id, "total_ms": 0})
 

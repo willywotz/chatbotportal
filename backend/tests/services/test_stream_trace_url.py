@@ -41,6 +41,6 @@ async def test_stream_live_passes_traceparent_tagged_mcp_url(monkeypatch):
 
     with trace.get_tracer(__name__).start_as_current_span("outer"):
         plan = _make_plan(conversation_id="conv-xyz")
-        _ = [ev async for ev in _stream_live(plan, background_tasks=None)]
+        _ = [ev async for ev in _stream_live(plan, schedule=None)]
 
     assert "traceparent=" in recorded["mcp_url"]

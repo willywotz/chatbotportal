@@ -10,12 +10,12 @@ from __future__ import annotations
 import uuid
 from typing import Literal
 
-from fastapi import HTTPException, status
 from tortoise.exceptions import DoesNotExist
 from tortoise.expressions import Q
 
 from app.auth.security import hash_password
 from app.config import settings
+from app.errors import ApiError, ErrorCode
 from app.models.user import User
 from app.schemas.user import Role, UserCreate, UserUpdate
 
@@ -24,20 +24,14 @@ _ANONYMOUS_PASSWORD_PLACEHOLDER = "!"  # anon users never authenticate with a pa
 
 def hash_new_password(password: str) -> str:
     if len(password) < settings.MIN_PASSWORD_LENGTH:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร",
-        )
+        raise ApiError(ErrorCode.INVALID_REQUEST, "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร", status=400)
     return hash_password(password)
 
 
 def ensure_not_self(acting_user_id: uuid.UUID, target_id: uuid.UUID) -> None:
     """An admin may not change their own role, deactivate, or delete themselves."""
     if acting_user_id == target_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="ไม่สามารถดำเนินการกับบัญชีของตนเองได้",
-        )
+        raise ApiError(ErrorCode.INVALID_REQUEST, "ไม่สามารถดำเนินการกับบัญชีของตนเองได้", status=400)
 
 
 async def ensure_not_last_admin(target: User) -> None:
@@ -46,17 +40,14 @@ async def ensure_not_last_admin(target: User) -> None:
         return
     others = await User.filter(role="admin", is_active=True).exclude(id=target.id).count()
     if others == 0:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="ต้องมีผู้ดูแลระบบที่ใช้งานได้อย่างน้อยหนึ่งคน",
-        )
+        raise ApiError(ErrorCode.INVALID_REQUEST, "ต้องมีผู้ดูแลระบบที่ใช้งานได้อย่างน้อยหนึ่งคน", status=400)
 
 
 async def create_user(data: UserCreate) -> User:
     hashed = hash_new_password(data.password)
 
     if await User.filter(email=data.email).exists():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="อีเมลนี้ถูกใช้งานแล้ว")
+        raise ApiError(ErrorCode.CONFLICT, "อีเมลนี้ถูกใช้งานแล้ว", status=409)
 
     return await User.create(
         email=data.email,
@@ -89,7 +80,7 @@ async def get_user_or_404(user_id: uuid.UUID) -> User:
     try:
         return await User.get(id=user_id)
     except DoesNotExist:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise ApiError(ErrorCode.NOT_FOUND, "User not found", status=404)
 
 
 async def apply_update(admin_id: uuid.UUID, user: User, body: UserUpdate) -> list[str]:

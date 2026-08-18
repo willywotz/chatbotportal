@@ -1,7 +1,6 @@
 """Tests for app.services.api_key — data access moved out of the router."""
 
-from fastapi import HTTPException
-
+from app.errors import ApiError
 from app.models.user import User, UserAPIKey
 from app.services import api_key as api_key_service
 
@@ -23,9 +22,9 @@ async def test_create_rejects_non_positive_expiry(db):
     user = await _user()
     try:
         await api_key_service.create(user.id, "n", 0)
-        raise AssertionError("expected HTTPException")
-    except HTTPException as exc:
-        assert exc.status_code == 400
+        raise AssertionError("expected ApiError")
+    except ApiError as exc:
+        assert exc.status == 400
 
 
 async def test_list_for_user_scopes_by_owner(db):
@@ -51,9 +50,9 @@ async def test_rename_other_owner_raises_404(db):
     key, _ = await api_key_service.create(owner.id, "n", None)
     try:
         await api_key_service.rename(key.id, other.id, "new")
-        raise AssertionError("expected HTTPException")
-    except HTTPException as exc:
-        assert exc.status_code == 404
+        raise AssertionError("expected ApiError")
+    except ApiError as exc:
+        assert exc.status == 404
 
 
 async def test_delete_removes_row(db):

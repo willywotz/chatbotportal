@@ -4,8 +4,8 @@ import uuid
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from fastapi import HTTPException
 
+from app.errors import ApiError
 from app.models.user import User
 from app.routers import users as users_router
 from app.schemas.user import UserCreate, UserUpdate
@@ -76,9 +76,9 @@ async def test_create_with_password_returns_201_shape(db):
 @pytest.mark.asyncio
 async def test_get_single_404(db):
     admin = await _admin()
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ApiError) as exc:
         await users_router.get_user(uuid.uuid4(), admin=admin)
-    assert exc.value.status_code == 404
+    assert exc.value.status == 404
 
 
 @pytest.mark.asyncio
@@ -109,19 +109,19 @@ async def test_patch_updates_password(db):
 async def test_patch_rejects_short_password(db):
     admin = await _admin()
     target = await _user(email="t@example.com")
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ApiError) as exc:
         await users_router.update_user(
             target.id, UserUpdate(password="123"), admin=admin
         )
-    assert exc.value.status_code == 400
+    assert exc.value.status == 400
 
 
 @pytest.mark.asyncio
 async def test_patch_self_role_change_blocked(db):
     admin = await _admin()
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ApiError) as exc:
         await users_router.update_user(admin.id, UserUpdate(role="user"), admin=admin)
-    assert exc.value.status_code == 400
+    assert exc.value.status == 400
 
 
 @pytest.mark.asyncio
@@ -147,9 +147,9 @@ async def test_deactivate_sets_inactive(db):
 @pytest.mark.asyncio
 async def test_deactivate_self_blocked(db):
     admin = await _admin()
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ApiError) as exc:
         await users_router.deactivate_user(admin.id, admin=admin)
-    assert exc.value.status_code == 400
+    assert exc.value.status == 400
 
 
 @pytest.mark.asyncio
@@ -172,17 +172,17 @@ async def test_activate_sets_active(db):
 @pytest.mark.asyncio
 async def test_activate_user_404(db):
     admin = await _admin()
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ApiError) as exc:
         await users_router.activate_user(uuid.uuid4(), admin=admin)
-    assert exc.value.status_code == 404
+    assert exc.value.status == 404
 
 
 @pytest.mark.asyncio
 async def test_update_user_404(db):
     admin = await _admin()
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ApiError) as exc:
         await users_router.update_user(uuid.uuid4(), UserUpdate(display_name="X"), admin=admin)
-    assert exc.value.status_code == 404
+    assert exc.value.status == 404
 
 
 @pytest.mark.asyncio

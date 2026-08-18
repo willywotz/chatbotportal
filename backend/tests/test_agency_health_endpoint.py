@@ -16,7 +16,7 @@ async def test_health_history_endpoint(db):
 @pytest.mark.asyncio
 async def test_health_history_404(db):
     import uuid
-    from fastapi import HTTPException
-    with pytest.raises(HTTPException) as exc:
+    from app.errors import ApiError
+    with pytest.raises(ApiError) as exc:
         await r.agency_health_history(uuid.uuid4(), window="24h")
-    assert exc.value.status_code == 404
+    assert exc.value.status == 404

@@ -2,8 +2,8 @@
 import uuid
 
 import pytest
-from fastapi import HTTPException
 
+from app.errors import ApiError
 from app.models import Agency, Conversation, Message
 from app.models.popular_question import PopularQuestion, PopularQuestionSource
 from app.schemas.popular_question import PopularQuestionCreate, PopularQuestionUpdate
@@ -399,17 +399,17 @@ async def test_create_question_persists_manual_source(db):
 
 @pytest.mark.asyncio
 async def test_create_question_rejects_unknown_agency(db):
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ApiError) as exc:
         await pq_service.create_question(PopularQuestionCreate(text="q", agency_id=uuid.uuid4()))
-    assert exc.value.status_code == 404
+    assert exc.value.status == 404
 
 
 @pytest.mark.asyncio
 async def test_create_question_rejects_duplicate_text_key(db):
     await PopularQuestion.create(text="dup", text_key=pq_service.normalize_text_key("dup"), source="manual")
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ApiError) as exc:
         await pq_service.create_question(PopularQuestionCreate(text="dup"))
-    assert exc.value.status_code == 409
+    assert exc.value.status == 409
 
 
 @pytest.mark.asyncio
@@ -424,9 +424,9 @@ async def test_update_question_flips_auto_source_to_manual_on_text_change(db):
 
 @pytest.mark.asyncio
 async def test_update_question_missing_raises_404(db):
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ApiError) as exc:
         await pq_service.update_question(uuid.uuid4(), PopularQuestionUpdate(pinned=True))
-    assert exc.value.status_code == 404
+    assert exc.value.status == 404
 
 
 @pytest.mark.asyncio
@@ -440,9 +440,9 @@ async def test_delete_question_removes_row(db):
 
 @pytest.mark.asyncio
 async def test_delete_question_missing_raises_404(db):
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ApiError) as exc:
         await pq_service.delete_question(uuid.uuid4())
-    assert exc.value.status_code == 404
+    assert exc.value.status == 404
 
 
 @pytest.mark.asyncio

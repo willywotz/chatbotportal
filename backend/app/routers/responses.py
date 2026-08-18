@@ -12,7 +12,7 @@ import asyncio
 import json
 import logging
 import time
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Coroutine
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -37,6 +37,11 @@ from app.utils import now
 router = APIRouter(prefix="/responses", tags=["Responses"])
 tracer = trace.get_tracer(__name__)
 logger = logging.getLogger(__name__)
+
+
+async def _run_coro(coro: Coroutine[Any, Any, None]) -> None:
+    """Adapt a scheduled coroutine into a BackgroundTasks-callable."""
+    await coro
 
 
 async def run_response(
@@ -79,7 +84,12 @@ async def run_response(
     )
     yield accumulator.created_event()
 
-    async for chat_event in run_turn(plan, background_tasks=background_tasks):
+    schedule = None
+    if background_tasks is not None:
+        def schedule(coro: Coroutine[Any, Any, None]) -> None:
+            background_tasks.add_task(_run_coro, coro)
+
+    async for chat_event in run_turn(plan, schedule=schedule):
         for event in accumulator.consume(chat_event):
             yield event
 

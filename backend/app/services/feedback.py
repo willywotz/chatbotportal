@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from fastapi import HTTPException, status
 from tortoise.expressions import RawSQL
 from tortoise.functions import Count
 from tortoise.transactions import in_transaction
 
 from app.config import settings
+from app.errors import ApiError, ErrorCode
 from app.models.agency import Agency
 from app.models.conversation import Message
 from app.schemas.conversation import FeedbackStats
@@ -37,7 +37,7 @@ async def agency_low_rated(agency_id: str, limit: int = 50) -> list[dict]:
 
 async def agency_low_rated_or_404(agency_id: str, limit: int = 50) -> list[dict]:
     if not await Agency.filter(id=agency_id).exists():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
+        raise ApiError(ErrorCode.NOT_FOUND, "Agency not found", status=404)
     return await agency_low_rated(agency_id, limit)
 
 

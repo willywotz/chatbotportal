@@ -10,9 +10,8 @@ from __future__ import annotations
 import uuid
 from datetime import timedelta
 
-from fastapi import HTTPException, status
-
 from app.auth.security import generate_api_key, hash_api_key
+from app.errors import ApiError, ErrorCode
 from app.models.user import UserAPIKey
 from app.utils import now
 
@@ -24,7 +23,7 @@ async def list_for_user(user_id: uuid.UUID) -> list[UserAPIKey]:
 async def create(user_id: uuid.UUID, name: str, expires_in_days: int | None) -> tuple[UserAPIKey, str]:
     """Create a key and return it with its one-time plaintext value."""
     if expires_in_days is not None and expires_in_days <= 0:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="expires_in_days must be positive")
+        raise ApiError(ErrorCode.INVALID_REQUEST, "expires_in_days must be positive", status=400)
     expires_at = now() + timedelta(days=expires_in_days) if expires_in_days else None
     raw = generate_api_key()
     key = await UserAPIKey.create(
@@ -38,7 +37,7 @@ async def create(user_id: uuid.UUID, name: str, expires_in_days: int | None) -> 
 async def _get_owned(key_id: str, user_id: uuid.UUID) -> UserAPIKey:
     key = await UserAPIKey.filter(id=key_id, user_id=user_id).first()
     if not key:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API key not found")
+        raise ApiError(ErrorCode.NOT_FOUND, "API key not found", status=404)
     return key
 
 

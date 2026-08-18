@@ -65,7 +65,7 @@ def _events():
 
 
 def _fake_run_turn(*events):
-    async def gen(plan, *, background_tasks=None):
+    async def gen(plan, *, schedule=None):
         for e in events:
             yield e
     return gen

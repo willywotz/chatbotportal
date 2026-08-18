@@ -11,6 +11,7 @@ class ErrorCode(StrEnum):
     UNAUTHORIZED = "unauthorized"
     FORBIDDEN = "forbidden"
     NOT_FOUND = "not_found"
+    CONFLICT = "conflict"
     RATE_LIMITED = "rate_limited"
     INTERNAL = "internal"
     AGENCY_UNAVAILABLE = "agency_unavailable"
@@ -22,6 +23,7 @@ _STATUS_CODES: dict[int, ErrorCode] = {
     401: ErrorCode.UNAUTHORIZED,
     403: ErrorCode.FORBIDDEN,
     404: ErrorCode.NOT_FOUND,
+    409: ErrorCode.CONFLICT,
     429: ErrorCode.RATE_LIMITED,
     500: ErrorCode.INTERNAL,
     502: ErrorCode.AGENCY_UNAVAILABLE,

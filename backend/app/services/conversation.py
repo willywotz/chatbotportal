@@ -3,9 +3,9 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timedelta
 
-from fastapi import HTTPException, status
 from tortoise.exceptions import DoesNotExist
 
+from app.errors import ApiError, ErrorCode
 from app.models.conversation import Conversation, Message
 from app.models.user import User
 from app.schemas.conversation import SaveConversationRequest
@@ -68,14 +68,14 @@ async def list_conversations(
         try:
             qs = qs.filter(created_at__gte=datetime.strptime(date_from, "%Y-%m-%d"))
         except ValueError:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="date_from must be YYYY-MM-DD")
+            raise ApiError(ErrorCode.INVALID_REQUEST, "date_from must be YYYY-MM-DD", status=400)
 
     if date_to:
         try:
             end = datetime.strptime(date_to, "%Y-%m-%d") + timedelta(days=1)
             qs = qs.filter(created_at__lt=end)
         except ValueError:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="date_to must be YYYY-MM-DD")
+            raise ApiError(ErrorCode.INVALID_REQUEST, "date_to must be YYYY-MM-DD", status=400)
 
     total = await qs.count()
 
@@ -90,9 +90,9 @@ async def list_conversations(
 async def _authorize(conversation_id: uuid.UUID, user: User) -> Conversation:
     conv = await Conversation.get_or_none(id=conversation_id, deleted_at=None)
     if conv is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+        raise ApiError(ErrorCode.NOT_FOUND, "Conversation not found", status=404)
     if str(conv.user_id) != str(user.id) and not user.is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+        raise ApiError(ErrorCode.FORBIDDEN, "Forbidden", status=403)
     return conv
 
 
@@ -111,7 +111,7 @@ async def delete_conversation(conversation_id: uuid.UUID, user: User) -> None:
     try:
         conv = await Conversation.get(id=conversation_id)
     except DoesNotExist:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+        raise ApiError(ErrorCode.NOT_FOUND, "Conversation not found", status=404)
     if str(conv.user_id) != str(user.id) and not user.is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+        raise ApiError(ErrorCode.FORBIDDEN, "Forbidden", status=403)
     await conv.delete()

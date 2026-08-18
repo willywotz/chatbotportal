@@ -9,8 +9,8 @@ only portable ORM operations.
 import uuid
 
 import pytest
-from fastapi import HTTPException
 
+from app.errors import ApiError
 from app.models.agency import Agency
 from app.models.conversation import Conversation, Message
 from app.routers import messages as messages_router
@@ -129,9 +129,9 @@ async def test_rating_skips_unknown_agency_id_without_failing(db):
 
 @pytest.mark.asyncio
 async def test_rating_missing_message_returns_404(db):
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ApiError) as exc:
         await messages_router.update_rating(
             message_id=uuid.uuid4(), body=RatingUpdate(rating="up")
         )
 
-    assert exc.value.status_code == 404
+    assert exc.value.status == 404
