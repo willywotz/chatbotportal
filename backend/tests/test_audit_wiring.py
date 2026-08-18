@@ -7,9 +7,8 @@ import pytest
 
 from app.auth.keycloak import Principal
 from app.models import Agency, AuditLog
-from app.models.user import User, UserAPIKey
+from app.models.user import User
 from app.routers import agencies as agencies_router
-from app.routers.api_key import CreateAPIKeyRequest, create_api_key, revoke_api_key
 from app.routers import users as users_router
 from app.schemas.agency import StatusUpdateRequest
 from app.schemas.user import UserResponse
@@ -34,18 +33,6 @@ async def test_update_agency_status_writes_audit(db):
     assert row.object_type == "agency"
     assert row.object_id == str(ag.id)
     assert row.detail == {"from": "draft", "to": "active"}
-
-
-@pytest.mark.asyncio
-async def test_revoke_api_key_writes_audit(db):
-    user = await User.create(email="keyowner@audit.com", hashed_password="x", role="user", is_active=True)
-    created = await create_api_key(CreateAPIKeyRequest(name="mykey"), user=user)
-    await revoke_api_key(created.id, user=user)
-    row = await AuditLog.filter(action="api_key.revoke").first()
-    assert row is not None
-    assert row.actor_id == user.id
-    assert row.object_type == "api_key"
-    assert row.object_id == created.id
 
 
 @pytest.mark.asyncio
