@@ -41,13 +41,6 @@ _HISTORY_PATH = re.compile(r"^/api/v1/history(?:/[^/]+)?$")
 # The History page reads this to expand a conversation. Safe to grant because the
 # handler applies the same own-or-admin ownership check as GET /history/{id}.
 _HISTORY_MESSAGES_GET_PATTERN = re.compile(r"^/api/v1/history/[^/]+/messages$")
-# Covers create, /{id}, and the /{id}/items* sub-resources. Safe for all verbs: every
-# OpenAI conversations endpoint applies its own owns() check (404s a non-owner).
-_OAI_CONVERSATION_PATH = re.compile(r"^/api/v1/conversations(?:/.*)?$")
-# Covers create plus the retrieve/delete/input_items/cancel/input_tokens/compact
-# sub-resources. Safe for all verbs: every /responses/{id} endpoint owner-checks,
-# and the rest are create or unsupported (501) stubs.
-_RESPONSES_PATH = re.compile(r"^/api/v1/responses(?:/.*)?$")
 
 _PUBLIC_PREFIX = "/api/v1/public"
 # Agency logo images are already publicly exposed via GET /public/agencies;
@@ -94,9 +87,8 @@ def _is_public_get(method: str, path: str) -> bool:
 def _is_shared_write(method: str, path: str) -> bool:
     """Writes every authenticated role (incl. read-only ones) may perform.
 
-    Chat (including the OpenAI-compatible /responses surface), message rating,
-    own-history management, and the self/auth endpoints. Everything else is
-    a privileged write.
+    Chat, message rating, own-history management, and the self/auth endpoints.
+    Everything else is a privileged write.
     """
     if path.startswith("/api/v1/authentication/"):  # all auth endpoints — each guards itself internally
         return True
@@ -105,10 +97,6 @@ def _is_shared_write(method: str, path: str) -> bool:
     if method == "PATCH" and _MESSAGE_RATING_PATH.match(path):
         return True
     if _HISTORY_PATH.match(path):  # all verbs: manage own history
-        return True
-    if _OAI_CONVERSATION_PATH.match(path):  # OpenAI conversations + items; each endpoint owner-checks
-        return True
-    if _RESPONSES_PATH.match(path):  # OpenAI responses + sub-resources; each endpoint owner-checks
         return True
     return False
 
