@@ -5,26 +5,15 @@ by the shared `prepare_turn`/`run_turn` pipeline. `model` selects the OneChat
 version via `resolve_model_version`.
 """
 
-import asyncio
 import json
-import time
 from typing import Any, Coroutine
 
-from fastapi import (
-    APIRouter,
-    BackgroundTasks,
-    Depends,
-    HTTPException,
-    WebSocket,
-    WebSocketDisconnect,
-)
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 from opentelemetry import trace
 from opentelemetry.trace import StatusCode
 
 from app.auth.dependencies import get_current_user_optional
-from app.auth.ws import resolve_ws_user, ws_origin_allowed
-from app.config import settings
 from app.models.user import User
 from app.schemas.chat import ChatRequest
 from app.services.chat.aggregate import collect_turn
@@ -35,7 +24,6 @@ from app.services.chat.stream import (
     prepare_turn,
     run_turn,
 )
-from app.services.chat.ws import ConnectionRegistry, handle_chat_frame
 from app.utils import generate_uuid
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
@@ -117,42 +105,3 @@ async def chat(
 
 def _sse_event(event: str, data: Any) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
-
-
-# ─── WebSocket mode ───────────────────────────────────────────────────────────
-
-_connections = ConnectionRegistry()
-
-
-@router.websocket("")
-async def chat_ws(websocket: WebSocket) -> None:
-    if not ws_origin_allowed(websocket):
-        await websocket.close(code=1008)
-        return
-    if not _connections.acquire():
-        await websocket.close(code=1013)  # try again later
-        return
-
-    async def send(frame: dict) -> None:
-        await websocket.send_text(json.dumps(frame, ensure_ascii=False))
-
-    try:
-        await websocket.accept()
-        user = await resolve_ws_user(websocket)
-        deadline = time.monotonic() + settings.CHAT_WS_MAX_DURATION_SECONDS
-        while True:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                await websocket.close(code=1000)
-                return
-            try:
-                message = await asyncio.wait_for(websocket.receive(), timeout=remaining)
-            except asyncio.TimeoutError:
-                await websocket.close(code=1000)
-                return
-            websocket._raise_on_disconnect(message)
-            await handle_chat_frame(message.get("text"), user, send)
-    except WebSocketDisconnect:
-        return
-    finally:
-        _connections.release()

@@ -6,11 +6,11 @@ Usage
     from app.auth.dependencies import get_current_user, require_admin
 
     @router.get("/protected")
-    async def protected(user = Depends(get_current_user)):
+    async def protected(principal = Depends(get_current_user)):
         ...
 
     @router.get("/admin-only")
-    async def admin_only(user = Depends(require_admin)):
+    async def admin_only(principal = Depends(require_admin)):
         ...
 """
 
@@ -19,15 +19,11 @@ from __future__ import annotations
 import re
 
 from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import SecurityScopes
 from starlette.requests import HTTPConnection
 
-from app.auth.security import API_KEY_PREFIX, hash_api_key
-from app.config import settings
-from app.models.user import User, UserAPIKey
-from app.repositories import user as user_repo
-from app.services.auth_session import resolve_session
-from app.services.usage_context import current_api_key_id, current_user_id
-from app.utils import now
+from app.auth.keycloak import InvalidToken, Principal, verify_token
+from app.services.usage_context import current_user_id
 
 _invalid_credentials = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -120,111 +116,69 @@ def _is_allowed_for_staff(method: str, path: str) -> bool:
     return method == "GET" and path in _STAFF_GET_EXACT
 
 
-def _header_api_key(conn: HTTPConnection) -> str | None:
+def _bearer(conn: HTTPConnection) -> str | None:
     auth = conn.headers.get("authorization", "")
     return auth[7:] if auth.lower().startswith("bearer ") else None
 
 
-async def _resolve_api_key(token: str) -> User | None:
-    """API-key path only (JWT is gone). Stamps last_used + usage context."""
-    if not token.startswith(API_KEY_PREFIX):
+def _principal(conn: HTTPConnection) -> Principal | None:
+    token = _bearer(conn)
+    if token is None:
         return None
-    api_key = await UserAPIKey.filter(key_hash=hash_api_key(token)).first()
-    if api_key is None or not api_key.is_usable():
-        return None
-    user = await user_repo.active_by_id(api_key.user_id)
-    if user is None:
-        return None
-    api_key.last_used_at = now()
-    await api_key.save(update_fields=["last_used_at"])
-    current_user_id.set(user.id)
-    current_api_key_id.set(api_key.id)
-    return user
+    try:
+        p = verify_token(token)
+    except InvalidToken:
+        raise _invalid_credentials
+    current_user_id.set(p.id)
+    return p
 
 
-# Both WS handlers now go through resolve_ws_user (app/auth/ws.py) instead.
-# Kept only for compatibility with tests/auth/test_session_cookie_auth.py and
-# tests/test_api_key_rest_auth.py, which reference this alias directly.
-_resolve_token = _resolve_api_key
+async def get_current_user_optional(request: Request) -> Principal | None:
+    return _principal(request)
 
 
-async def _resolve_session_user(session_id: str) -> User | None:
-    user_id = await resolve_session(session_id)
-    if not user_id:
-        return None
-    user = await user_repo.active_by_id(user_id)
-    if user is not None:
-        current_user_id.set(user.id)
-    return user
-
-
-async def get_current_user_optional(request: Request) -> User | None:
-    key = _header_api_key(request)
-    if key is not None:
-        user = await _resolve_api_key(key)
-        if user is None:  # deliberate API key that fails must 401
-            raise _invalid_credentials
-        return user
-    sid = request.cookies.get(settings.SESSION_COOKIE_NAME)
-    if sid:
-        return await _resolve_session_user(sid)  # bad session -> None (anonymous)
-    return None
-
-
-async def get_current_user(request: Request) -> User:
-    key = _header_api_key(request)
-    if key is not None:  # header present => header decides, no cookie fallback
-        user = await _resolve_api_key(key)
-        if user is None:
-            raise _invalid_credentials
-        return user
-    sid = request.cookies.get(settings.SESSION_COOKIE_NAME)
-    if sid:
-        user = await _resolve_session_user(sid)
-        if user is not None:
-            return user
-    raise _invalid_credentials
+async def get_current_user(request: Request) -> Principal:
+    p = _principal(request)
+    if p is None:
+        raise _invalid_credentials
+    return p
 
 
 async def get_current_user_non_ephemeral(
-    user: User = Depends(get_current_user),
-) -> User:
-    """Real accounts / API keys only — anonymous (ephemeral) sessions are refused.
-
-    The OpenAI-compatible surfaces are not for auto-created anonymous identities.
-    """
-    if user.is_ephemeral:
-        raise _invalid_credentials
-    return user
+    principal: Principal = Depends(get_current_user),
+) -> Principal:
+    return principal
 
 
-async def require_admin(user: User = Depends(get_current_user)) -> User:
-    if user.role != "admin":
+async def require_admin(principal: Principal = Depends(get_current_user)) -> Principal:
+    if not principal.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin privileges required",
         )
-    return user
+    return principal
+
+
+async def require_scope(
+    security_scopes: SecurityScopes,
+    principal: Principal = Depends(get_current_user),
+) -> Principal:
+    # Resolve via Depends(get_current_user) — NOT a direct call — so that
+    # app.dependency_overrides[get_current_user] in tests continues to control
+    # this route's identity. A direct call would bypass the override.
+    missing = set(security_scopes.scopes) - principal.scopes
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This token lacks the required scope",
+        )
+    return principal
 
 
 async def _resolve_role(conn: HTTPConnection) -> str | None:
-    """Role only, no side effects (no last_used stamp / rate charge)."""
-    key = _header_api_key(conn)
-    if key is not None:
-        if not key.startswith(API_KEY_PREFIX):
-            return None
-        api_key = await UserAPIKey.filter(key_hash=hash_api_key(key)).first()
-        if api_key is None or not api_key.is_usable():
-            return None
-        user = await user_repo.active_by_id(api_key.user_id)
-        return user.role if user else None
-    sid = conn.cookies.get(settings.SESSION_COOKIE_NAME)
-    if sid:
-        user_id = await resolve_session(sid)
-        if user_id:
-            user = await user_repo.active_by_id(user_id)
-            return user.role if user else None
-    return None
+    """Role only, no side effects."""
+    p = _principal(conn)
+    return p.role if p else None
 
 
 _ROLE_ALLOWLIST = {
@@ -241,7 +195,7 @@ async def enforce_role_allowlist(conn: HTTPConnection) -> None:
     runs once per request.
     """
     if conn.scope["type"] != "http":
-        return  # WebSocket routes enforce their own auth (see app/auth/ws.py)
+        return  # WebSocket routes enforce their own auth
     method = conn.scope["method"]
     path = conn.scope["path"]
     if _is_public_get(method, path):
