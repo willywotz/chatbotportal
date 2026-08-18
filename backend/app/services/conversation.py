@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timedelta
 
 from app.errors import ApiError, ErrorCode
-from app.models.conversation import Message
+from app.models.conversation import Conversation, Message
 from app.models.user import User
 from app.repositories import conversation as conversation_repo
 from app.schemas.conversation import SaveConversationRequest
