@@ -2,6 +2,7 @@
 
 from app.errors import ApiError, ErrorCode
 from app.models.agency import Agency
+from app.repositories import agency as agency_repo
 from app.services.events import publish
 
 LEGAL_TRANSITIONS: dict[str, list[str]] = {
@@ -30,6 +31,6 @@ async def transition_status(agency: Agency, new_status: str) -> str:
     old_status = agency.status.value
     agency.status = new_status
     agency.auto_maintenance = False
-    await agency.save(update_fields=["status", "auto_maintenance", "updated_at"])
+    await agency_repo.save(agency, update_fields=["status", "auto_maintenance", "updated_at"])
     await publish("agency.status_changed", {"agency_id": str(agency.id), "from": old_status, "to": new_status})
     return old_status
