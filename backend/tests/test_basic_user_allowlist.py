@@ -60,12 +60,12 @@ def test_restricted_pages_blocked():
 
 
 def test_ops_dashboard_reads_denied_for_basic_user():
-    assert not _is_allowed_for_basic_user("GET", "/api/v1/dashboard/stats")
+    assert not _is_allowed_for_basic_user("GET", "/api/v1/dashboard/statistics")
     assert not _is_allowed_for_basic_user("GET", "/api/v1/executive-summary")
     assert not _is_allowed_for_basic_user("GET", "/api/v1/agency-health")
     assert not _is_allowed_for_basic_user("GET", "/api/v1/usage-heatmap")
     assert not _is_allowed_for_basic_user("GET", "/api/v1/insight/usage")
-    assert not _is_allowed_for_basic_user("GET", "/api/v1/feedback/stats")
+    assert not _is_allowed_for_basic_user("GET", "/api/v1/feedback/statistics")
 
 
 def test_executive_summary_regenerate_still_admin_only():
@@ -154,7 +154,7 @@ async def test_basic_user_allowed_on_chat(db):
 async def test_basic_user_denied_on_dashboard_stats(db):
     raw = await _api_key_for("b4@x.com", "user")
     with pytest.raises(HTTPException) as e:
-        await enforce_role_allowlist(_request("GET", "/api/v1/dashboard/stats", api_key=raw))
+        await enforce_role_allowlist(_request("GET", "/api/v1/dashboard/statistics", api_key=raw))
     assert e.value.status_code == 403
 
 
@@ -169,8 +169,8 @@ async def test_basic_user_blocked_on_regenerate(db):
 
 async def test_admin_unaffected(db):
     raw = await _api_key_for("b3@x.com", "admin")
-    assert await enforce_role_allowlist(_request("GET", "/api/v1/dashboard/stats", api_key=raw)) is None
+    assert await enforce_role_allowlist(_request("GET", "/api/v1/dashboard/statistics", api_key=raw)) is None
 
 
 async def test_anonymous_unaffected(db):
-    assert await enforce_role_allowlist(_request("GET", "/api/v1/dashboard/stats")) is None
+    assert await enforce_role_allowlist(_request("GET", "/api/v1/dashboard/statistics")) is None

@@ -23,7 +23,7 @@ function renderPage() {
 
 describe("DashboardPage error state", () => {
   it("shows an error alert when the dashboard stats endpoint fails", async () => {
-    server.use(http.get("*/api/v1/dashboard/stats", () => HttpResponse.error()));
+    server.use(http.get("*/api/v1/dashboard/statistics", () => HttpResponse.error()));
     renderPage();
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
     expect(screen.getByText(/เกิดข้อผิดพลาด/)).toBeInTheDocument();

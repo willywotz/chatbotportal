@@ -26,7 +26,7 @@ async def mcp_discover(body: McpDiscoverRequest, _: User = Depends(require_admin
     return McpDiscoverResponse(tools=[McpToolInfo(**t) for t in tools])
 
 
-@router.post("/parse-spec", summary="Parse an OpenAPI spec via LLM and extract structured metadata")
+@router.post("/parse-specification", summary="Parse an OpenAPI spec via LLM and extract structured metadata")
 async def parse_api_spec(body: ParseSpecRequest, _: User = Depends(get_current_user)):
     if not body.spec_text.strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="spec_text is required")

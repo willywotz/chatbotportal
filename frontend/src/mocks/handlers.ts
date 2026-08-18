@@ -116,7 +116,7 @@ export const handlers = [
     HttpResponse.json({ success: true, data: [] }),
   ),
 
-  http.get("*/api/v1/connection-logs/info", () =>
+  http.get("*/api/v1/connection-logs/information", () =>
     HttpResponse.json({
       total_connections: 0,
       successful_connections: 0,
@@ -146,7 +146,7 @@ export const handlers = [
 
   http.get("*/api/v1/usage-heatmap", () => HttpResponse.json(MOCK_HEATMAP)),
 
-  http.get("*/api/v1/dashboard/stats", () =>
+  http.get("*/api/v1/dashboard/statistics", () =>
     HttpResponse.json({
       success: true,
       data: { stats: dashboardStats, agencyUsage: agencyUsageData, weeklyTrend: weeklyTrendData, categoryData },
@@ -160,7 +160,7 @@ export const handlers = [
     ]),
   ),
 
-  http.get("*/api/v1/feedback/stats", () => HttpResponse.json(mockFeedbackStats)),
+  http.get("*/api/v1/feedback/statistics", () => HttpResponse.json(mockFeedbackStats)),
 
   http.patch("*/api/v1/messages/:id/rating", ({ params }) =>
     HttpResponse.json({ success: true, messageId: params.id }),

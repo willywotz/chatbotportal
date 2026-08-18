@@ -23,10 +23,10 @@ def _app():
     async def maybe(user=Depends(get_current_user_optional)):
         return {"anon": user is None}
 
-    # Mirrors the real /api/v1/dashboard/stats: requires *some* authenticated
+    # Mirrors the real /api/v1/dashboard/statistics: requires *some* authenticated
     # user via get_current_user, but the role gate is enforce_role_allowlist
     # alone (see app/routers/dashboard.py) — no internal role check here.
-    @app.get("/api/v1/dashboard/stats")
+    @app.get("/api/v1/dashboard/statistics")
     async def dashboard_stats(user=Depends(get_current_user)):
         return {"ok": True}
 
@@ -75,12 +75,12 @@ async def test_bogus_header_cannot_smuggle_in_via_valid_session_cookie(db):
     with patch("app.auth.dependencies.resolve_session", new=AsyncMock(return_value=str(user.id))):
         client = TestClient(_app())
         r = client.get(
-            "/api/v1/dashboard/stats",
+            "/api/v1/dashboard/statistics",
             headers={"Authorization": "Bearer tcg_bogus"},
             cookies={settings.SESSION_COOKIE_NAME: "sid-1"},
         )
         assert r.status_code == 401
 
         # Same user, cookie only (no header): allowlist governs and denies (403).
-        r2 = client.get("/api/v1/dashboard/stats", cookies={settings.SESSION_COOKIE_NAME: "sid-1"})
+        r2 = client.get("/api/v1/dashboard/statistics", cookies={settings.SESSION_COOKIE_NAME: "sid-1"})
         assert r2.status_code == 403

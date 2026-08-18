@@ -548,7 +548,7 @@ Full spec: `docs/agency-integration.md`; API-consumer guide: `docs/quickstart.md
 - **TDD is mandatory** (red → green → refactor). Go changes: run `/use-modern-go`, then gofmt +
   `golangci-lint run --allow-parallel-runners` (repeat until clean).
 - Prefix all shell commands with **`rtk`** (token-optimizing proxy) — see `docs/rtk.md`.
-- Agencies router registers literal paths (`/mcp/discover`, `/parse-spec`) **before**
+- Agencies router registers literal paths (`/mcp/discover`, `/parse-specification`) **before**
   parametric `/{agency_id}` to avoid UUID wildcard shadowing (`routers/agencies/__init__.py`).
   Note the flip side, now that `/mine` is gone: an unmatched literal falls through to
   `/{agency_id}` and returns **422** (UUID validation), not 404.
@@ -1384,3 +1384,21 @@ depends on the web framework — the Clean-Architecture dependency rule now poin
 - Full backend suite: **849 pass / 2 skip** (was 844; +5 new tests: 2 error-envelope, 1
   scheduler-injection, plus builder additions). No route, status code, or message changed.
 - Remaining plan phases (2 route renames, 3 dead-config nits, 4 EDA gate) not started.
+
+## 2026-08-18 — Full-English route names Phase 2: 3 short-forms expanded
+
+Branch `refactor/route-names-full-english` (multi-agent: 2 parallel builders + verifier). Four
+route paths renamed from short forms to full English words; behavior otherwise unchanged:
+- `GET /api/v1/dashboard/stats` → `/dashboard/statistics`
+- `GET /api/v1/feedback/stats` → `/feedback/statistics`
+- `GET /api/v1/connection-logs/info` → `/connection-logs/information`
+- `POST /api/v1/agencies/parse-spec` → `/agencies/parse-specification`
+Critical coupling handled: the auth allowlist `_STAFF_GET_EXACT` (`app/auth/dependencies.py`)
+hardcodes the two `/stats` paths — both updated to the new names, so `staff` still reaches exactly
+the same six ops dashboards (verified: set size unchanged, no broadening). Frontend callers +
+MSW mocks + tests updated to match byte-for-byte (`dashboardApi.ts`, `feedbackApi.ts`,
+`useConnectionLogs.ts`, `mocks/handlers.ts`); `parse-specification` has no frontend caller.
+`test_surface_parity.py` walks the live route table so it validated the renames dynamically.
+Backend **849 pass / 2 skip**; frontend **431 pass**, `tsc` clean. Remaining: Phase 3 (dead-config
+nits), Phase 4 (EDA decision gate). OpenAI-contract routes, `/mcp`, `/api-keys` intentionally
+left unchanged.

@@ -95,7 +95,7 @@ class ConnectionLogInfoResponse(BaseModel):
     failed_connections: int
     average_latency_ms: int
 
-@router.get("/info", summary="Get connection log info", response_model=ConnectionLogInfoResponse)
+@router.get("/information", summary="Get connection log info", response_model=ConnectionLogInfoResponse)
 async def get_connection_log_info(
     include_test: bool = Query(False, description="Include action=test logs"),
     user: User = Depends(get_current_user),

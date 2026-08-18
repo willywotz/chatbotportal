@@ -53,5 +53,5 @@ async def test_residual_viewer_allowed_on_chat(db):
 async def test_residual_viewer_denied_on_dashboard(db):
     raw = await _api_key_for_viewer()
     with pytest.raises(HTTPException) as e:
-        await enforce_role_allowlist(_request("GET", "/api/v1/dashboard/stats", api_key=raw))
+        await enforce_role_allowlist(_request("GET", "/api/v1/dashboard/statistics", api_key=raw))
     assert e.value.status_code == 403

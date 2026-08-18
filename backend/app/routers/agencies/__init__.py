@@ -1,7 +1,7 @@
 """Agencies router package.
 
 Registration order preserves the critical FastAPI matching constraint:
-literal paths (/mcp/discover, /parse-spec) must be registered
+literal paths (/mcp/discover, /parse-specification) must be registered
 BEFORE parametric /{agency_id} paths to avoid UUID wildcard shadowing.
 
 list_agencies and create_agency are registered directly on this router
