@@ -1,11 +1,14 @@
 """Ownership check on GET/DELETE /conversations/{id} and its /messages sibling.
 
-Pins the semantics carried over from the deleted authorize(): a conversation
-with a NULL user_id (an anonymous chat) is denied to any non-admin caller,
-since str(None) never equals str(user.id).
+Pins the scope-based ownership semantics: a conversation with a NULL user_id
+(an anonymous chat) is denied to any caller without `conversation:read:all`,
+since str(None) never equals str(principal.id).
 """
+import uuid
+
 import pytest
 
+from app.auth.keycloak import Principal
 from app.errors import ApiError
 from app.models.conversation import Conversation
 from app.models.user import User
@@ -20,8 +23,17 @@ async def _anonymous_conversation() -> Conversation:
     return await Conversation.create(title="t", status="active")
 
 
+async def _principal(*, read_all: bool = False) -> Principal:
+    user = await User.create(email=f"{uuid.uuid4()}@x.com", hashed_password="h", role="user")
+    scopes = {"conversation:read:own", "conversation:write:own"}
+    if read_all:
+        scopes.add("conversation:read:all")
+    return Principal(id=str(user.id), email=None, display_name=None, role="admin" if read_all else "user",
+                      scopes=frozenset(scopes))
+
+
 async def test_non_admin_denied_read_of_anonymous_conversation(db):
-    other = await User.create(email="other-read@x.com", hashed_password="h", role="user")
+    other = await _principal()
     conv = await _anonymous_conversation()
     with pytest.raises(ApiError) as exc:
         await get_conversation(conv.id, other)
@@ -29,7 +41,7 @@ async def test_non_admin_denied_read_of_anonymous_conversation(db):
 
 
 async def test_non_admin_denied_read_messages_of_anonymous_conversation(db):
-    other = await User.create(email="other-msgs@x.com", hashed_password="h", role="user")
+    other = await _principal()
     conv = await _anonymous_conversation()
     with pytest.raises(ApiError) as exc:
         await get_conversation_messages(conv.id, other)
@@ -37,7 +49,7 @@ async def test_non_admin_denied_read_messages_of_anonymous_conversation(db):
 
 
 async def test_non_admin_denied_delete_of_anonymous_conversation(db):
-    other = await User.create(email="other-delete@x.com", hashed_password="h", role="user")
+    other = await _principal()
     conv = await _anonymous_conversation()
     with pytest.raises(ApiError) as exc:
         await delete_conversation(conv.id, other)
@@ -45,22 +57,22 @@ async def test_non_admin_denied_delete_of_anonymous_conversation(db):
 
 
 async def test_admin_can_read_anonymous_conversation(db):
-    admin = await User.create(email="admin-read@x.com", hashed_password="h", role="admin")
+    admin = await _principal(read_all=True)
     conv = await _anonymous_conversation()
     result = await get_conversation(conv.id, admin)
     assert result["id"] == str(conv.id)
 
 
 async def test_owner_can_read_own_conversation(db):
-    owner = await User.create(email="owner-read@x.com", hashed_password="h", role="user")
+    owner = await _principal()
     conv = await Conversation.create(title="t", status="active", user_id=owner.id)
     result = await get_conversation(conv.id, owner)
     assert result["id"] == str(conv.id)
 
 
 async def test_other_user_denied_read_of_owned_conversation(db):
-    owner = await User.create(email="owner-a@x.com", hashed_password="h", role="user")
-    other = await User.create(email="other-b@x.com", hashed_password="h", role="user")
+    owner = await _principal()
+    other = await _principal()
     conv = await Conversation.create(title="t", status="active", user_id=owner.id)
     with pytest.raises(ApiError) as exc:
         await get_conversation(conv.id, other)
@@ -68,8 +80,8 @@ async def test_other_user_denied_read_of_owned_conversation(db):
 
 
 async def test_other_user_denied_read_messages_of_owned_conversation(db):
-    owner = await User.create(email="owner-c@x.com", hashed_password="h", role="user")
-    other = await User.create(email="other-d@x.com", hashed_password="h", role="user")
+    owner = await _principal()
+    other = await _principal()
     conv = await Conversation.create(title="t", status="active", user_id=owner.id)
     with pytest.raises(ApiError) as exc:
         await get_conversation_messages(conv.id, other)
@@ -77,8 +89,8 @@ async def test_other_user_denied_read_messages_of_owned_conversation(db):
 
 
 async def test_other_user_denied_delete_of_owned_conversation(db):
-    owner = await User.create(email="owner-e@x.com", hashed_password="h", role="user")
-    other = await User.create(email="other-f@x.com", hashed_password="h", role="user")
+    owner = await _principal()
+    other = await _principal()
     conv = await Conversation.create(title="t", status="active", user_id=owner.id)
     with pytest.raises(ApiError) as exc:
         await delete_conversation(conv.id, other)

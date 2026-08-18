@@ -7,4 +7,3 @@ from contextvars import ContextVar
 from uuid import UUID
 
 current_user_id: ContextVar[UUID | None] = ContextVar("current_user_id", default=None)
-current_api_key_id: ContextVar[UUID | None] = ContextVar("current_api_key_id", default=None)

@@ -8,6 +8,7 @@ import pytest
 
 from app.main import app
 from app.models.conversation import Conversation
+from app.models.user import User
 from app.utils import now
 from httpx import ASGITransport, AsyncClient
 
@@ -64,10 +65,32 @@ async def test_history_date_range_filters_in_query(as_principal):
 
 
 @pytest.mark.usefixtures("db")
+async def test_history_own_scope_sees_only_own_conversations(as_principal):
+    owner = await User.create(email="owner@x.com", hashed_password="h", role="user", is_admin=False)
+    other = await User.create(email="other@x.com", hashed_password="h", role="user", is_admin=False)
+    as_principal(role="user", scopes=["conversation:read:own"], sub=str(owner.id))
+    await Conversation.create(title="mine", preview="p", status="success", message_count=1, user_id=owner.id)
+    await Conversation.create(title="other", preview="p", status="success", message_count=1, user_id=other.id)
+    async with await _client() as c:
+        r = await c.get("/api/v1/history")
+    assert [d["title"] for d in r.json()["data"]] == ["mine"]
+
+
+@pytest.mark.usefixtures("db")
+async def test_history_read_all_scope_sees_every_conversation(as_principal):
+    as_principal(role="admin", scopes=["conversation:read:own", "conversation:read:all"])
+    await Conversation.create(title="mine", preview="p", status="success", message_count=1)
+    await Conversation.create(title="other", preview="p", status="success", message_count=1)
+    async with await _client() as c:
+        r = await c.get("/api/v1/history")
+    assert r.json()["total"] == 2
+
+
+@pytest.mark.usefixtures("db")
 async def test_conversation_messages_expose_summary_fields():
+    from app.auth.keycloak import Principal
     from app.models.conversation import Conversation, Message
     from app.routers.conversations import get_conversation_messages
-    from unittest.mock import MagicMock
 
     conv = await Conversation.create(status="success")
     await Message.create(
@@ -76,9 +99,10 @@ async def test_conversation_messages_expose_summary_fields():
         summary_references=[{"number": 1, "agency_id": "land", "agency_name": "กรมที่ดิน", "url": None}],
     )
 
-    # MagicMock's `.is_admin` is a truthy Mock, so the ownership check
-    # short-circuits and passes without needing to patch the check away.
-    rows = await get_conversation_messages(conv.id, MagicMock())
+    # conversation:read:all bypasses the ownership check regardless of who owns conv.
+    admin = Principal(id="anyone", email=None, display_name=None, role="admin",
+                       scopes=frozenset({"conversation:read:all"}))
+    rows = await get_conversation_messages(conv.id, admin)
 
     assert rows[0]["summary"] == "สรุป [1]"
     assert rows[0]["summary_references"][0]["number"] == 1
