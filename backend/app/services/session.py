@@ -1,6 +1,7 @@
 from opentelemetry import trace
 
 from app.models.conversation import Conversation, Message
+from app.repositories import conversation as conversation_repo
 from app.services.onechat import OneChatClient, get_client
 
 tracer = trace.get_tracer(__name__)
@@ -41,7 +42,7 @@ async def ensure_session_warmed(
             raise e
 
         try:
-            await conversation.save(update_fields=["external_session_id"])
+            await conversation_repo.save(conversation, update_fields=["external_session_id"])
         except Exception as e:
             span.set_status(trace.StatusCode.ERROR, f"Failed to save warmed session: {str(e)}")
             span.set_attributes({"error": "Failed to save warmed session", "exception": str(e)})

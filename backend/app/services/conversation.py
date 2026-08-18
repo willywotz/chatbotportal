@@ -3,16 +3,15 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timedelta
 
-from tortoise.exceptions import DoesNotExist
-
 from app.errors import ApiError, ErrorCode
-from app.models.conversation import Conversation, Message
+from app.models.conversation import Message
 from app.models.user import User
+from app.repositories import conversation as conversation_repo
 from app.schemas.conversation import SaveConversationRequest
 
 
 async def create_conversation(body: SaveConversationRequest, user: User | None) -> Conversation:
-    conv = await Conversation.create(
+    conv = await conversation_repo.create(
         title=body.title or "สนทนาใหม่",
         preview=body.preview or "",
         agencies=body.agencies,
@@ -53,42 +52,32 @@ async def list_conversations(
     page_size: int | None,
 ) -> tuple[list[Conversation], int]:
     """Search/filter conversations and return (page rows, full filtered total)."""
-    qs = Conversation.filter(deleted_at=None)
-
-    if not user.is_admin:
-        qs = qs.filter(user_id=user.id)
-
-    if search:
-        qs = qs.filter(title__icontains=search)
-
-    if filter_agency:
-        qs = qs.filter(agencies__contains=filter_agency)
-
+    created_from = None
     if date_from:
         try:
-            qs = qs.filter(created_at__gte=datetime.strptime(date_from, "%Y-%m-%d"))
+            created_from = datetime.strptime(date_from, "%Y-%m-%d")
         except ValueError:
             raise ApiError(ErrorCode.INVALID_REQUEST, "date_from must be YYYY-MM-DD", status=400)
-
+    created_to = None
     if date_to:
         try:
-            end = datetime.strptime(date_to, "%Y-%m-%d") + timedelta(days=1)
-            qs = qs.filter(created_at__lt=end)
+            created_to = datetime.strptime(date_to, "%Y-%m-%d") + timedelta(days=1)
         except ValueError:
             raise ApiError(ErrorCode.INVALID_REQUEST, "date_to must be YYYY-MM-DD", status=400)
 
-    total = await qs.count()
-
-    page_qs = qs.order_by("-created_at")
-    if page_size is not None:
-        page_qs = page_qs.offset((page - 1) * page_size).limit(page_size)
-    rows = await page_qs
-
-    return rows, total
+    return await conversation_repo.list_and_count(
+        user_id=None if user.is_admin else user.id,
+        title_contains=search or None,
+        agency_contains=filter_agency or None,
+        created_from=created_from,
+        created_to=created_to,
+        offset=(page - 1) * page_size if page_size is not None else None,
+        limit=page_size,
+    )
 
 
 async def _authorize(conversation_id: uuid.UUID, user: User) -> Conversation:
-    conv = await Conversation.get_or_none(id=conversation_id, deleted_at=None)
+    conv = await conversation_repo.by_id(conversation_id, exclude_deleted=True)
     if conv is None:
         raise ApiError(ErrorCode.NOT_FOUND, "Conversation not found", status=404)
     if str(conv.user_id) != str(user.id) and not user.is_admin:
@@ -108,10 +97,9 @@ async def get_conversation_messages(conversation_id: uuid.UUID, user: User) -> l
 
 
 async def delete_conversation(conversation_id: uuid.UUID, user: User) -> None:
-    try:
-        conv = await Conversation.get(id=conversation_id)
-    except DoesNotExist:
+    conv = await conversation_repo.by_id(conversation_id)
+    if conv is None:
         raise ApiError(ErrorCode.NOT_FOUND, "Conversation not found", status=404)
     if str(conv.user_id) != str(user.id) and not user.is_admin:
         raise ApiError(ErrorCode.FORBIDDEN, "Forbidden", status=403)
-    await conv.delete()
+    await conversation_repo.delete(conv)
