@@ -11,11 +11,11 @@ up the change.
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, Security, status
 
-from app.auth.dependencies import require_admin
+from app.auth.dependencies import require_scope
+from app.auth.keycloak import Principal
 from app.models import LlmProvider, LlmRoute
-from app.models.user import User
 from app.routers.settings import MASK
 from app.schemas.llm_provider import (
     LLMProviderCreate,
@@ -73,7 +73,7 @@ async def _route_response(route: LlmRoute) -> LLMRouteResponse:
     )
 
 
-@router.get("/purposes", dependencies=[Depends(require_admin)], summary="List known LLM purposes")
+@router.get("/purposes", dependencies=[Security(require_scope, scopes=["llm:read"])], summary="List known LLM purposes")
 async def list_purposes():
     return {"data": list(KNOWN_PURPOSES)}
 
@@ -81,7 +81,7 @@ async def list_purposes():
 @router.get(
     "/providers",
     response_model=LLMProviderListResponse,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Security(require_scope, scopes=["llm:read"])],
     summary="List LLM providers",
 )
 async def list_providers():
@@ -95,7 +95,7 @@ async def list_providers():
     status_code=status.HTTP_201_CREATED,
     summary="Create LLM provider",
 )
-async def create_provider(body: LLMProviderCreate, user: User = Depends(require_admin)):
+async def create_provider(body: LLMProviderCreate, user: Principal = Security(require_scope, scopes=["llm:write"])):
     provider = await llm_admin.create_provider(body.model_dump())
     await record_audit(user, "llm_provider.create", object_type="llm_provider", object_id=provider.id)
     invalidate()
@@ -105,7 +105,7 @@ async def create_provider(body: LLMProviderCreate, user: User = Depends(require_
 @router.get(
     "/providers/{provider_id}",
     response_model=LLMProviderResponse,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Security(require_scope, scopes=["llm:read"])],
     summary="Get LLM provider by ID",
 )
 async def get_provider(provider_id: uuid.UUID):
@@ -118,7 +118,7 @@ async def get_provider(provider_id: uuid.UUID):
     response_model=LLMProviderResponse,
     summary="Partial update LLM provider",
 )
-async def update_provider(provider_id: uuid.UUID, body: LLMProviderUpdate, user: User = Depends(require_admin)):
+async def update_provider(provider_id: uuid.UUID, body: LLMProviderUpdate, user: Principal = Security(require_scope, scopes=["llm:write"])):
     update_data = body.model_dump(exclude_unset=True)
     if update_data.get("api_key") in (None, MASK):
         update_data.pop("api_key", None)
@@ -134,7 +134,7 @@ async def update_provider(provider_id: uuid.UUID, body: LLMProviderUpdate, user:
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete LLM provider",
 )
-async def delete_provider(provider_id: uuid.UUID, user: User = Depends(require_admin)):
+async def delete_provider(provider_id: uuid.UUID, user: Principal = Security(require_scope, scopes=["llm:write"])):
     await llm_admin.delete_provider(provider_id)
     await record_audit(user, "llm_provider.delete", object_type="llm_provider", object_id=provider_id)
     invalidate()
@@ -143,7 +143,7 @@ async def delete_provider(provider_id: uuid.UUID, user: User = Depends(require_a
 @router.get(
     "/routes",
     response_model=LLMRouteListResponse,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Security(require_scope, scopes=["llm:read"])],
     summary="List LLM routes",
 )
 async def list_routes():
@@ -158,7 +158,7 @@ async def list_routes():
     status_code=status.HTTP_201_CREATED,
     summary="Create LLM route",
 )
-async def create_route(body: LLMRouteCreate, user: User = Depends(require_admin)):
+async def create_route(body: LLMRouteCreate, user: Principal = Security(require_scope, scopes=["llm:write"])):
     route = await llm_admin.create_route(body.model_dump())
     await record_audit(user, "llm_route.create", object_type="llm_route", object_id=route.id)
     invalidate()
@@ -168,7 +168,7 @@ async def create_route(body: LLMRouteCreate, user: User = Depends(require_admin)
 @router.post(
     "/routes/{purpose}/test",
     response_model=LLMRouteTestResult,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Security(require_scope, scopes=["llm:write"])],
     summary="Test an LLM route end-to-end",
 )
 async def test_route(purpose: str):
@@ -182,7 +182,7 @@ async def test_route(purpose: str):
 @router.get(
     "/routes/{route_id}",
     response_model=LLMRouteResponse,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Security(require_scope, scopes=["llm:read"])],
     summary="Get LLM route by ID",
 )
 async def get_route(route_id: uuid.UUID):
@@ -195,7 +195,7 @@ async def get_route(route_id: uuid.UUID):
     response_model=LLMRouteResponse,
     summary="Partial update LLM route",
 )
-async def update_route(route_id: uuid.UUID, body: LLMRouteUpdate, user: User = Depends(require_admin)):
+async def update_route(route_id: uuid.UUID, body: LLMRouteUpdate, user: Principal = Security(require_scope, scopes=["llm:write"])):
     update_data = body.model_dump(exclude_unset=True)
     route = await llm_admin.update_route(route_id, update_data)
     await record_audit(user, "llm_route.update", object_type="llm_route", object_id=route.id)
@@ -208,7 +208,7 @@ async def update_route(route_id: uuid.UUID, body: LLMRouteUpdate, user: User = D
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete LLM route",
 )
-async def delete_route(route_id: uuid.UUID, user: User = Depends(require_admin)):
+async def delete_route(route_id: uuid.UUID, user: Principal = Security(require_scope, scopes=["llm:write"])):
     await llm_admin.delete_route(route_id)
     await record_audit(user, "llm_route.delete", object_type="llm_route", object_id=route_id)
     invalidate()

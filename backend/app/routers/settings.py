@@ -1,15 +1,15 @@
 import json
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Security
 
-from app.auth.dependencies import require_admin
+from app.auth.dependencies import require_scope
+from app.auth.keycloak import Principal
 from app.config import (
     SETTINGS_GROUPS,
     SECRET_FIELD_NAMES,
     settings,
     load_settings_from_db,
 )
-from app.models.user import User
 from app.schemas.settings import (
     SettingFieldOut,
     SettingsGroupOut,
@@ -59,7 +59,8 @@ def _serialize_default(key: str) -> str:
     return ""
 
 
-@router.get("/settings", response_model=SettingsResponse, dependencies=[Depends(require_admin)])
+@router.get("/settings", response_model=SettingsResponse,
+            dependencies=[Security(require_scope, scopes=["settings:read"])])
 async def list_settings():
     db_map = await settings_service.fetch_db_settings()
 
@@ -90,7 +91,7 @@ async def list_settings():
 
 
 @router.put("/settings")
-async def update_settings(body: SettingsUpdateRequest, user: User = Depends(require_admin)):
+async def update_settings(body: SettingsUpdateRequest, user: Principal = Security(require_scope, scopes=["settings:write"])):
     updated_keys: list[str] = []
     for item in body.settings:
         if item.key not in ALL_KEYS:
@@ -114,7 +115,7 @@ def _group_for_key(key: str) -> str:
     return "App"
 
 
-@router.post("/settings/cache/flush", dependencies=[Depends(require_admin)])
+@router.post("/settings/cache/flush", dependencies=[Security(require_scope, scopes=["settings:write"])])
 async def flush_cache():
     await flush_similarity_cache()
     return {"detail": "cache flushed"}

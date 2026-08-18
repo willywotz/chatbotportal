@@ -1,45 +1,48 @@
-"""Non-admin callers must be denied by both connection-logs handlers.
+"""Non-admin callers must be denied `connlog:read`-scoped connection-logs routes.
 
-Deleting either `if not user.is_admin: raise HTTPException(403)` guard leaves
-the rest of the suite green, so this pins the deny path directly.
+Pins the deny path at the HTTP layer, mirroring tests/test_connection_logs_filter.py.
 """
 import pytest
-from fastapi import HTTPException
+from httpx import ASGITransport, AsyncClient
 
-from app.models.user import User
-from app.routers.connection_logs import get_connection_log_info, list_connection_logs
+from app.main import app
 
-
-async def _list_connection_logs(user: User):
-    # Query(...) defaults only resolve through FastAPI's dependency injection,
-    # so a direct call must supply plain values in their place.
-    return await list_connection_logs(
-        search=None, agency_id=None, status_filter=None, connection_type=None,
-        page=1, limit=20, page_size=None, user=user,
-    )
+_NO_ADMIN_SCOPES = ["agency:list", "conversation:read:own", "conversation:write:own", "message:rate"]
 
 
-async def test_non_admin_denied_list_connection_logs(db):
-    user = await User.create(email="cl-user@x.com", hashed_password="h", role="user")
-    with pytest.raises(HTTPException) as exc:
-        await _list_connection_logs(user)
-    assert exc.value.status_code == 403
+async def _client():
+    return AsyncClient(transport=ASGITransport(app=app), base_url="http://t")
 
 
-async def test_admin_allowed_list_connection_logs(db):
-    admin = await User.create(email="cl-admin@x.com", hashed_password="h", role="admin")
-    result = await _list_connection_logs(admin)
-    assert result.total_items == 0
+@pytest.mark.usefixtures("db")
+async def test_non_admin_denied_list_connection_logs(as_principal):
+    as_principal(role="user", scopes=_NO_ADMIN_SCOPES)
+    async with await _client() as c:
+        r = await c.get("/api/v1/connection-logs")
+    assert r.status_code == 403
 
 
-async def test_non_admin_denied_connection_log_info(db):
-    user = await User.create(email="cl-user2@x.com", hashed_password="h", role="user")
-    with pytest.raises(HTTPException) as exc:
-        await get_connection_log_info(user=user)
-    assert exc.value.status_code == 403
+@pytest.mark.usefixtures("db")
+async def test_admin_allowed_list_connection_logs(as_principal):
+    as_principal()
+    async with await _client() as c:
+        r = await c.get("/api/v1/connection-logs")
+    assert r.status_code == 200
+    assert r.json()["total_items"] == 0
 
 
-async def test_admin_allowed_connection_log_info(db):
-    admin = await User.create(email="cl-admin2@x.com", hashed_password="h", role="admin")
-    result = await get_connection_log_info(user=admin)
-    assert result.total_connections == 0
+@pytest.mark.usefixtures("db")
+async def test_non_admin_denied_connection_log_info(as_principal):
+    as_principal(role="user", scopes=_NO_ADMIN_SCOPES)
+    async with await _client() as c:
+        r = await c.get("/api/v1/connection-logs/information")
+    assert r.status_code == 403
+
+
+@pytest.mark.usefixtures("db")
+async def test_admin_allowed_connection_log_info(as_principal):
+    as_principal()
+    async with await _client() as c:
+        r = await c.get("/api/v1/connection-logs/information")
+    assert r.status_code == 200
+    assert r.json()["total_connections"] == 0
