@@ -1431,3 +1431,25 @@ FastAPI-in-service leaks (P3) for free, because they live inside the deleted pac
 de-couple order after deletion: P3 llm-gateway persistence leak (cheap) → P2 `chat/stream.py` hub →
 P1 ORM repository ports, one aggregate per branch (XL). Awaiting requester review of the spec
 before any code phase.
+
+## 2026-08-18 — Lean Part A executed: dead code deleted
+
+Branch `refactor/lean-backend-deletions` (off the design branch, so spec+plan+code land together).
+Implementation plan `docs/superpowers/plans/2026-08-18-lean-backend-deletions.md`. Two code commits:
+- **Dead OneChat wrappers removed** (`da063d9`): `OneChatClient.stream_v4`/`stream_v5` had zero
+  callers (the live `events()` path replaced them). Two error-mapping tests were re-pointed at
+  `events()` so the 500→`OneChatError` and `ReadTimeout`→504 coverage survives.
+- **OpenAI-compatible surface deleted** (`9766106`): removed the `/responses` and OpenAI
+  `/conversations` routers, the whole `services/openai` and `services/responses` packages, their
+  glue in `main.py`/`errors.py`/`config.py`, the Caddy `@api_responses` block, and all 19 tests of
+  that surface. The native `/history` router stays. No table dropped.
+- **Orphan cleanup** (`bfdc4b6`, from final review): `auth/dependencies.py` still granted the
+  allowlist for the two deleted routes (`_OAI_CONVERSATION_PATH`, `_RESPONSES_PATH`) and
+  `test_staff_allowlist.py` still asserted the `POST /responses` grant — all removed.
+
+Deletion erased the P2 openai⇄responses cycle and the P3 router-import + FastAPI-in-service leaks
+for free (they lived inside the deleted packages). Suite: 849 → **714 pass / 2 skip**, green.
+Deferred: one redundant `POST /agencies` basic-user contrast assertion (covered by
+`test_basic_user_allowlist.py`). **Deploy gate before this reaches a live environment:** confirm no
+external ops client calls `/api/v1/responses` or `/api/v1/conversations` (access logs). De-couple
+phases P3/P2/P1 remain future work, to be planned against this post-deletion tree.
