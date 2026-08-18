@@ -22,6 +22,9 @@ keys. It trusts a Keycloak-signed access token (OIDC) on each request.
 | Data migration | Greenfield. No production users to migrate. Seed one admin in Keycloak. |
 | Chat WebSocket | Drop it. Chat keeps JSON and SSE only. |
 | User management | Keep the portal Users page. Proxy it to the Keycloak Admin REST API. |
+| Authorization model | Keycloak owns role → permission. Endpoints declare a required scope. The code keeps only a public/guest allow-list. |
+| Gate posture | Fail-closed. Every route needs a valid token except the public/guest allow-list. |
+| Invalid token | Reject at the gate with 401. `no token` (guest) and `bad token` (401) are different. |
 
 ## 3. End state
 
@@ -49,29 +52,91 @@ New module `app/auth/keycloak.py`.
   (`{KEYCLOAK_URL}/realms/{REALM}`), `aud` (`KEYCLOAK_AUDIENCE`), and `exp`.
   On any failure raise 401. No token present ⇒ guest (return `None` where the
   caller allows it).
-- **Role claim.** Read realm roles from `realm_access.roles`. Pick the highest
-  of `admin` / `staff` / `user`. Default to `user` when none match.
+- **Scopes.** Read the effective permission set from
+  `resource_access.backend.roles` (the `backend` client roles the token grants).
+  Also read the coarse realm role (`realm_access.roles`) for display only.
 - **`Principal`.** A frozen dataclass built from claims:
-  `{ id: sub, email, display_name, role }` with an `is_admin` property.
+  `{ id: sub, email, display_name, role, scopes: frozenset[str] }` with an
+  `is_admin` property (kept only for display; authz uses `scopes`).
   It replaces the `User` ORM object in request handling. `.id` is the Keycloak
   `sub`.
 
-`app/auth/dependencies.py` keeps the same public names so routers do not change:
-- `get_current_user_optional(request) -> Principal | None`
-- `get_current_user(request) -> Principal`
-- `require_admin(principal) -> Principal`
-- `get_current_user_non_ephemeral` → becomes an alias of `get_current_user`
-  (there is no ephemeral concept any more).
+`app/auth/dependencies.py` public surface:
+- `get_current_user_optional(request) -> Principal | None` — guest returns `None`;
+  a present-but-invalid token raises 401.
+- `get_current_user(request) -> Principal` — requires a valid token.
+- `get_current_user_non_ephemeral` → alias of `get_current_user` (no ephemeral
+  concept any more).
+- `require_scope` — a `Security` dependency (see §5.2). `require_admin` is removed;
+  admin-only routes require an admin-only scope instead.
 
-## 5. Role gate — logic unchanged
+## 5. Authorization — fail-closed gate + Keycloak scopes
 
-`enforce_role_allowlist` and every rule function
-(`_is_public_get`, `_is_shared_write`, `_is_allowed_for_basic_user`,
-`_is_allowed_for_staff`, `_STAFF_GET_EXACT`, the agent-proxy bypass) stay exactly
-as written. Only `_resolve_role(conn)` changes: it reads the bearer token from
-`conn.headers`, verifies it, and returns the role claim (or `None`). No DB read.
+The old code allowlist is replaced. Authorization decisions (which role may reach
+which resource) move into Keycloak. The code keeps only two things: the fail-closed
+gate and a small public/guest allow-list.
 
-This is the seam that keeps the migration small at the router layer.
+### 5.1 The gate (`app/auth/dependencies.py`, rename `enforce_role_allowlist` → `enforce_access`)
+
+Runs once per request as the global dependency:
+
+```
+not http?                            → pass  (WebSocket path is gone anyway)
+path in PUBLIC_OR_GUEST allow-list?  → pass
+token missing?                       → 401
+token invalid (sig / iss / aud / exp)→ 401
+else                                 → pass to the route's own require_scope
+```
+
+- The gate knows **no role rules**. It enforces only: public/guest, or a valid token.
+- `PUBLIC_OR_GUEST` is the small exception list that cannot be scope-gated because
+  guests carry no token: public GETs (`/api/v1/public/...`), `POST /api/v1/chat`,
+  the agent-proxy callback, the agency-logo GET, and `GET /authentication/me`.
+  These keep the existing helper predicates (`_is_public_get`, the agent-proxy and
+  logo regexes) as the source of truth for the list.
+
+### 5.2 Per-route scope — `require_scope`
+
+Each authenticated route declares the permission it needs with FastAPI's native
+`SecurityScopes`:
+
+```python
+from fastapi import Security
+from app.auth.dependencies import require_scope
+
+@router.get("/dashboard/statistics")
+async def statistics(p: Principal = Security(require_scope, scopes=["dashboard:read"])):
+    ...
+```
+
+`require_scope` reads the verified `Principal`, checks that `scopes` ⊆
+`principal.scopes`, and raises **403** otherwise. `require_admin` is deleted; an
+admin-only route simply requires a scope only the `admin` composite role holds.
+
+### 5.3 Scopes carried by Keycloak
+
+- Define **`backend` client roles** = the permission names:
+  `agency:read`, `agency:write`, `dashboard:read`, `executive:read`,
+  `executive:write`, `health:read`, `usage:read`, `feedback:read`, `feedback:write`,
+  `audit:read`, `llm:read`, `llm:write`, `settings:read`, `settings:write`,
+  `popular:write`, `conversation:read:own`, `conversation:read:all`, `user:manage`.
+- Define **composite realm roles** `admin` / `staff` / `user` that bundle the client
+  roles. This is where "staff may view the ops dashboards" now lives — in the realm,
+  not in code. Granting a role a new permission is a Keycloak change, no deploy.
+- The token carries the effective set in `resource_access.backend.roles`.
+
+### 5.4 Ownership becomes a scope, not a role check
+
+Today's own-or-admin logic (`services/conversation.py`, `services/similarity.py`,
+history routes) changes: a token with `conversation:read:all` sees every
+conversation; otherwise `conversation:read:own` filters to `principal.id` (the
+`sub`). No `role == "admin"` literals remain in services.
+
+### 5.5 Route-audit test (second net)
+
+A test walks every registered FastAPI route and asserts each route is **either** in
+`PUBLIC_OR_GUEST` **or** carries a `require_scope` dependency. A new endpoint with
+neither fails CI, closing the silent-open footgun structurally.
 
 ## 6. Data model and migration
 
@@ -91,7 +156,8 @@ set the user relation — they now set `user_id=principal.id if principal else N
 | File | Action |
 | --- | --- |
 | `app/routers/auth.py` | Keep only `GET /authentication/me` (return the Principal). Delete login, logout, anonymous, change-password. |
-| `app/routers/users.py` | Keep the routes. Handlers now call `keycloak_admin` (see §8). Still `require_admin`. |
+| every authenticated router | Add a `Security(require_scope, scopes=[...])` dependency per route (§5.2). Remove `Depends(require_admin)` / `Depends(get_current_user)` role checks in favor of the scope. |
+| `app/routers/users.py` | Keep the routes; each requires `user:manage`. Handlers now call `keycloak_admin` (see §8). |
 | `app/routers/api_key.py` | Delete. |
 | `app/services/api_key.py`, `app/services/auth_session.py` | Delete. |
 | `app/middleware/session_refresh.py` | Delete. Remove from `main.py`. |
@@ -137,9 +203,16 @@ settings.
 
 Keycloak service:
 - Add a Keycloak container to `compose.yaml`.
-- Ship a realm export JSON: the realm, the SPA public client (PKCE, redirect URIs,
-  web origins), the confidential admin client, the `backend` audience mapper, the
-  three realm roles (`admin`, `staff`, `user`), and one seed admin user.
+- Ship a realm export JSON that defines:
+  - the realm and the SPA public client (PKCE, redirect URIs, web origins);
+  - the confidential admin client (client-credentials, `realm-management` roles);
+  - the `backend` client + audience mapper, and its client roles = the permission
+    scopes listed in §5.3;
+  - the three composite realm roles `admin` / `staff` / `user`, each bundling the
+    client-role scopes it grants (the role → permission map);
+  - one seed admin user with the `admin` realm role.
+- The role → scope bundling in this export is the authoritative authorization
+  policy. Changing what `staff` may do is an edit here, not a code change.
 
 ## 10. Frontend contract (out of backend scope)
 
@@ -153,15 +226,19 @@ Keycloak service:
 
 - **Test keypair.** Tests generate a local RS256 keypair once. The verifier reads
   a test JWKS built from the public key. No live Keycloak in tests.
-- **Helper.** `make_token(role="admin"|"staff"|"user", sub=..., email=...)` mints a
-  signed token. A `no token` case covers guest.
-- **Keep every role-allowlist test.** They now send minted tokens instead of
-  cookies/keys. This proves the gate rules are unchanged.
-- **New tests:** token verify (bad signature / wrong `aud` / expired → 401),
-  guest chat (no token ⇒ chat works, `user_id` null), MCP anonymous + admin-header
-  stripping, user-management proxy (mock the Admin API).
-- TDD: write the failing test first for each unit (verifier, `_resolve_role`,
-  proxy), confirm red, then implement.
+- **Helper.** `make_token(scopes=[...], sub=..., email=..., role=...)` mints a signed
+  token with the given `resource_access.backend.roles`. A `no token` case covers guest.
+- **Rewrite the old allowlist tests as scope tests.** Each asserts that a token
+  lacking a route's scope gets 403 and a token with it gets 200 — the same access
+  matrix, now expressed as scopes.
+- **Route-audit test (§5.5).** Walk every route; each must be public/guest or carry
+  `require_scope`. Fails on an unclassified route.
+- **New tests:** token verify (missing → 401; bad signature / wrong `aud` / expired →
+  401), scope check (`require_scope` 403 on missing scope), guest chat (no token ⇒
+  chat works, `user_id` null), ownership scope (`conversation:read:own` vs `:all`),
+  MCP anonymous + admin-header stripping, user-management proxy (mock the Admin API).
+- TDD: write the failing test first for each unit (verifier, `enforce_access`,
+  `require_scope`, proxy), confirm red, then implement.
 
 ## 12. Non-goals
 
