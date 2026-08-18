@@ -766,6 +766,12 @@ git commit -m "refactor(model): store Keycloak sub as user_id on conversation/me
 
 ### Task 9: Drop User/Session/UserAPIKey models and repository; aerich migration
 
+> **RESEQUENCED (orchestrator ruling): run this task AFTER Task 17.** User/UserAPIKey/
+> Session/user_repo are imported by ~20 files cleaned across Tasks 12-17; deleting the
+> models earlier breaks those imports. Task 8 (FK decouple) still runs in Phase 5.
+
+
+
 **Files:**
 - Delete: `backend/app/models/user.py`, `backend/app/models/session.py`
 - Modify: `backend/app/models/__init__.py`
