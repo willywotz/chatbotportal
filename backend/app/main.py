@@ -45,8 +45,6 @@ from app.auth.dependencies import enforce_role_allowlist
 from app.routers import agencies, audit_log, conversations, messages, dashboard, feedback, auth, chat, connection_logs, api_key, executive_summary, insight, popular_questions, public_status, users, settings as settings_router
 from app.routers import agent_proxy
 from app.routers import llm as llm_router
-from app.routers import openai_conversations
-from app.routers import responses
 from app.services.seed import run_seed_admin, run_seed_agencies
 from app.services.popular_questions import seed_popular_questions
 from app.scheduler import start_scheduler, stop_scheduler
@@ -142,8 +140,6 @@ app.include_router(agencies.router, prefix="/api/v1")
 app.include_router(conversations.router, prefix="/api/v1")
 app.include_router(messages.router, prefix="/api/v1")
 app.include_router(chat.router, prefix="/api/v1")
-app.include_router(responses.router, prefix="/api/v1")
-app.include_router(openai_conversations.router, prefix="/api/v1")
 app.include_router(dashboard.router, prefix="/api/v1")
 app.include_router(feedback.router, prefix="/api/v1")
 app.include_router(connection_logs.router, prefix="/api/v1")
