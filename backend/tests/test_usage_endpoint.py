@@ -14,28 +14,32 @@ async def test_usage_groups_by_purpose(db):
     assert by_key["router"]["cost_usd"] == 0.03
 
 
-async def test_usage_groups_by_api_key_with_metadata(db):
-    from app.models.user import User, UserAPIKey
-    user = await User.create(email="owner@x.com", hashed_password="h", is_active=True)
-    key = await UserAPIKey.create(user_id=user.id, name="prod", key_hash="h1", key_prefix="tcg_abc123")
-
+async def test_usage_groups_by_user(db):
+    from uuid import uuid4
+    user_a, user_b = uuid4(), uuid4()
     await LlmUsage.create(model="m", purpose="router", prompt_tokens=10, completion_tokens=2,
-                          cost_usd=0.01, api_key_id=key.id)
+                          cost_usd=0.01, user_id=user_a)
     await LlmUsage.create(model="m", purpose="router", prompt_tokens=5, completion_tokens=1,
-                          cost_usd=0.02)  # keyless
+                          cost_usd=0.02, user_id=user_b)
+
+    rows = await usage_summary(group_by="user")
+    by_key = {r["key"]: r for r in rows}
+
+    assert by_key[str(user_a)]["prompt_tokens"] == 10
+    assert by_key[str(user_b)]["prompt_tokens"] == 5
+
+
+async def test_usage_unknown_group_by_falls_back_to_purpose(db):
+    """API-key attribution is gone (API keys are removed); an unrecognized
+    group_by (including the old "api_key") falls back to grouping by purpose,
+    with no key-metadata enrichment."""
+    await LlmUsage.create(model="m", purpose="router", prompt_tokens=10, completion_tokens=2, cost_usd=0.01)
 
     rows = await usage_summary(group_by="api_key")
     by_key = {r["key"]: r for r in rows}
 
-    keyed = by_key[str(key.id)]
-    assert keyed["prompt_tokens"] == 10
-    assert keyed["name"] == "prod"
-    assert keyed["key_prefix"] == "tcg_abc123"
-    assert keyed["owner_email"] == "owner@x.com"
-
-    bucket = by_key["—"]
-    assert bucket["prompt_tokens"] == 5
-    assert bucket["name"] == "web/session"
+    assert by_key["router"]["prompt_tokens"] == 10
+    assert "name" not in by_key["router"]
 
 
 async def test_usage_date_filter(db):
@@ -59,28 +63,3 @@ async def test_usage_date_filter_naive_treated_as_utc(db):
     rows = await usage_summary(group_by="purpose", date_from=datetime(2021, 1, 1))
     by_key = {r["key"]: r for r in rows}
     assert by_key["router"]["prompt_tokens"] == 9
-
-
-async def test_usage_api_key_catch_all_merges_null_and_deleted(db):
-    from uuid import uuid4
-    from app.models.user import User, UserAPIKey
-    user = await User.create(email="o@x.com", hashed_password="h", is_active=True)
-    key = await UserAPIKey.create(user_id=user.id, name="prod", key_hash="h2", key_prefix="tcg_x")
-
-    await LlmUsage.create(model="m", purpose="router", prompt_tokens=5, completion_tokens=1,
-                          cost_usd=0.02)  # keyless / NULL
-    await LlmUsage.create(model="m", purpose="router", prompt_tokens=3, completion_tokens=2,
-                          cost_usd=0.01, api_key_id=uuid4())  # orphaned (deleted key)
-    await LlmUsage.create(model="m", purpose="router", prompt_tokens=10, completion_tokens=0,
-                          cost_usd=0.0, api_key_id=key.id)  # valid keyed
-
-    rows = await usage_summary(group_by="api_key")
-
-    catch_all = [r for r in rows if r["key"] == "—"]
-    assert len(catch_all) == 1                       # single merged bucket
-    assert catch_all[0]["prompt_tokens"] == 8        # 5 + 3
-    assert catch_all[0]["completion_tokens"] == 3    # 1 + 2
-    assert catch_all[0]["name"] == "web/session"
-
-    keyed = [r for r in rows if r["key"] == str(key.id)]
-    assert len(keyed) == 1 and keyed[0]["prompt_tokens"] == 10
