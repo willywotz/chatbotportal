@@ -22,8 +22,7 @@ dependencies = [
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
     "python-dotenv>=1.0.0",
-    # Auth — JWT + password hashing
-    "python-jose[cryptography]>=3.3.0",
+    # Auth — password hashing
     "email-validator>=2.1.0",   # pydantic EmailStr support
     "bcrypt>=5.0.0",
     "opentelemetry-exporter-otlp-proto-grpc>=1.41.1",
