@@ -14,7 +14,7 @@ from opentelemetry import trace
 from opentelemetry.trace import StatusCode
 
 from app.auth.dependencies import get_current_user_optional
-from app.models.user import User
+from app.auth.keycloak import Principal
 from app.schemas.chat import ChatRequest
 from app.services.chat.aggregate import collect_turn
 from app.services.chat.model import resolve_model_version
@@ -39,7 +39,7 @@ async def _run_coro(coro: Coroutine[Any, Any, None]) -> None:
 async def chat(
     body: ChatRequest,
     background_tasks: BackgroundTasks,
-    user: User | None = Depends(get_current_user_optional),
+    user: Principal | None = Depends(get_current_user_optional),
 ) -> Any:
     query = body.query.strip()
     conversation_id = body.conversation_id or str(generate_uuid())

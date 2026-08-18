@@ -176,9 +176,18 @@ async def require_scope(
 
 
 async def _resolve_role(conn: HTTPConnection) -> str | None:
-    """Role only, no side effects."""
-    p = _principal(conn)
-    return p.role if p else None
+    """Role only, no side effects. Fail-open: a bad token resolves to None so
+    the allowlist passes through and the endpoint's own auth decides (see
+    ``enforce_role_allowlist``). Unlike ``get_current_user*``, this path never
+    raises."""
+    token = _bearer(conn)
+    if token is None:
+        return None
+    try:
+        p = verify_token(token)
+    except InvalidToken:
+        return None
+    return p.role
 
 
 _ROLE_ALLOWLIST = {
