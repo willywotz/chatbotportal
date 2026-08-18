@@ -20,6 +20,12 @@ def _plan(conv_id: str, query: str = "q") -> TurnPlan:
         assistant_message_id=generate_uuid(),
     )
 
+
+def _inert_schedule(coro) -> None:
+    """Drop a scheduled coroutine without running it, like an unflushed BackgroundTasks."""
+    coro.close()
+
+
 V5_ANSWER = {
     "answer": "สรุปครับ ค่าธรรมเนียมอยู่ที่ 2% [1]\n\n---\n\n## ค่าธรรมเนียม\n\nค่าธรรมเนียมการโอนคือ 2%",
     "summary": "สรุปครับ ค่าธรรมเนียมอยู่ที่ 2% [1]",
@@ -35,7 +41,7 @@ async def test_stream_persists_summary_and_references():
     asst_id = await _persist(
         _plan(cid), answer_data=V5_ANSWER,
         session_id=None, total_ms=10, latency_ms=5, thread_name=None,
-        background_tasks=BackgroundTasks(),
+        schedule=_inert_schedule,
     )
     msg = await Message.get(id=asst_id)
     assert msg.summary == "สรุปครับ ค่าธรรมเนียมอยู่ที่ 2% [1]"
@@ -52,7 +58,7 @@ async def test_stream_degrades_silently_without_summary():
     asst_id = await _persist(
         _plan(cid), answer_data={"answer": "คำตอบ", "sections": [], "errors": []},
         session_id=None, total_ms=10, latency_ms=5, thread_name=None,
-        background_tasks=BackgroundTasks(),
+        schedule=_inert_schedule,
     )
     msg = await Message.get(id=asst_id)
     assert msg.summary is None
@@ -68,7 +74,7 @@ async def test_blank_summary_is_stored_as_none():
         _plan(cid),
         answer_data={"answer": "คำตอบ", "summary": "   ", "references": [], "sections": [], "errors": []},
         session_id=None, total_ms=10, latency_ms=5, thread_name=None,
-        background_tasks=BackgroundTasks(),
+        schedule=_inert_schedule,
     )
     msg = await Message.get(id=asst_id)
     assert msg.summary is None
@@ -85,7 +91,7 @@ async def test_thread_name_titles_a_new_conversation():
         _plan(cid, query="ค่าธรรมเนียมโอนที่ดินเท่าไหร่ ช่วยอธิบายละเอียดหน่อยครับ"),
         answer_data=V5_ANSWER,
         session_id=None, total_ms=10, latency_ms=5,
-        thread_name="ค่าธรรมเนียมโอนที่ดิน", background_tasks=BackgroundTasks(),
+        thread_name="ค่าธรรมเนียมโอนที่ดิน", schedule=_inert_schedule,
     )
     conv = await Conversation.get(id=cid)
     assert conv.title == "ค่าธรรมเนียมโอนที่ดิน"
@@ -97,7 +103,7 @@ async def test_null_thread_name_keeps_query_derived_title():
     await _persist(
         _plan(cid, query="ค่าธรรมเนียมโอนที่ดินเท่าไหร่"), answer_data=V5_ANSWER,
         session_id=None, total_ms=10, latency_ms=5,
-        thread_name=None, background_tasks=BackgroundTasks(),
+        thread_name=None, schedule=_inert_schedule,
     )
     conv = await Conversation.get(id=cid)
     assert conv.title == "ค่าธรรมเนียมโอนที่ดินเท่าไหร่"
@@ -110,12 +116,12 @@ async def test_thread_name_does_not_retitle_an_existing_conversation():
     await _persist(
         _plan(cid, query="q1"), answer_data=V5_ANSWER,
         session_id=None, total_ms=10, latency_ms=5,
-        thread_name="ชื่อเดิม", background_tasks=BackgroundTasks(),
+        thread_name="ชื่อเดิม", schedule=_inert_schedule,
     )
     await _persist(
         _plan(cid, query="q2"), answer_data=V5_ANSWER,
         session_id=None, total_ms=10, latency_ms=5,
-        thread_name="ชื่อใหม่", background_tasks=BackgroundTasks(),
+        thread_name="ชื่อใหม่", schedule=_inert_schedule,
     )
     conv = await Conversation.get(id=cid)
     assert conv.title == "ชื่อเดิม"
@@ -127,7 +133,7 @@ async def test_long_thread_name_is_truncated():
     await _persist(
         _plan(cid), answer_data=V5_ANSWER,
         session_id=None, total_ms=10, latency_ms=5,
-        thread_name="ก" * 200, background_tasks=BackgroundTasks(),
+        thread_name="ก" * 200, schedule=_inert_schedule,
     )
     conv = await Conversation.get(id=cid)
     assert len(conv.title) == settings.TITLE_MAX_LENGTH

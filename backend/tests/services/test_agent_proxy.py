@@ -3,8 +3,8 @@ import uuid
 
 import httpx
 import pytest
-from fastapi import HTTPException
 
+from app.errors import ApiError
 from app.models import Agency, ConnectionLog
 from app.services import agent_proxy
 
@@ -32,17 +32,17 @@ async def _drain(stream) -> bytes:
 
 
 async def test_bad_uuid_raises_400(db):
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(ApiError) as e:
         await agent_proxy.proxy(agency_id="not-a-uuid", method="POST", headers={}, body=b"{}")
-    assert e.value.status_code == 400
+    assert e.value.status == 400
 
 
 async def test_unknown_agency_raises_404(db):
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(ApiError) as e:
         await agent_proxy.proxy(
             agency_id=str(uuid.uuid4()), method="POST", headers={}, body=b"{}",
         )
-    assert e.value.status_code == 404
+    assert e.value.status == 404
 
 
 async def test_success_streams_body_and_status(db):
@@ -125,12 +125,12 @@ async def test_connection_error_raises_502_and_logs(db):
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("refused")
 
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(ApiError) as e:
         await agent_proxy.proxy(
             agency_id=str(agency.id), method="POST", headers={},
             body=b"{}", transport=_upstream(handler),
         )
-    assert e.value.status_code == 502
+    assert e.value.status == 502
     log = await ConnectionLog.filter(agency_id=agency.id).first()
     assert log.status == "error"
 

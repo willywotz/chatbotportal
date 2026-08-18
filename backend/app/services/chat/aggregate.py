@@ -6,10 +6,8 @@ payload.
 """
 from dataclasses import dataclass
 
-from fastapi import BackgroundTasks
-
 from app.services.chat.pipeline_snapshot import build_pipeline_snapshot
-from app.services.chat.stream import TurnPlan, run_turn
+from app.services.chat.stream import Scheduler, TurnPlan, run_turn
 
 _PIPELINE_EVENTS = ("step", "agency_start", "agency_responded", "agency_verified")
 
@@ -25,7 +23,7 @@ class TurnResult:
 
 
 async def collect_turn(
-    plan: TurnPlan, *, background_tasks: BackgroundTasks | None
+    plan: TurnPlan, *, schedule: Scheduler | None
 ) -> TurnResult:
     answer_data: dict = {}
     pipeline_events: list[tuple[str, dict]] = []
@@ -33,7 +31,7 @@ async def collect_turn(
     total_ms = 0
     error: dict | None = None
 
-    async for event in run_turn(plan, background_tasks=background_tasks):
+    async for event in run_turn(plan, schedule=schedule):
         if event.name == "answer":
             answer_data = event.data
         elif event.name in _PIPELINE_EVENTS:

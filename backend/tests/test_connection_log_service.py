@@ -1,6 +1,5 @@
 """Service-layer tests for connection-log queries (moved out of the router)."""
-from fastapi import HTTPException
-
+from app.errors import ApiError
 from app.models import Agency, ConnectionLog
 from app.services import connection_log as connection_log_service
 
@@ -28,9 +27,9 @@ async def test_list_logs_invalid_agency_id_raises_400(db):
             search=None, agency_id="not-a-uuid", status_filter=None, connection_type=None,
             include_test=True, page=1, limit=20,
         )
-        assert False, "expected HTTPException"
-    except HTTPException as exc:
-        assert exc.status_code == 400
+        assert False, "expected ApiError"
+    except ApiError as exc:
+        assert exc.status == 400
 
 
 async def test_get_stats_excludes_test_action_by_default(db):
@@ -47,6 +46,6 @@ async def test_get_log_missing_raises_404(db):
     import uuid
     try:
         await connection_log_service.get_log(str(uuid.uuid4()))
-        assert False, "expected HTTPException"
-    except HTTPException as exc:
-        assert exc.status_code == 404
+        assert False, "expected ApiError"
+    except ApiError as exc:
+        assert exc.status == 404

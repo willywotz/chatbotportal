@@ -18,14 +18,13 @@ def test_is_legal_transition():
 
 @pytest.mark.asyncio
 async def test_transition_status_rejects_illegal_transition(db):
-    from fastapi import HTTPException
-
+    from app.errors import ApiError
     from app.models import Agency
 
     agency = await Agency.create(name="A", short_name="A", connection_type="API", status="active")
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ApiError) as exc:
         await transition_status(agency, "draft")
-    assert exc.value.status_code == 422
+    assert exc.value.status == 422
 
 
 @pytest.mark.asyncio

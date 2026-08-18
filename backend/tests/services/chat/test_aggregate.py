@@ -14,7 +14,7 @@ def _plan() -> TurnPlan:
 
 
 def _fake_run_turn(*events):
-    async def gen(plan, *, background_tasks=None):
+    async def gen(plan, *, schedule=None):
         for e in events:
             yield e
     return gen
@@ -28,7 +28,7 @@ async def test_collect_turn_folds_answer_steps_and_done():
         ChatEvent("done", {"session_id": "c1", "total_ms": 1234, "message_id": "msg-1"}),
     ]
     with patch.object(agg, "run_turn", _fake_run_turn(*events)):
-        result = await collect_turn(_plan(), background_tasks=None)
+        result = await collect_turn(_plan(), schedule=None)
     assert result.answer_data["answer"] == "A"
     assert result.answer_data["summary"] == "S"
     assert result.message_id == "msg-1"
@@ -44,5 +44,5 @@ async def test_collect_turn_captures_error_event():
         ChatEvent("done", {"session_id": "c1", "total_ms": 0}),
     ]
     with patch.object(agg, "run_turn", _fake_run_turn(*events)):
-        result = await collect_turn(_plan(), background_tasks=None)
+        result = await collect_turn(_plan(), schedule=None)
     assert result.error == {"message": "boom", "code": 502}

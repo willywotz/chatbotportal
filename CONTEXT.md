@@ -1355,5 +1355,32 @@ which predates the Clean-Arch router sweep + route renames + EDA outbox). No cod
   dead `python-jose` dep + dead frontend JWT `RESTART_FIELDS`.
 
 Phased remediation (TDD, branch-per-phase, no behavior drift in phases 1–3):
-`docs/superpowers/plans/2026-08-18-methodology-compliance-remediation.md`. Not yet started —
-awaiting go-ahead on Phase 1 (strip FastAPI from the service layer).
+`docs/superpowers/plans/2026-08-18-methodology-compliance-remediation.md`.
+
+## 2026-08-18 — Clean Architecture Phase 1: FastAPI removed from the service layer
+
+Branch `refactor/clean-arch-service-errors`. Implemented with the multi-agent workflow
+(orchestrator + 5 builders + verifier, per `.claude/subagents.md`). The use-case layer no longer
+depends on the web framework — the Clean-Architecture dependency rule now points outward only.
+- **Domain errors replace `HTTPException`.** Every service raise site now raises
+  `app.errors.ApiError(ErrorCode.*, message, status=…)` instead of `fastapi.HTTPException`, across
+  `agency`, `agency_golden`, `agency_lifecycle`, `agent_proxy`, `api_key`, `connection_log`,
+  `conversation`, `feedback`, `llm/admin`, `message`, `popular_questions`, `user`. Messages are
+  byte-identical (incl. Thai). Mapping: 400→INVALID_REQUEST, 403→FORBIDDEN, 404→NOT_FOUND,
+  409→CONFLICT, 422→INVALID_REQUEST(status=422), 502→AGENCY_UNAVAILABLE(status=502). Added
+  `ErrorCode.CONFLICT` + `409` to `_STATUS_CODES` in `app/errors.py`.
+- **`BackgroundTasks` removed from `services/chat`.** `stream.py`/`aggregate.py` now take an
+  injected `Scheduler = Callable[[Coroutine], None]` port; routers (`chat.py`, `responses.py`)
+  adapt their FastAPI `BackgroundTasks` into it, the WS path keeps its `spawn_logged`/`create_task`
+  fallback (`schedule=None`). Classification scheduling is unchanged on every production path.
+- **Only framework reference left in `app/services` is `responses/errors.py`** — the OpenAI
+  error-handler registration glue (delivery-adjacent; kept by design, per the plan).
+- **Behavior note (accepted correction).** For **409** and **422** responses the envelope
+  `error.code` changes `"internal"` → `"conflict"`/`"invalid_request"`. On the old code
+  `_STATUS_CODES` had no 409/422 entry, so those rendered a wrong `code="internal"`; the refactor
+  labels them correctly. HTTP status + `message` are unchanged, and no consumer keys on
+  `error.code` (the frontend `apiClient` reads `error.message`), so this is a safe latent-mislabel
+  fix, now codified by `tests/test_error_envelope.py`. Surfaced by the verifier and signed off.
+- Full backend suite: **849 pass / 2 skip** (was 844; +5 new tests: 2 error-envelope, 1
+  scheduler-injection, plus builder additions). No route, status code, or message changed.
+- Remaining plan phases (2 route renames, 3 dead-config nits, 4 EDA gate) not started.

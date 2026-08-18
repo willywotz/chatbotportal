@@ -7,8 +7,8 @@ access moved out of the router.
 import uuid
 
 import pytest
-from fastapi import HTTPException
 
+from app.errors import ApiError
 from app.models import LlmProvider, LlmRoute
 from app.services.llm import admin as llm_admin
 
@@ -28,9 +28,9 @@ async def test_list_providers_returns_all(db):
 
 @pytest.mark.asyncio
 async def test_get_provider_not_found_raises_404(db):
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ApiError) as exc:
         await llm_admin.get_provider(uuid.uuid4())
-    assert exc.value.status_code == 404
+    assert exc.value.status == 404
 
 
 @pytest.mark.asyncio
@@ -52,35 +52,35 @@ async def test_delete_provider_removes_it(db):
 async def test_delete_provider_in_use_raises_409(db):
     provider = await LlmProvider.create(name="p1", base_url="https://p1.example")
     await LlmRoute.create(purpose="judge", provider=provider, model="m")
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ApiError) as exc:
         await llm_admin.delete_provider(provider.id)
-    assert exc.value.status_code == 409
+    assert exc.value.status == 409
     assert await LlmProvider.filter(id=provider.id).exists()
 
 
 @pytest.mark.asyncio
 async def test_create_route_unknown_provider_raises_404(db):
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ApiError) as exc:
         await llm_admin.create_route({"purpose": "brief", "provider_id": uuid.uuid4(), "model": "m"})
-    assert exc.value.status_code == 404
+    assert exc.value.status == 404
 
 
 @pytest.mark.asyncio
 async def test_create_route_duplicate_purpose_raises_409(db):
     provider = await LlmProvider.create(name="p1", base_url="https://p1.example")
     await LlmRoute.create(purpose="brief", provider=provider, model="m")
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ApiError) as exc:
         await llm_admin.create_route({"purpose": "brief", "provider_id": provider.id, "model": "m2"})
-    assert exc.value.status_code == 409
+    assert exc.value.status == 409
 
 
 @pytest.mark.asyncio
 async def test_update_route_new_provider_not_found_raises_404(db):
     provider = await LlmProvider.create(name="p1", base_url="https://p1.example")
     route = await LlmRoute.create(purpose="brief", provider=provider, model="m")
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ApiError) as exc:
         await llm_admin.update_route(route.id, {"provider_id": uuid.uuid4()})
-    assert exc.value.status_code == 404
+    assert exc.value.status == 404
 
 
 @pytest.mark.asyncio
@@ -88,9 +88,9 @@ async def test_update_route_duplicate_purpose_raises_409(db):
     provider = await LlmProvider.create(name="p1", base_url="https://p1.example")
     await LlmRoute.create(purpose="brief", provider=provider, model="m")
     other = await LlmRoute.create(purpose="judge", provider=provider, model="m")
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ApiError) as exc:
         await llm_admin.update_route(other.id, {"purpose": "brief"})
-    assert exc.value.status_code == 409
+    assert exc.value.status == 409
 
 
 @pytest.mark.asyncio

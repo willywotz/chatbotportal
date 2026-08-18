@@ -2,16 +2,16 @@
 
 Kept separate from `app.routers.llm` so the router only orchestrates: parse
 input, call this service, map to a schema, return. Mirrors `app.services.user`
-in raising `HTTPException` directly for not-found/conflict cases.
+in raising `ApiError` directly for not-found/conflict cases.
 """
 
 from __future__ import annotations
 
 import uuid
 
-from fastapi import HTTPException, status
 from tortoise.exceptions import DoesNotExist
 
+from app.errors import ApiError, ErrorCode
 from app.models import LlmProvider, LlmRoute
 
 
@@ -27,7 +27,7 @@ async def get_provider(provider_id: uuid.UUID) -> LlmProvider:
     try:
         return await LlmProvider.get(id=provider_id)
     except DoesNotExist:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider not found")
+        raise ApiError(ErrorCode.NOT_FOUND, "Provider not found", status=404)
 
 
 async def update_provider(provider_id: uuid.UUID, update_data: dict) -> LlmProvider:
@@ -39,7 +39,7 @@ async def update_provider(provider_id: uuid.UUID, update_data: dict) -> LlmProvi
 async def delete_provider(provider_id: uuid.UUID) -> None:
     provider = await get_provider(provider_id)
     if await LlmRoute.filter(provider_id=provider_id).exists():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="provider in use by routes")
+        raise ApiError(ErrorCode.CONFLICT, "provider in use by routes", status=409)
     await provider.delete()
 
 
@@ -54,9 +54,9 @@ async def route_provider_name(route: LlmRoute) -> str:
 
 async def create_route(data: dict) -> LlmRoute:
     if not await LlmProvider.filter(id=data["provider_id"]).exists():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider not found")
+        raise ApiError(ErrorCode.NOT_FOUND, "Provider not found", status=404)
     if await LlmRoute.filter(purpose=data["purpose"]).exists():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="route for purpose already exists")
+        raise ApiError(ErrorCode.CONFLICT, "route for purpose already exists", status=409)
     return await LlmRoute.create(**data)
 
 
@@ -64,7 +64,7 @@ async def get_route(route_id: uuid.UUID) -> LlmRoute:
     try:
         return await LlmRoute.get(id=route_id)
     except DoesNotExist:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Route not found")
+        raise ApiError(ErrorCode.NOT_FOUND, "Route not found", status=404)
 
 
 async def update_route(route_id: uuid.UUID, update_data: dict) -> LlmRoute:
@@ -72,11 +72,11 @@ async def update_route(route_id: uuid.UUID, update_data: dict) -> LlmRoute:
 
     if update_data.get("provider_id") is not None:
         if not await LlmProvider.filter(id=update_data["provider_id"]).exists():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider not found")
+            raise ApiError(ErrorCode.NOT_FOUND, "Provider not found", status=404)
 
     if update_data.get("purpose") is not None:
         if await LlmRoute.filter(purpose=update_data["purpose"]).exclude(id=route_id).exists():
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="route for purpose already exists")
+            raise ApiError(ErrorCode.CONFLICT, "route for purpose already exists", status=409)
 
     await route.update_from_dict(update_data).save()
     return route

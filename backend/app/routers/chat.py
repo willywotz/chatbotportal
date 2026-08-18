@@ -8,7 +8,7 @@ version via `resolve_model_version`.
 import asyncio
 import json
 import time
-from typing import Any
+from typing import Any, Coroutine
 
 from fastapi import (
     APIRouter,
@@ -42,6 +42,11 @@ router = APIRouter(prefix="/chat", tags=["Chat"])
 tracer = trace.get_tracer(__name__)
 
 
+async def _run_coro(coro: Coroutine[Any, Any, None]) -> None:
+    """Adapt a scheduled coroutine into a BackgroundTasks-callable."""
+    await coro
+
+
 @router.post("", summary="Send a query; JSON by default, SSE when stream=true")
 async def chat(
     body: ChatRequest,
@@ -72,9 +77,12 @@ async def chat(
         if plan.cached is not None:
             span.set_attribute("cache_hit", True)
 
+        def schedule(coro: Coroutine[Any, Any, None]) -> None:
+            background_tasks.add_task(_run_coro, coro)
+
         if body.stream:
             async def sse():
-                async for event in run_turn(plan, background_tasks=background_tasks):
+                async for event in run_turn(plan, schedule=schedule):
                     if event.name == "error":
                         span.set_status(StatusCode.ERROR, event.data.get("message"))
                     yield _sse_event(event.name, event.data)
@@ -84,7 +92,7 @@ async def chat(
                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
             )
 
-        result = await collect_turn(plan, background_tasks=background_tasks)
+        result = await collect_turn(plan, schedule=schedule)
         if result.error is not None:
             span.set_status(StatusCode.ERROR, result.error.get("message"))
             return JSONResponse(content={

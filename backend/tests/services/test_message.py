@@ -3,8 +3,8 @@
 import uuid
 
 import pytest
-from fastapi import HTTPException
 
+from app.errors import ApiError
 from app.models.agency import Agency
 from app.models.conversation import Conversation, Message
 from app.schemas.conversation import RatingUpdate
@@ -34,6 +34,6 @@ async def test_update_rating_increments_agency_metrics(db):
 
 
 async def test_update_rating_missing_message_raises_404(db):
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ApiError) as exc:
         await message_service.update_rating(uuid.uuid4(), RatingUpdate(rating="up"))
-    assert exc.value.status_code == 404
+    assert exc.value.status == 404

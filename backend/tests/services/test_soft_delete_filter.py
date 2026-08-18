@@ -1,6 +1,6 @@
 import pytest
-from fastapi import HTTPException
 
+from app.errors import ApiError
 from app.models.conversation import Conversation, Message
 from app.models.user import User
 from app.routers.conversations import get_conversation_messages
@@ -37,6 +37,6 @@ async def test_get_messages_404s_for_soft_deleted_conversation(db):
     conv = await Conversation.create(
         title="t", status="active", user_id=owner.id, deleted_at=now()
     )
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ApiError) as exc:
         await get_conversation_messages(conv.id, owner)
-    assert exc.value.status_code == 404
+    assert exc.value.status == 404

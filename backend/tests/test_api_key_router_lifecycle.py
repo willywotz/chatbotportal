@@ -37,10 +37,10 @@ async def test_revoke_other_users_key_404(db):
     other = await User.create(email="x@x.com", hashed_password="h")
     created = await create_api_key(CreateAPIKeyRequest(name="n"), user=owner)
     import pytest
-    from fastapi import HTTPException
-    with pytest.raises(HTTPException) as e:
+    from app.errors import ApiError
+    with pytest.raises(ApiError) as e:
         await revoke_api_key(created.id, user=other)
-    assert e.value.status_code == 404
+    assert e.value.status == 404
 
 
 async def test_list_includes_status(db):

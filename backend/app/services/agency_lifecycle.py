@@ -1,8 +1,6 @@
 """Agency lifecycle transition rules — mirrors the frontend lifecycle.ts table."""
 
-from fastapi import HTTPException, status
-
-from app.errors import ApiError
+from app.errors import ApiError, ErrorCode
 from app.models.agency import Agency
 from app.services.events import publish
 
@@ -20,14 +18,15 @@ def is_legal_transition(current: str, target: str) -> bool:
 
 async def transition_status(agency: Agency, new_status: str) -> str:
     if not is_legal_transition(agency.status.value, new_status):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"Illegal status transition: {agency.status.value} → {new_status}",
+        raise ApiError(
+            ErrorCode.INVALID_REQUEST,
+            f"Illegal status transition: {agency.status.value} → {new_status}",
+            status=422,
         )
     if agency.status.value == "draft" and new_status == "active":
         report = agency.conformance_report or {}
         if not report.get("passed"):
-            raise ApiError("invalid_request", "conformance test must pass before activation", status=400)
+            raise ApiError(ErrorCode.INVALID_REQUEST, "conformance test must pass before activation", status=400)
     old_status = agency.status.value
     agency.status = new_status
     agency.auto_maintenance = False

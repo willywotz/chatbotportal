@@ -64,5 +64,5 @@ async def handle_chat_frame(raw: str | None, user: User | None, send: Send) -> N
         await send(_error("Conversation not found", code=404))
         return
 
-    async for event in run_turn(plan, background_tasks=None):
+    async for event in run_turn(plan, schedule=None):
         await send({"event": event.name, "data": event.data})

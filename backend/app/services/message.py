@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import HTTPException, status
 from tortoise.exceptions import DoesNotExist
 
+from app.errors import ApiError, ErrorCode
 from app.models.agency import Agency
 from app.models.conversation import Message
 from app.schemas.conversation import RatingUpdate
@@ -16,7 +16,7 @@ async def update_rating(message_id: uuid.UUID, body: RatingUpdate) -> Message:
     try:
         msg = await Message.get(id=message_id)
     except DoesNotExist:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
+        raise ApiError(ErrorCode.NOT_FOUND, "Message not found", status=404)
 
     msg.rating = body.rating
     if body.feedback_text is not None:

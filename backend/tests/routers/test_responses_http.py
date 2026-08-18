@@ -38,7 +38,7 @@ def _fake_live(*events: ChatEvent):
     otherwise every assertion against saved rows would fail regardless of
     the router's implementation.
     """
-    async def _run(plan, background_tasks):
+    async def _run(plan, schedule):
         answer_data = None
         for event in events:
             if event.name == "answer":
@@ -47,7 +47,7 @@ def _fake_live(*events: ChatEvent):
         if answer_data is not None:
             await turn_stream._persist(
                 plan, answer_data=answer_data, session_id=None, total_ms=0,
-                latency_ms=0, thread_name=None, background_tasks=background_tasks,
+                latency_ms=0, thread_name=None, schedule=schedule,
             )
     return _run
 

@@ -1,7 +1,6 @@
 import uuid
 
-from fastapi import HTTPException, status
-
+from app.errors import ApiError, ErrorCode
 from app.models.agency import Agency
 from app.models.evaluation import EvalResult, GoldenQuestion
 
@@ -17,7 +16,7 @@ async def list_golden_questions(agency: Agency) -> list[GoldenQuestion]:
 async def delete_golden_question(agency: Agency, gq_id: uuid.UUID) -> None:
     gq = await GoldenQuestion.get_or_none(id=gq_id, agency=agency)
     if gq is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Golden question not found")
+        raise ApiError(ErrorCode.NOT_FOUND, "Golden question not found", status=404)
     await gq.delete()
 
 

@@ -13,9 +13,8 @@ import logging
 import time
 import uuid
 from dataclasses import dataclass
-from typing import Any, AsyncIterator, NamedTuple
+from typing import Any, AsyncIterator, Callable, Coroutine, NamedTuple
 
-from fastapi import BackgroundTasks
 from opentelemetry import trace
 from opentelemetry.trace import StatusCode
 from tortoise.exceptions import DoesNotExist
@@ -37,7 +36,12 @@ from app.utils import generate_uuid
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
 
-# Tasks scheduled without a FastAPI BackgroundTasks (the WebSocket path) must be
+# A scheduling port: takes a coroutine and runs it fire-and-forget. Routers
+# adapt their concrete delivery-layer mechanism into this; the service layer
+# never imports the web framework.
+Scheduler = Callable[[Coroutine[Any, Any, None]], None]
+
+# Tasks scheduled without an injected Scheduler (the WebSocket path) must be
 # strongly referenced or the loop may collect them mid-flight.
 _background_tasks: set[asyncio.Task] = set()
 
@@ -101,19 +105,19 @@ async def prepare_turn(
 
 
 async def run_turn(
-    plan: TurnPlan, *, background_tasks: BackgroundTasks | None = None
+    plan: TurnPlan, *, schedule: Scheduler | None = None
 ) -> AsyncIterator[ChatEvent]:
     """Stream one turn to completion, persisting it before the terminal `done`."""
     if plan.cached is not None:
-        async for event in _replay_cached(plan, background_tasks):
+        async for event in _replay_cached(plan, schedule):
             yield event
         return
-    async for event in _stream_live(plan, background_tasks):
+    async for event in _stream_live(plan, schedule):
         yield event
 
 
 async def _replay_cached(
-    plan: TurnPlan, background_tasks: BackgroundTasks | None
+    plan: TurnPlan, schedule: Scheduler | None
 ) -> AsyncIterator[ChatEvent]:
     user_msg, asst_msg, conn_log = plan.cached
     await asyncio.sleep(0.01)
@@ -125,7 +129,7 @@ async def _replay_cached(
     assistant_id = await _persist(
         plan, answer_data=answer_data, session_id=None,
         total_ms=0, latency_ms=0, thread_name=None,
-        background_tasks=background_tasks, pipeline_events=[],
+        schedule=schedule, pipeline_events=[],
     )
     yield ChatEvent("answer", {
         "answer": asst_msg.content,
@@ -138,7 +142,7 @@ async def _replay_cached(
 
 
 async def _stream_live(
-    plan: TurnPlan, background_tasks: BackgroundTasks | None
+    plan: TurnPlan, schedule: Scheduler | None
 ) -> AsyncIterator[ChatEvent]:
     answer_data = None
     session_id = None
@@ -192,7 +196,7 @@ async def _stream_live(
         assistant_id = await _persist(
             plan, answer_data=answer_data, session_id=session_id, total_ms=total_ms,
             latency_ms=log_latency_ms, thread_name=thread_name,
-            background_tasks=background_tasks, pipeline_events=pipeline_events,
+            schedule=schedule, pipeline_events=pipeline_events,
         )
         yield ChatEvent("done", {
             **(done_event_data or {}),
@@ -204,23 +208,25 @@ async def _stream_live(
 
 
 def _schedule_classification(message_id: str, query: str, answer: str,
-                             background_tasks: BackgroundTasks | None) -> None:
+                             schedule: Scheduler | None) -> None:
     """Schedule category classification on whichever mechanism is available.
 
-    WebSocket routes have no FastAPI BackgroundTasks — there is no response for
-    the framework to hang them off — so they fall back to a tracked asyncio task.
+    WebSocket routes have no injected Scheduler — there is no response for a
+    router to hang a background task off — so they fall back to a tracked
+    asyncio task.
     """
-    if background_tasks is not None:
-        background_tasks.add_task(classify_message_category, message_id, query, answer)
+    coro = classify_message_category(message_id, query, answer)
+    if schedule is not None:
+        schedule(coro)
         return
-    task = asyncio.create_task(classify_message_category(message_id, query, answer))
+    task = asyncio.create_task(coro)
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)
 
 
 async def _persist(
     plan: TurnPlan, *, answer_data: dict, session_id: str | None, total_ms: int | None,
-    latency_ms: int, thread_name: str | None, background_tasks: BackgroundTasks | None,
+    latency_ms: int, thread_name: str | None, schedule: Scheduler | None,
     pipeline_events: list[tuple[str, dict]] | None = None,
 ) -> Any:
     """Save the turn via save_turn and write its ConnectionLog."""
@@ -262,5 +268,5 @@ async def _persist(
         message_id=saved.user_message_id,
         assistant_message_id=saved.assistant_message_id,
     )
-    _schedule_classification(saved.user_message_id, plan.query, answer, background_tasks)
+    _schedule_classification(saved.user_message_id, plan.query, answer, schedule)
     return saved.assistant_message_id

@@ -5,11 +5,11 @@ from typing import Any
 from uuid import UUID
 
 import httpx
-from fastapi import HTTPException, status
 from tortoise.exceptions import DoesNotExist
 from tortoise.expressions import F
 
 from app.config import settings
+from app.errors import ApiError, ErrorCode
 from app.models.agency import Agency
 from app.models.connection_log import ConnectionLog
 from app.schemas.agency import AgencyCreate, AgencyUpdate
@@ -32,7 +32,7 @@ async def get_agency_or_404(agency_id: UUID) -> Agency:
     try:
         return await Agency.get(id=agency_id)
     except DoesNotExist:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agency not found")
+        raise ApiError(ErrorCode.NOT_FOUND, "Agency not found", status=404)
 
 
 async def list_agencies(

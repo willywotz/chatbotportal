@@ -2,7 +2,8 @@ import uuid
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from fastapi import HTTPException
+
+from app.errors import ApiError
 
 
 @pytest.mark.asyncio
@@ -19,10 +20,10 @@ async def test_parse_spec_raises_on_http_error():
 async def test_get_agency_or_404_raises_for_missing_agency(db):
     from app.services.agency import get_agency_or_404
 
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ApiError) as exc:
         await get_agency_or_404(uuid.uuid4())
-    assert exc.value.status_code == 404
-    assert exc.value.detail == "Agency not found"
+    assert exc.value.status == 404
+    assert exc.value.message == "Agency not found"
 
 
 @pytest.mark.asyncio

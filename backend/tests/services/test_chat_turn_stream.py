@@ -6,11 +6,15 @@ import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi import BackgroundTasks
 
 from app.models.conversation import Conversation, Message
 from app.services.chat import stream as turn_stream
 from app.services.chat.stream import ConversationNotFound, prepare_turn, run_turn
+
+
+def _inert_schedule(coro) -> None:
+    """Drop a scheduled coroutine without running it, like an unflushed BackgroundTasks."""
+    coro.close()
 
 
 @pytest.mark.asyncio
@@ -40,13 +44,13 @@ async def test_run_turn_persists_with_the_preallocated_id(db):
             query="q", conversation_id=conv_id, user=None, is_continuation=False
         )
 
-    async def fake_stream(plan_arg, background_tasks):
+    async def fake_stream(plan_arg, schedule):
         yield turn_stream.ChatEvent("step", {"name": "summarize"})
         yield turn_stream.ChatEvent("answer", {"answer": "คำตอบ", "sections": [], "errors": []})
         yield turn_stream.ChatEvent("done", {"session_id": conv_id, "total_ms": 12})
 
     with patch.object(turn_stream, "_stream_live", new=fake_stream):
-        names = [ev.name async for ev in run_turn(plan, background_tasks=BackgroundTasks())]
+        names = [ev.name async for ev in run_turn(plan, schedule=_inert_schedule)]
 
     assert names == ["step", "answer", "done"]
 
@@ -69,7 +73,7 @@ async def test_run_turn_replays_a_cache_hit(db):
         )
     assert plan.cached is not None
 
-    events = [ev async for ev in run_turn(plan, background_tasks=BackgroundTasks())]
+    events = [ev async for ev in run_turn(plan, schedule=_inert_schedule)]
     assert [e.name for e in events] == ["answer", "done"]
     assert events[0].data["answer"] == "cached answer"
     assert events[1].data["message_id"] == str(plan.assistant_message_id)

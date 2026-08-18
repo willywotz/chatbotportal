@@ -3,11 +3,11 @@ from __future__ import annotations
 import uuid
 from datetime import timedelta
 
-from fastapi import HTTPException, status
 from tortoise.exceptions import DoesNotExist
 from tortoise.functions import Avg
 
 from app.config import settings
+from app.errors import ApiError, ErrorCode
 from app.models import Agency, ConnectionLog
 from app.utils import now
 
@@ -55,7 +55,7 @@ async def list_logs(
             await Agency.get(id=agency_uuid)
             qs = qs.filter(agency_id=agency_uuid)
         except (ValueError, DoesNotExist):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid agency ID")
+            raise ApiError(ErrorCode.INVALID_REQUEST, "Invalid agency ID", status=400)
     if status_filter:
         qs = qs.filter(status=status_filter)
     if connection_type:
@@ -75,4 +75,4 @@ async def get_log(log_id: str) -> ConnectionLog:
     try:
         return await ConnectionLog.get(id=log_id)
     except DoesNotExist:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Connection log not found")
+        raise ApiError(ErrorCode.NOT_FOUND, "Connection log not found", status=404)

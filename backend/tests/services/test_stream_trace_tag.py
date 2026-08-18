@@ -35,7 +35,7 @@ async def test_onechat_span_tags_conversation_id(monkeypatch):
     monkeypatch.setattr(stream_mod, "_persist", AsyncMock(return_value=generate_uuid()))
 
     plan = _make_plan(conversation_id="conv-xyz")
-    _ = [ev async for ev in _stream_live(plan, background_tasks=None)]
+    _ = [ev async for ev in _stream_live(plan, schedule=None)]
 
     spans = exporter.get_finished_spans()
     tagged = [s for s in spans if s.attributes.get("conversation_id") == "conv-xyz"]

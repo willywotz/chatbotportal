@@ -3,8 +3,8 @@
 import uuid
 
 import pytest
-from fastapi import HTTPException
 
+from app.errors import ApiError
 from app.models.conversation import Conversation, Message
 from app.models.user import User
 from app.schemas.conversation import MessageIn, SaveConversationRequest
@@ -38,21 +38,21 @@ async def test_list_conversations_filters_by_search_and_reports_total(db):
 
 async def test_list_conversations_rejects_bad_date_from(db):
     owner = await User.create(email="owner2@x.com", hashed_password="h", role="user", is_admin=False)
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ApiError) as exc:
         await conversation_service.list_conversations(
             user=owner, search="", filter_agency="", date_from="not-a-date", date_to=None,
             page=1, page_size=None,
         )
-    assert exc.value.status_code == 400
+    assert exc.value.status == 400
 
 
 async def test_get_conversation_with_messages_denies_non_owner(db):
     owner = await User.create(email="owner3@x.com", hashed_password="h", role="user", is_admin=False)
     other = await User.create(email="other3@x.com", hashed_password="h", role="user", is_admin=False)
     conv = await Conversation.create(title="t", status="active", user_id=owner.id)
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ApiError) as exc:
         await conversation_service.get_conversation_with_messages(conv.id, other)
-    assert exc.value.status_code == 403
+    assert exc.value.status == 403
 
 
 async def test_delete_conversation_removes_row(db):
