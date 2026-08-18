@@ -51,6 +51,26 @@ class Settings(BaseSettings):
     SESSION_REFRESH_BELOW_MINUTES: int = 60 * 24 * 3  # re-rotate below ~half TTL
     SESSION_ROTATE_GRACE_SECONDS: int = 60
 
+    # ── Keycloak ─────────────────────────────────────────────────────────────
+    KEYCLOAK_URL: str = "http://keycloak:8080"
+    KEYCLOAK_REALM: str = "chatbotportal"
+    KEYCLOAK_CLIENT_ID: str = "portal-spa"
+    KEYCLOAK_AUDIENCE: str = "backend"
+    KEYCLOAK_ADMIN_CLIENT_ID: str = "portal-admin"
+    KEYCLOAK_ADMIN_CLIENT_SECRET: str = ""
+
+    @property
+    def keycloak_issuer(self) -> str:
+        return f"{self.KEYCLOAK_URL}/realms/{self.KEYCLOAK_REALM}"
+
+    @property
+    def keycloak_jwks_url(self) -> str:
+        return f"{self.keycloak_issuer}/protocol/openid-connect/certs"
+
+    @property
+    def keycloak_token_url(self) -> str:
+        return f"{self.keycloak_issuer}/protocol/openid-connect/token"
+
     # ── LLM / OpenRouter ────────────────────────────────────────────────────
     OPENROUTER_API_KEY: str = ""
     OPENROUTER_API_URL: str = "https://openrouter.ai/api/v1/chat/completions"

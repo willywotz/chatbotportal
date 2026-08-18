@@ -32,6 +32,7 @@ dependencies = [
     "cachetools>=7.0.5",
     "apscheduler>=3.11.2",
     "pytz>=2026.1.post1",
+    "pyjwt[crypto]>=2.9.0",
 ]
 
 [project.optional-dependencies]
