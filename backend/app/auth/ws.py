@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 from app.auth.dependencies import _resolve_api_key
 from app.config import settings
 from app.models.user import User
+from app.repositories import user as user_repo
 from app.services.auth_session import resolve_session
 
 
@@ -22,7 +23,7 @@ async def resolve_ws_user(websocket) -> User | None:
     if sid:
         user_id = await resolve_session(sid)
         if user_id:
-            return await User.filter(id=user_id, is_active=True).first()
+            return await user_repo.active_by_id(user_id)
     return None
 
 
