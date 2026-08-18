@@ -1542,3 +1542,25 @@ together; a future bulk/high-concurrency variant may take an id and skip the ref
 
 **Remaining P1:** `Message` command-slice (analytics reads stay in the read-model), then the
 deferred Agency peripheral sites, then the rest of the ~16 aggregates as needed.
+
+## 2026-08-18 — P1 aggregate 4: Message repository (command-slice)
+
+Branch `refactor/repo-port-message`. Plan `docs/superpowers/plans/2026-08-18-repo-port-message.md`.
+New `app/repositories/message.py` (`by_id`, `list_for_conversation`, `first_user_message`, `create`,
+`bulk_create`, `set_category`, `save`). Routed the Message COMMAND access in `chat/turn.py`,
+`conversation.py`, `message.py`, `session.py`, `chat/llm.py` — no `Message.<orm>` call or
+`DoesNotExist` left in those files.
+- **Command-slice only (the key Message decision):** the heavy analytics `.values()`/RawSQL reads
+  (`analytics/*`, `feedback.py`) and the raw pg_trgm similarity SQL (`similarity.py`) stay in the
+  read-model — deliberately NOT forced behind the repository. `chat/stream.py`'s Message
+  type-hint-only use is untouched.
+- **Data-safety verified:** `list_for_conversation` defaults to `deleted_at=None`; the final review
+  proved soft-deleted messages cannot leak into a user's conversation view. `bulk_create` keeps
+  `ignore_conflicts=True`; `turn.py` creates stay inside `in_transaction()`.
+Final review (sonnet): ready to merge, no issues. Suite 730 → **736 pass / 2 skip**, green.
+
+**P1 status:** the 4 high-traffic aggregates (Conversation, User, Agency, Message) now have command
+repositories. `app/repositories/` holds the seam; use-case services no longer do Active-Record for
+these aggregates' command paths. Remaining: the deferred Agency peripheral sites, and the smaller
+aggregates (LlmRoute/LlmProvider/ConnectionLog/Session/etc.) as the need arises — each a small copy
+of the template.

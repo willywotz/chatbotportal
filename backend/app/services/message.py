@@ -2,20 +2,18 @@ from __future__ import annotations
 
 import uuid
 
-from tortoise.exceptions import DoesNotExist
-
 from app.errors import ApiError, ErrorCode
 from app.models.conversation import Message
 from app.repositories import agency as agency_repo
+from app.repositories import message as message_repo
 from app.schemas.conversation import RatingUpdate
 from app.utils import clean_agency_ids
 
 
 async def update_rating(message_id: uuid.UUID, body: RatingUpdate) -> Message:
     """Persist a message rating and roll it into each listed agency's metrics."""
-    try:
-        msg = await Message.get(id=message_id)
-    except DoesNotExist:
+    msg = await message_repo.by_id(message_id)
+    if msg is None:
         raise ApiError(ErrorCode.NOT_FOUND, "Message not found", status=404)
 
     msg.rating = body.rating
@@ -37,5 +35,5 @@ async def update_rating(message_id: uuid.UUID, body: RatingUpdate) -> Message:
                 agency.rating_down += 1
             await agency_repo.save(agency, update_fields=["rating_up", "rating_down"])
 
-    await msg.save(update_fields=update_fields)
+    await message_repo.save(msg, update_fields=update_fields)
     return msg

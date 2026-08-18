@@ -1,7 +1,8 @@
 from opentelemetry import trace
 
-from app.models.conversation import Conversation, Message
+from app.models.conversation import Conversation
 from app.repositories import conversation as conversation_repo
+from app.repositories import message as message_repo
 from app.services.onechat import OneChatClient, get_client
 
 tracer = trace.get_tracer(__name__)
@@ -18,11 +19,7 @@ async def ensure_session_warmed(
             span.set_attribute("session_already_warmed", True)
             return
 
-        first_msg = (
-            await Message.filter(conversation_id=conversation.id, role="user")
-            .order_by("created_at")
-            .first()
-        )
+        first_msg = await message_repo.first_user_message(conversation.id)
         if first_msg is None:
             span.set_attribute("no_first_message", True)
             return
