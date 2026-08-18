@@ -1418,3 +1418,16 @@ Deliberately left: the `main.py:23` `os.getenv("LOG_LEVEL")` bootstrap read (unt
 logging-before-config ordering isn't worth it — low value, YAGNI). This closes the audit's
 15-Factor nits. Phase 4 (EDA) remains a decision gate — recommendation stands to keep the
 documented outbox-seam YAGNI stance rather than force-convert every state change to events.
+
+## 2026-08-18 — Lean + de-couple design (spec only, no code yet)
+
+Branch `docs/lean-decouple-backend`. Design doc written to
+`docs/superpowers/specs/2026-08-18-lean-decouple-backend-design.md`. Two goals: delete dead code,
+and de-couple the three audit findings. Two read-only scouts gave the evidence. Locked decisions:
+lean = remove dead/unused features; **delete the whole OpenAI-compatible surface** (`/responses` +
+OpenAI `/conversations` routers and `services/openai` + `services/responses`) — no internal or
+frontend caller. That deletion also erases the openai⇄responses cycle (P2) and the router-import +
+FastAPI-in-service leaks (P3) for free, because they live inside the deleted packages. Ranked
+de-couple order after deletion: P3 llm-gateway persistence leak (cheap) → P2 `chat/stream.py` hub →
+P1 ORM repository ports, one aggregate per branch (XL). Awaiting requester review of the spec
+before any code phase.
