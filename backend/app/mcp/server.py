@@ -9,7 +9,7 @@ from fastmcp.server.dependencies import get_http_request
 from fastmcp.server.middleware import Middleware, MiddlewareContext
 from opentelemetry import trace
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import PlainTextResponse
 
 from app.auth.keycloak import InvalidToken, verify_token
 from app.config import settings
@@ -119,5 +119,5 @@ async def _fetch_agencies(ctx: Context) -> list[dict]:
     return agencies
 
 @mcp.custom_route("/health", methods=["GET"])
-async def health_check(request: Request) -> JSONResponse:
-    return JSONResponse({"status": "healthy", "service": "mcp-server"})
+async def health_check(request: Request) -> PlainTextResponse:
+    return PlainTextResponse("ok\n")
