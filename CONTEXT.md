@@ -285,7 +285,11 @@ Auth is **Keycloak OIDC**. There is **no local password/session/API-key auth** �
   (`DELETE /api/v1/users/{id}` → `keycloak_admin.delete_user`; the router refuses deleting your own
   account — 403). The Users page (`/settings/users`) has a per-row "ลบ" action (confirm dialog,
   disabled on your own row). The old last-admin guardrail lives in the **Keycloak console** (the
-  authoritative recovery path with a bootstrap admin).
+  authoritative recovery path with a bootstrap admin). A user's name is a single **display name**
+  (stored in Keycloak `firstName`; `_display_name` reads it). The realm's declarative user profile
+  (`realm-export.json` → `attributes["kc.user.profile.config"]`) makes `firstName`/`lastName`
+  **optional** and hides `lastName` from users, so first login does not force a first/last-name
+  screen — without this, Keycloak 26 requires both by default.
 - **MCP mount (`/mcp`) is outside** the app (mounted sub-app). Its own `AuthMiddleware`
   (`mcp/server.py`) verifies a Keycloak **bearer** via `verify_token` when present, else anonymous;
   no role check. See `tests/test_mcp_role_access.py`.
