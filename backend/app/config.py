@@ -2,7 +2,7 @@ import json
 import logging
 from dataclasses import dataclass, field
 from typing import get_origin
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, urlparse, urlunparse
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -190,49 +190,21 @@ async def load_settings_from_db() -> None:
     settings.apply_overrides(overrides)
 
 
-def _build_tortoise_orm(s: "Settings") -> dict:
-    """Build Tortoise ORM config with asyncpg pool sizing for Postgres connections."""
-    _parsed = urlparse(s.DATABASE_URL)
-
-    if not _parsed.hostname:
-        raise ValueError(
-            f"DATABASE_URL is malformed (no hostname): {s.DATABASE_URL!r}"
-        )
-
-    # Parse query string; map sslmode -> ssl (asyncpg connect() accepts ssl="require" etc.).
-    # All other params (e.g. sslcert, sslrootcert) are forwarded as-is.
-    query_params: dict = {}
-    for key, values in parse_qs(_parsed.query).items():
-        val = values[-1]
-        query_params["ssl" if key == "sslmode" else key] = val
-
-    credentials: dict = {
-        "host": _parsed.hostname,
-        "port": _parsed.port or 5432,
-        "user": unquote(_parsed.username or ""),
-        "password": unquote(_parsed.password or ""),
-        "database": _parsed.path.lstrip("/"),
-        "minsize": s.DB_POOL_MIN,
-        "maxsize": s.DB_POOL_MAX,
-        **query_params,
-    }
-    return {
-        "connections": {
-            "default": {
-                "engine": "tortoise.backends.asyncpg",
-                "credentials": credentials,
-            }
-        },
-        "apps": {
-            "models": {
-                "models": [
-                    "app.models",
-                    "aerich.models",
-                ],
-                "default_connection": "default",
-            },
-        },
-    }
+def database_url(s: "Settings") -> str:
+    parsed = urlparse(s.DATABASE_URL)
+    if not parsed.hostname:
+        raise ValueError(f"DATABASE_URL is malformed: {s.DATABASE_URL!r}")
+    return urlunparse(("postgresql+asyncpg", parsed.netloc, parsed.path, "", "", ""))
 
 
-TORTOISE_ORM = _build_tortoise_orm(settings)
+def connect_args(s: "Settings") -> dict:
+    parsed = urlparse(s.DATABASE_URL)
+    query = {k: v[-1] for k, v in parse_qs(parsed.query).items()}
+    args: dict = {}
+    sslmode = query.get("sslmode")
+    if sslmode:
+        # withinlazy: pass libpq-style string through; asyncpg accepts
+        # "require"/"prefer"/"verify-full". Upgrade to an ssl.SSLContext if
+        # client-cert verification is ever required.
+        args["ssl"] = sslmode
+    return args
