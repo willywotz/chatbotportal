@@ -3,6 +3,7 @@ import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ProtectedRoute } from "./ProtectedRoute";
+import { keycloak } from "@/shared/lib/keycloak";
 import type { AuthUser } from "@/features/auth/useAuth";
 
 const auth: { user: AuthUser | null; isAdmin: boolean; isLoading: boolean } = {
@@ -11,6 +12,7 @@ const auth: { user: AuthUser | null; isAdmin: boolean; isLoading: boolean } = {
   isLoading: false,
 };
 vi.mock("@/features/auth/useAuth", () => ({ useAuth: () => auth }));
+vi.mock("@/shared/lib/keycloak", () => ({ keycloak: { login: vi.fn() } }));
 
 function renderAt(initial: string, ui: React.ReactNode) {
   return render(
@@ -23,11 +25,25 @@ function renderAt(initial: string, ui: React.ReactNode) {
   );
 }
 
-describe("ProtectedRoute allowedRoles", () => {
+describe("ProtectedRoute", () => {
   beforeEach(() => {
     auth.user = { id: "1", email: "u@test.com", displayName: "User", role: "user", avatarUrl: null };
     auth.isAdmin = false;
     auth.isLoading = false;
+    vi.mocked(keycloak.login).mockClear();
+  });
+
+  it("redirects to Keycloak login when unauthenticated", () => {
+    auth.user = null;
+    renderAt("/secret", <ProtectedRoute><div>secret content</div></ProtectedRoute>);
+    expect(keycloak.login).toHaveBeenCalledWith({ redirectUri: window.location.href });
+    expect(screen.queryByText("secret content")).not.toBeInTheDocument();
+  });
+
+  it("renders children when authenticated", () => {
+    renderAt("/secret", <ProtectedRoute><div>secret content</div></ProtectedRoute>);
+    expect(screen.getByText("secret content")).toBeInTheDocument();
+    expect(keycloak.login).not.toHaveBeenCalled();
   });
 
   it("redirects a role not in allowedRoles to /chat", () => {
