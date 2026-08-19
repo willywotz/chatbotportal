@@ -17,12 +17,29 @@ against a full `docker compose` stack (login → scoped APIs → user management
 | `feat/keycloak-auth-migration` | `main` | 34 | Backend + Keycloak realm/compose |
 | `feat/frontend-keycloak-oidc` | `feat/keycloak-auth-migration` | +15 | Frontend SPA + browser-surfaced fixes |
 
-The frontend branch sits **on top of** the backend branch, so it contains everything.
-Recommended: merge **`feat/frontend-keycloak-oidc` → `main`** (`--no-ff`) as one atomic
-migration (49 commits). Or merge the backend branch first, then the frontend branch.
-Every task was reviewed with fresh context; both branches passed a final whole-branch review.
+The frontend branch sat **on top of** the backend branch. Integration order that was taken:
+`feat/frontend-keycloak-oidc` → `feat/keycloak-auth-migration` (`--no-ff`, `02756f1`),
+then a few follow-on fixes landed directly on `feat/keycloak-auth-migration`, then the whole
+branch → `main` (`--no-ff`, `f6f9bb5`). Every task was reviewed with fresh context.
 
-**Not merged yet** — the merge is the owner's call.
+**Merged to `main`** (merge commit `f6f9bb5`) — not yet pushed to `origin`.
+
+## Post-handoff changes (all merged)
+
+Landed after the original handoff, on top of the migration:
+
+- **Login is one redirect, no interstitial.** The public portal "เข้าสู่ระบบ" button and
+  `ProtectedRoute` both go **straight to Keycloak** (`login()` / `keycloak.login()`), returning
+  the user to `/chat`. The app `LoginPage` (`/login`) stays only as a manual deep-link fallback.
+- **Delete a user** (`DELETE /api/v1/users/{id}` → `keycloak_admin.delete_user`, `user:manage`):
+  hard-removes the Keycloak account; the router refuses deleting your **own** account (403). The
+  Users page has a per-row "ลบ" action (confirm dialog, disabled on your own row). Note: a user's
+  past `conversations`/`messages` keep their raw `user_id` — not cascade-deleted.
+- **Single display name, no forced first/last-name on first login.** The realm's declarative user
+  profile (`realm-export.json` → `attributes["kc.user.profile.config"]`) makes `firstName`/
+  `lastName` optional and hides `lastName`; the app uses `firstName` as the one display name.
+  Realm `displayName`/`displayNameHtml` = "Agentic AI Chatbot".
+- **Not kept:** a custom Keycloak login theme was prototyped and dropped — not in the repo.
 
 ## End state (what changed)
 
@@ -35,7 +52,7 @@ Every task was reviewed with fresh context; both branches passed a final whole-b
 - **Authorization = per-route scopes.** Each protected route declares
   `Security(require_scope, scopes=[...])`. There is **no runtime global gate**; the
   "no route silently unprotected" guarantee is the CI test `backend/tests/test_route_audit.py`
-  (every `/api/v1` route is public, whitelisted, or scope-guarded — 74 routes, 0 offenders).
+  (every `/api/v1` route is public, whitelisted, or scope-guarded — 0 offenders).
 - **Anonymous surface = `/api/v1/public/*`** (guest chat `POST /api/v1/public/chat`, public
   status/popular-questions, agency-logo GET) + `/api/v1/agent-proxy/*` (OneChat callback) +
   `GET /api/v1/authentication/me`.
@@ -48,8 +65,8 @@ Every task was reviewed with fresh context; both branches passed a final whole-b
 
 ### Frontend (React/Vite SPA)
 - **`keycloak-js`** (`frontend/src/shared/lib/keycloak.ts`), `check-sso` init at boot (guests
-  pass), bearer + silent refresh in the axios client, `useAuth` from `/me`, `ProtectedRoute`
-  redirects to Keycloak login on demand, `LoginPage` is a redirect button.
+  pass), bearer + silent refresh in the axios client, `useAuth` from `/me`, `ProtectedRoute` and
+  the login button both redirect **straight to Keycloak** (see Post-handoff changes above).
 - Chat + agency queries → `/api/v1/public/chat`; logo GET → `/public`; raw fetches (SSE, logo
   upload) attach the bearer; no `credentials:'include'`.
 - **Removed:** API-keys feature, chat WebSocket, usage-by-API-key view, change-password dialog
@@ -135,16 +152,16 @@ comes up correct — but the file is the reference if you rebuild the realm else
 
 ## Rollback
 
-Both branches are unmerged; not integrating is the rollback. If merged and you must revert:
-`git revert` the merge commit, then in prod restore the pre-migration image and DB (migration 30
-drops tables — restore from a pre-migration backup; there is no down-migration for the dropped
-user data).
+Merged to `main` as `f6f9bb5` but **not pushed** — dropping the local merge (`git reset --hard`
+to before it, or just not pushing) is the cheapest rollback. Once pushed/deployed: `git revert -m 1 f6f9bb5`,
+then in prod restore the pre-migration image and DB (migration 30 drops tables — restore from a
+pre-migration backup; there is no down-migration for the dropped user data).
 
 ## Verification (already done, re-runnable)
 
 - Backend: `cd backend && OTEL_SDK_DISABLED=true uv run pytest -q` → green except the 6 OTEL tests;
   `uv run pytest -q tests/test_route_audit.py` → 0 unprotected routes.
-- Frontend: `cd frontend && npx tsc -b tsconfig.app.json --noEmit` (0 errors) and `pnpm test` (409).
+- Frontend: `cd frontend && npx tsc -b tsconfig.app.json --noEmit` (0 errors) and `pnpm test` (410).
 - Stack: `docker compose up -d --build`; a real Keycloak token via Caddy `/auth` → backend `/me`
   200, garbage token 401, scoped route without token 401, public status 200; user-management
   create/list 200/201; account console 200.
