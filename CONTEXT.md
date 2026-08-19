@@ -289,11 +289,17 @@ Auth is **Keycloak OIDC**. There is **no local password/session/API-key auth** �
 - **Config** (env, 15-Factor): `KEYCLOAK_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_CLIENT_ID` (SPA),
   `KEYCLOAK_AUDIENCE` (`backend`), `KEYCLOAK_ADMIN_CLIENT_ID` / `KEYCLOAK_ADMIN_CLIENT_SECRET`. A
   Keycloak service + `deploy/keycloak/realm-export.json` are in `compose.yaml`.
-- **Frontend NOT yet migrated (handoff).** This was a backend-only migration. The SPA still uses the
-  old cookie/JWT flow and targets moved URLs; before shipping it must: run OIDC (PKCE), send Bearer,
-  update `/api/v1/chat`→`/api/v1/public/chat` and the logo URL, drop the API-keys page, and retire
-  the `group_by=api_key` Usage Analytics view. So the frontend descriptions elsewhere in this file
-  are pre-migration.
+- **Frontend migrated 2026-08-19 (Keycloak OIDC).** The SPA uses `keycloak-js` (`src/shared/lib/keycloak.ts`,
+  `check-sso` init at boot so guests pass through), sends `Authorization: Bearer` via the axios interceptor
+  (`apiClient.ts`, with silent refresh; no cookies), and `useAuth` derives the user from `GET /me`.
+  `ProtectedRoute` redirects to Keycloak login on demand; `LoginPage` is a redirect button. Chat and
+  agency queries hit `/api/v1/public/chat` (guest-open); the logo GET is `/api/v1/public/agencies/{id}/logo`.
+  The API-keys feature, the chat WebSocket, the `group_by=api_key` usage view, and the change-password
+  dialog are removed (Keycloak owns passwords — the sidebar links to the Keycloak account console).
+  Env: `VITE_KEYCLOAK_URL` (public `/auth` base), `VITE_KEYCLOAK_REALM`, `VITE_KEYCLOAK_CLIENT_ID`.
+  Client-side role gating (`roles.ts`/`ProtectedRoute`) is UX-only; the backend's per-route scopes are the
+  real control. **Deploy:** the prod build must set `VITE_KEYCLOAK_URL` to the prod `/auth` origin, and the
+  realm's `portal-spa` `redirectUris` must include the prod SPA origin (dev covers localhost:8080/5173).
 
 ## agent-proxy (`agent-proxy/`, Go)
 
