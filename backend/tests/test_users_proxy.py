@@ -9,9 +9,7 @@ import re
 
 import httpx
 import pytest
-from httpx import ASGITransport, AsyncClient
 
-from app.main import app
 from app.services import keycloak_admin
 
 _USERS = "/api/v1/users"
@@ -121,17 +119,11 @@ def fake_kc(monkeypatch):
     return kc
 
 
-async def _client():
-    return AsyncClient(transport=ASGITransport(app=app), base_url="http://t")
-
-
-@pytest.mark.usefixtures("db")
-async def test_list_users_with_scope_returns_mapped_list(as_principal, fake_kc):
+async def test_list_users_with_scope_returns_mapped_list(client, as_principal, fake_kc):
     as_principal(scopes=["user:manage"])
     fake_kc.seed(email="a@example.com", role="admin", display_name="Alice")
     fake_kc.seed(email="b@example.com", role="user")
-    async with await _client() as c:
-        r = await c.get(_USERS)
+    r = await client.get(_USERS)
     assert r.status_code == 200
     body = r.json()
     assert body["total"] == 2
@@ -143,19 +135,15 @@ async def test_list_users_with_scope_returns_mapped_list(as_principal, fake_kc):
     assert alice["isActive"] is True
 
 
-@pytest.mark.usefixtures("db")
-async def test_list_users_without_scope_403(as_principal, fake_kc):
+async def test_list_users_without_scope_403(client, as_principal, fake_kc):
     as_principal(role="user", scopes=_NO_MANAGE_SCOPES)
-    async with await _client() as c:
-        r = await c.get(_USERS)
+    r = await client.get(_USERS)
     assert r.status_code == 403
 
 
-@pytest.mark.usefixtures("db")
-async def test_create_user_maps_and_assigns_role(as_principal, fake_kc):
+async def test_create_user_maps_and_assigns_role(client, as_principal, fake_kc):
     as_principal(scopes=["user:manage"])
-    async with await _client() as c:
-        r = await c.post(_USERS, json={
+    r = await client.post(_USERS, json={
             "email": "new@example.com", "role": "staff", "display_name": "New Person",
             "password": "secret123",
         })
@@ -167,30 +155,24 @@ async def test_create_user_maps_and_assigns_role(as_principal, fake_kc):
     assert {r["name"] for r in fake_kc.role_mappings[uid]} == {"staff"}
 
 
-@pytest.mark.usefixtures("db")
-async def test_get_user(as_principal, fake_kc):
+async def test_get_user(client, as_principal, fake_kc):
     as_principal(scopes=["user:manage"])
     uid = fake_kc.seed(email="g@example.com", role="user")
-    async with await _client() as c:
-        r = await c.get(f"{_USERS}/{uid}")
+    r = await client.get(f"{_USERS}/{uid}")
     assert r.status_code == 200
     assert r.json()["email"] == "g@example.com"
 
 
-@pytest.mark.usefixtures("db")
-async def test_get_user_404(as_principal, fake_kc):
+async def test_get_user_404(client, as_principal, fake_kc):
     as_principal(scopes=["user:manage"])
-    async with await _client() as c:
-        r = await c.get(f"{_USERS}/missing")
+    r = await client.get(f"{_USERS}/missing")
     assert r.status_code == 404
 
 
-@pytest.mark.usefixtures("db")
-async def test_update_user_profile_and_role(as_principal, fake_kc):
+async def test_update_user_profile_and_role(client, as_principal, fake_kc):
     as_principal(scopes=["user:manage"])
     uid = fake_kc.seed(email="u@example.com", role="user", display_name="Old Name")
-    async with await _client() as c:
-        r = await c.patch(f"{_USERS}/{uid}", json={"display_name": "New Name", "role": "admin"})
+    r = await client.patch(f"{_USERS}/{uid}", json={"display_name": "New Name", "role": "admin"})
     assert r.status_code == 200
     body = r.json()
     assert body["displayName"] == "New Name"
@@ -198,59 +180,47 @@ async def test_update_user_profile_and_role(as_principal, fake_kc):
     assert {r["name"] for r in fake_kc.role_mappings[uid]} == {"admin"}
 
 
-@pytest.mark.usefixtures("db")
-async def test_deactivate_calls_set_enabled_false(as_principal, fake_kc):
+async def test_deactivate_calls_set_enabled_false(client, as_principal, fake_kc):
     as_principal(scopes=["user:manage"])
     uid = fake_kc.seed(email="d@example.com")
-    async with await _client() as c:
-        r = await c.post(f"{_USERS}/{uid}/deactivate")
+    r = await client.post(f"{_USERS}/{uid}/deactivate")
     assert r.status_code == 200
     assert r.json()["isActive"] is False
     assert fake_kc.users[uid]["enabled"] is False
 
 
-@pytest.mark.usefixtures("db")
-async def test_activate_calls_set_enabled_true(as_principal, fake_kc):
+async def test_activate_calls_set_enabled_true(client, as_principal, fake_kc):
     as_principal(scopes=["user:manage"])
     uid = fake_kc.seed(email="ac@example.com", enabled=False)
-    async with await _client() as c:
-        r = await c.post(f"{_USERS}/{uid}/activate")
+    r = await client.post(f"{_USERS}/{uid}/activate")
     assert r.status_code == 200
     assert r.json()["isActive"] is True
     assert fake_kc.users[uid]["enabled"] is True
 
 
-@pytest.mark.usefixtures("db")
-async def test_deactivate_missing_user_404(as_principal, fake_kc):
+async def test_deactivate_missing_user_404(client, as_principal, fake_kc):
     as_principal(scopes=["user:manage"])
-    async with await _client() as c:
-        r = await c.post(f"{_USERS}/missing/deactivate")
+    r = await client.post(f"{_USERS}/missing/deactivate")
     assert r.status_code == 404
 
 
-@pytest.mark.usefixtures("db")
-async def test_delete_user_removes_from_keycloak(as_principal, fake_kc):
+async def test_delete_user_removes_from_keycloak(client, as_principal, fake_kc):
     as_principal(scopes=["user:manage"])
     uid = fake_kc.seed(email="gone@example.com")
-    async with await _client() as c:
-        r = await c.delete(f"{_USERS}/{uid}")
+    r = await client.delete(f"{_USERS}/{uid}")
     assert r.status_code == 204
     assert uid not in fake_kc.users
 
 
-@pytest.mark.usefixtures("db")
-async def test_delete_missing_user_404(as_principal, fake_kc):
+async def test_delete_missing_user_404(client, as_principal, fake_kc):
     as_principal(scopes=["user:manage"])
-    async with await _client() as c:
-        r = await c.delete(f"{_USERS}/missing")
+    r = await client.delete(f"{_USERS}/missing")
     assert r.status_code == 404
 
 
-@pytest.mark.usefixtures("db")
-async def test_delete_own_account_forbidden(as_principal, fake_kc):
+async def test_delete_own_account_forbidden(client, as_principal, fake_kc):
     uid = fake_kc.seed(email="me@example.com", role="admin")
     as_principal(sub=uid, scopes=["user:manage"])
-    async with await _client() as c:
-        r = await c.delete(f"{_USERS}/{uid}")
+    r = await client.delete(f"{_USERS}/{uid}")
     assert r.status_code == 403
     assert uid in fake_kc.users

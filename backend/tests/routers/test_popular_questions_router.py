@@ -1,16 +1,19 @@
-"""Popular Questions API — anonymous public read, admin-gated writes.
-
-SQLite-portable (db fixture). Auth is mocked via the as_principal fixture,
-mirroring tests/routers/test_llm_admin.py.
-"""
+"""Popular Questions API — anonymous public read, admin-gated writes."""
 from unittest.mock import AsyncMock
 
 import pytest
-from httpx import ASGITransport, AsyncClient
+from sqlalchemy import literal, select
 
-from app.main import app
-from app.models import Agency
 from app.models.popular_question import PopularQuestion
+from app.repositories import agency as agency_repo
+from app.repositories import popular_question as pq_repo
+
+
+async def _exists(session, question_id) -> bool:
+    """A `select` (unlike `session.get`) autoflushes, so a pending delete in
+    the same session is visible — matching the original `.filter().exists()`."""
+    stmt = select(literal(True)).where(PopularQuestion.id == question_id)
+    return (await session.execute(stmt)).scalar() is not None
 
 _PUBLIC = "/api/v1/public/popular-questions"
 _ADMIN = "/api/v1/popular-questions"
@@ -18,134 +21,106 @@ _ADMIN = "/api/v1/popular-questions"
 _USER_SCOPES = ["agency:list", "conversation:read:own", "conversation:write:own", "message:rate"]
 
 
-async def _client():
-    return AsyncClient(transport=ASGITransport(app=app), base_url="http://t")
-
-
-@pytest.mark.usefixtures("db")
-async def test_public_get_works_without_auth():
-    await PopularQuestion.create(text="q1", text_key="q1", source="seed")
-    async with await _client() as c:
-        r = await c.get(_PUBLIC)
+async def test_public_get_works_without_auth(client, db_session):
+    await pq_repo.create(db_session, text="q1", text_key="q1", source="seed")
+    r = await client.get(_PUBLIC)
     assert r.status_code == 200
     assert r.json()["data"][0]["text"] == "q1"
 
 
-@pytest.mark.usefixtures("db")
 @pytest.mark.parametrize("role", ["user", "viewer", "auditor"])
-async def test_public_get_allowed_for_authenticated_read_only_roles(role, make_token):
+async def test_public_get_allowed_for_authenticated_read_only_roles(role, client, db_session, make_token):
     """Regression: the role allowlist chokepoint must not 403 a public GET.
 
     The frontend calls this from the authenticated chat page with a bearer
     token attached — it must not be blocked for user/viewer/auditor, none of
     whom are otherwise allowlisted for this path.
     """
-    await PopularQuestion.create(text="q1", text_key="q1", source="seed")
+    await pq_repo.create(db_session, text="q1", text_key="q1", source="seed")
     token = make_token(role=role)
-    async with await _client() as c:
-        r = await c.get(_PUBLIC, headers={"Authorization": f"Bearer {token}"})
+    r = await client.get(_PUBLIC, headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 200
     assert r.json()["data"][0]["text"] == "q1"
 
 
-@pytest.mark.usefixtures("db")
-async def test_admin_list_requires_auth():
-    async with await _client() as c:
-        r = await c.get(_ADMIN)
+async def test_admin_list_requires_auth(client):
+    r = await client.get(_ADMIN)
     assert r.status_code == 401
 
 
-@pytest.mark.usefixtures("db")
-async def test_admin_create_forbidden_for_plain_user(as_principal):
+async def test_admin_create_forbidden_for_plain_user(client, as_principal):
     as_principal(role="user", scopes=_USER_SCOPES)
-    async with await _client() as c:
-        r = await c.post(_ADMIN, json={"text": "new question"})
+    r = await client.post(_ADMIN, json={"text": "new question"})
     assert r.status_code == 403
 
 
-@pytest.mark.usefixtures("db")
-async def test_admin_create_ok(as_principal):
+async def test_admin_create_ok(client, as_principal):
     as_principal()
-    async with await _client() as c:
-        r = await c.post(_ADMIN, json={"text": "คำถามใหม่"})
+    r = await client.post(_ADMIN, json={"text": "คำถามใหม่"})
     assert r.status_code == 201
     body = r.json()
     assert body["text"] == "คำถามใหม่"
     assert body["source"] == "manual"
 
 
-@pytest.mark.usefixtures("db")
-async def test_admin_list_includes_hidden(as_principal):
+async def test_admin_list_includes_hidden(client, db_session, as_principal):
     as_principal()
-    await PopularQuestion.create(text="hidden one", text_key="hidden_one", source="seed", hidden=True)
-    async with await _client() as c:
-        r = await c.get(_ADMIN)
+    await pq_repo.create(db_session, text="hidden one", text_key="hidden_one", source="seed", hidden=True)
+    r = await client.get(_ADMIN)
     assert r.status_code == 200
     assert r.json()["total"] == 1
 
 
-@pytest.mark.usefixtures("db")
-async def test_editing_auto_text_flips_source_to_manual(as_principal):
+async def test_editing_auto_text_flips_source_to_manual(client, db_session, as_principal):
     as_principal()
-    pq = await PopularQuestion.create(text="auto q", text_key="auto_q", source="auto")
-    async with await _client() as c:
-        r = await c.patch(f"{_ADMIN}/{pq.id}", json={"text": "edited auto q"})
+    pq = await pq_repo.create(db_session, text="auto q", text_key="auto_q", source="auto")
+    r = await client.patch(f"{_ADMIN}/{pq.id}", json={"text": "edited auto q"})
     assert r.status_code == 200
     body = r.json()
     assert body["source"] == "manual"
     assert body["text"] == "edited auto q"
 
-    stored = await PopularQuestion.get(id=pq.id)
+    stored = await pq_repo.by_id(db_session, pq.id)
     assert stored.source == "manual"
     assert stored.text_key == "edited auto q"
 
 
-@pytest.mark.usefixtures("db")
-async def test_editing_without_text_change_keeps_source(as_principal):
+async def test_editing_without_text_change_keeps_source(client, db_session, as_principal):
     as_principal()
-    pq = await PopularQuestion.create(text="auto q2", text_key="auto_q2", source="auto")
-    async with await _client() as c:
-        r = await c.patch(f"{_ADMIN}/{pq.id}", json={"pinned": True})
+    pq = await pq_repo.create(db_session, text="auto q2", text_key="auto_q2", source="auto")
+    r = await client.patch(f"{_ADMIN}/{pq.id}", json={"pinned": True})
     assert r.status_code == 200
     assert r.json()["source"] == "auto"
     assert r.json()["pinned"] is True
 
 
-@pytest.mark.usefixtures("db")
-async def test_delete_requires_admin(as_principal):
+async def test_delete_requires_admin(client, db_session, as_principal):
     as_principal(role="user", scopes=_USER_SCOPES)
-    pq = await PopularQuestion.create(text="to delete", text_key="to_delete", source="manual")
-    async with await _client() as c:
-        r = await c.delete(f"{_ADMIN}/{pq.id}")
+    pq = await pq_repo.create(db_session, text="to delete", text_key="to_delete", source="manual")
+    r = await client.delete(f"{_ADMIN}/{pq.id}")
     assert r.status_code == 403
-    assert await PopularQuestion.filter(id=pq.id).exists()
+    assert await _exists(db_session, pq.id)
 
 
-@pytest.mark.usefixtures("db")
-async def test_delete_ok(as_principal):
+async def test_delete_ok(client, db_session, as_principal):
     as_principal()
-    pq = await PopularQuestion.create(text="to delete2", text_key="to_delete2", source="manual")
-    async with await _client() as c:
-        r = await c.delete(f"{_ADMIN}/{pq.id}")
+    pq = await pq_repo.create(db_session, text="to delete2", text_key="to_delete2", source="manual")
+    r = await client.delete(f"{_ADMIN}/{pq.id}")
     assert r.status_code == 204
-    assert not await PopularQuestion.filter(id=pq.id).exists()
+    assert not await _exists(db_session, pq.id)
 
 
-@pytest.mark.usefixtures("db")
-async def test_regenerate_returns_202(monkeypatch, as_principal):
+async def test_regenerate_returns_202(client, monkeypatch, as_principal):
     as_principal()
     mock_regen = AsyncMock(return_value=0)
     monkeypatch.setattr("app.routers.popular_questions.regenerate", mock_regen)
-    async with await _client() as c:
-        r = await c.post(f"{_ADMIN}/regenerate")
+    r = await client.post(f"{_ADMIN}/regenerate")
     assert r.status_code == 202
 
 
-@pytest.mark.usefixtures("db")
-async def test_create_resolves_agency(as_principal):
+async def test_create_resolves_agency(client, db_session, as_principal):
     as_principal()
-    ag = await Agency.create(name="กรมการปกครอง")
-    async with await _client() as c:
-        r = await c.post(_ADMIN, json={"text": "ถามเรื่องบัตร", "agency_id": str(ag.id)})
+    ag = await agency_repo.create(db_session, name="กรมการปกครอง")
+    r = await client.post(_ADMIN, json={"text": "ถามเรื่องบัตร", "agency_id": str(ag.id)})
     assert r.status_code == 201
     assert r.json()["agency"]["id"] == str(ag.id)
