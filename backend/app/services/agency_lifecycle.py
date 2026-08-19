@@ -1,5 +1,7 @@
 """Agency lifecycle transition rules — mirrors the frontend lifecycle.ts table."""
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.errors import ApiError, ErrorCode
 from app.models.agency import Agency
 from app.repositories import agency as agency_repo
@@ -17,7 +19,7 @@ def is_legal_transition(current: str, target: str) -> bool:
     return target in LEGAL_TRANSITIONS.get(current, [])
 
 
-async def transition_status(agency: Agency, new_status: str) -> str:
+async def transition_status(session: AsyncSession, agency: Agency, new_status: str) -> str:
     if not is_legal_transition(agency.status.value, new_status):
         raise ApiError(
             ErrorCode.INVALID_REQUEST,
@@ -31,6 +33,6 @@ async def transition_status(agency: Agency, new_status: str) -> str:
     old_status = agency.status.value
     agency.status = new_status
     agency.auto_maintenance = False
-    await agency_repo.save(agency, update_fields=["status", "auto_maintenance", "updated_at"])
-    await publish("agency.status_changed", {"agency_id": str(agency.id), "from": old_status, "to": new_status})
+    await agency_repo.save(session, agency, update_fields=["status", "auto_maintenance", "updated_at"])
+    await publish(session, "agency.status_changed", {"agency_id": str(agency.id), "from": old_status, "to": new_status})
     return old_status
