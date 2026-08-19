@@ -38,7 +38,9 @@ services:
       KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-portal-spa}
       KEYCLOAK_AUDIENCE: ${KEYCLOAK_AUDIENCE:-backend}
       KEYCLOAK_ADMIN_CLIENT_ID: ${KEYCLOAK_ADMIN_CLIENT_ID:-portal-admin}
-      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:-}
+      # Dev default matches the portal-admin secret in deploy/keycloak/realm-export.json
+      # so the user-management proxy works out of the box. PROD MUST override this.
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:-portal-admin-dev-secret}
     depends_on:
       postgres:
         condition: service_healthy
