@@ -1,10 +1,12 @@
 import uuid
 
-from fastapi import APIRouter, Query, Security, status
+from fastapi import APIRouter, Depends, Query, Security, status
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import require_scope
 from app.auth.keycloak import Principal
+from app.db import get_db
 from app.services import agency as agency_service
 from app.services import agency_golden
 
@@ -42,10 +44,13 @@ class EvalResultResponse(BaseModel):
     summary="Create a golden question for an agency (admin)",
 )
 async def create_golden_question(
-    agency_id: str, body: GoldenQuestionCreate, _: Principal = Security(require_scope, scopes=["agency:write"])
+    agency_id: str,
+    body: GoldenQuestionCreate,
+    session: AsyncSession = Depends(get_db),
+    _: Principal = Security(require_scope, scopes=["agency:write"]),
 ) -> GoldenQuestionResponse:
-    agency = await agency_service.get_agency_or_404(agency_id)
-    gq = await agency_golden.create_golden_question(agency, body.question, body.expected_topics)
+    agency = await agency_service.get_agency_or_404(session, agency_id)
+    gq = await agency_golden.create_golden_question(session, agency, body.question, body.expected_topics)
     return GoldenQuestionResponse(id=gq.id, agency_id=agency.id, question=gq.question, expected_topics=gq.expected_topics)
 
 
@@ -55,10 +60,12 @@ async def create_golden_question(
     summary="List golden questions for an agency (admin)",
 )
 async def list_golden_questions(
-    agency_id: str, _: Principal = Security(require_scope, scopes=["agency:read"])
+    agency_id: str,
+    session: AsyncSession = Depends(get_db),
+    _: Principal = Security(require_scope, scopes=["agency:read"]),
 ) -> list[GoldenQuestionResponse]:
-    agency = await agency_service.get_agency_or_404(agency_id)
-    questions = await agency_golden.list_golden_questions(agency)
+    agency = await agency_service.get_agency_or_404(session, agency_id)
+    questions = await agency_golden.list_golden_questions(session, agency)
     return [
         GoldenQuestionResponse(id=q.id, agency_id=agency.id, question=q.question, expected_topics=q.expected_topics)
         for q in questions
@@ -71,10 +78,13 @@ async def list_golden_questions(
     summary="Delete a golden question (admin)",
 )
 async def delete_golden_question(
-    agency_id: str, gq_id: uuid.UUID, _: Principal = Security(require_scope, scopes=["agency:write"])
+    agency_id: str,
+    gq_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db),
+    _: Principal = Security(require_scope, scopes=["agency:write"]),
 ) -> None:
-    agency = await agency_service.get_agency_or_404(agency_id)
-    await agency_golden.delete_golden_question(agency, gq_id)
+    agency = await agency_service.get_agency_or_404(session, agency_id)
+    await agency_golden.delete_golden_question(session, agency, gq_id)
 
 
 @router.get(
@@ -85,10 +95,11 @@ async def delete_golden_question(
 async def list_eval_results(
     agency_id: str,
     limit: int = Query(50, ge=1, le=200),
+    session: AsyncSession = Depends(get_db),
     _: Principal = Security(require_scope, scopes=["agency:read"]),
 ) -> list[EvalResultResponse]:
-    agency = await agency_service.get_agency_or_404(agency_id)
-    results = await agency_golden.list_eval_results(agency, limit)
+    agency = await agency_service.get_agency_or_404(session, agency_id)
+    results = await agency_golden.list_eval_results(session, agency, limit)
     return [
         EvalResultResponse(
             id=r.id,

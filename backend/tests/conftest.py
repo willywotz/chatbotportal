@@ -86,6 +86,36 @@ async def _engine(pg_container):
     await engine.dispose()
 
 
+@pytest_asyncio.fixture(scope="session", autouse=True)
+async def _bind_app_engine(_engine):
+    """Point the app's own-session factory at the test container so services
+    that open their OWN `AsyncSessionLocal()` hit the same test DB."""
+    import app.db as _db
+
+    _db.engine = _engine
+    _db.AsyncSessionLocal = async_sessionmaker(_engine, class_=AsyncSession, expire_on_commit=False)
+    yield
+
+
+@pytest_asyncio.fixture
+async def client(db_session):
+    """ASGI test client with `get_db` overridden to the test's `db_session`."""
+    from httpx import ASGITransport, AsyncClient
+
+    from app.db import get_db
+    from app.main import app
+
+    async def _override():
+        yield db_session
+
+    app.dependency_overrides[get_db] = _override
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            yield c
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+
 @pytest_asyncio.fixture
 async def db_session(_engine):
     """Outer transaction rolled back after each test; nested writes use savepoints."""

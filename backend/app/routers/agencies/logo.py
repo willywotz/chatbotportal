@@ -10,12 +10,14 @@ import uuid
 from collections.abc import Callable
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, Security, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Security, UploadFile, status
 from fastapi.responses import FileResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import require_scope
 from app.auth.keycloak import Principal
 from app.config import settings
+from app.db import get_db
 from app.routers.agencies._utils import _with_health
 from app.schemas.agency import AgencyResponse
 from app.services import agency as agency_service
@@ -60,9 +62,10 @@ def sweep_agency_logo_files(agency_id: uuid.UUID | str) -> None:
 async def upload_agency_logo(
     agency_id: uuid.UUID,
     file: UploadFile = File(...),
+    session: AsyncSession = Depends(get_db),
     _: Principal = Security(require_scope, scopes=["agency:write"]),
 ):
-    agency = await agency_service.get_agency_or_404(agency_id)
+    agency = await agency_service.get_agency_or_404(session, agency_id)
 
     validator = _MAGIC_VALIDATORS.get(file.content_type)
     if validator is None:
@@ -88,8 +91,8 @@ async def upload_agency_logo(
     path.write_bytes(data)
     path.chmod(0o644)
 
-    agency = await agency_service.update_logo(agency, f"/api/v1/public/agencies/{agency_id}/logo?v={digest}")
-    return await _with_health(agency)
+    agency = await agency_service.update_logo(session, agency, f"/api/v1/public/agencies/{agency_id}/logo?v={digest}")
+    return await _with_health(session, agency)
 
 
 async def get_agency_logo(agency_id: uuid.UUID):
