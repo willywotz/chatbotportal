@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import Boolean, Enum as SAEnum, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, Enum as SAEnum, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.ext.mutable import MutableList
 from sqlalchemy.orm import Mapped, mapped_column
@@ -43,7 +43,7 @@ class Agency(Base):
         default=AgencyStatus.active,
     )
     auto_maintenance: Mapped[bool] = mapped_column(Boolean, default=False)
-    stats_reset_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    stats_reset_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     data_scope: Mapped[list] = mapped_column(MutableList.as_mutable(JSONB), default=list)
     color: Mapped[str | None] = mapped_column(String(50), nullable=True)
     endpoint_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
@@ -65,8 +65,10 @@ class Agency(Base):
     total_calls: Mapped[int] = mapped_column(Integer, default=0)
     rating_up: Mapped[int] = mapped_column(Integer, default=0)
     rating_down: Mapped[int] = mapped_column(Integer, default=0)
-    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     def __str__(self) -> str:
         return f"{self.short_name or self.name} ({self.connection_type})"

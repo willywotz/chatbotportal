@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Float, ForeignKey, Text, func
+from sqlalchemy import DateTime, Float, ForeignKey, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.ext.mutable import MutableList
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -23,7 +23,7 @@ class GoldenQuestion(Base):
     agency: Mapped["Agency"] = relationship(lazy="raise")
     question: Mapped[str] = mapped_column(Text)
     expected_topics: Mapped[list] = mapped_column(MutableList.as_mutable(JSONB), default=list)  # list[str]
-    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class EvalResult(Base):
@@ -37,4 +37,4 @@ class EvalResult(Base):
     score: Mapped[float] = mapped_column(Float)
     answer: Mapped[str] = mapped_column(Text, default="")
     judge_reason: Mapped[str] = mapped_column(Text, default="")
-    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

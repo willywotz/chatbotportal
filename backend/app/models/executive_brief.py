@@ -7,7 +7,7 @@ brief is the latest row by `generated_at`.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, Text, func
+from sqlalchemy import DateTime, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -21,4 +21,4 @@ class ExecutiveBrief(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=generate_uuid)
     content: Mapped[str] = mapped_column(Text, default="")
     status: Mapped[str] = mapped_column(String(16), default="ok")  # ok | error
-    generated_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

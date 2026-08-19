@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, Integer, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.ext.mutable import MutableDict, MutableList
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -25,10 +25,14 @@ class Conversation(Base):
     external_session_id: Mapped[str | None] = mapped_column(String(100), nullable=True)  # for tracking sessions with external APIs
     # Tortoise field `metadata` collides with SQLAlchemy's Base.metadata; keep the DB column, rename the attribute.
     meta: Mapped[dict] = mapped_column("metadata", MutableDict.as_mutable(JSONB), default=dict)
-    deleted_at: Mapped[datetime | None] = mapped_column(nullable=True)  # soft-delete marker; null = not deleted
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )  # soft-delete marker; null = not deleted
 
-    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)  # Keycloak sub — not a local User FK
 
@@ -59,10 +63,14 @@ class Message(Base):
     category: Mapped[str | None] = mapped_column(String(50), nullable=True)  # สอบถามข้อมูล | ตรวจสอบสถานะ | ขั้นตอนดำเนินการ | กฎหมาย/ระเบียบ
     agency_ids: Mapped[list | None] = mapped_column(MutableList.as_mutable(JSONB), nullable=True, default=list)  # list of agency ids involved in this message
     errors: Mapped[list | None] = mapped_column(MutableList.as_mutable(JSONB), nullable=True, default=list)  # list of error messages if any
-    deleted_at: Mapped[datetime | None] = mapped_column(nullable=True)  # soft-delete marker; null = not deleted
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )  # soft-delete marker; null = not deleted
 
-    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)  # Keycloak sub — not a local User FK
 

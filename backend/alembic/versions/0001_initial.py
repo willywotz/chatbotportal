@@ -31,7 +31,7 @@ def upgrade() -> None:
     sa.Column('connection_type', sa.Enum('MCP', 'API', 'A2A', name='connectiontype', native_enum=False, length=10), nullable=False),
     sa.Column('status', sa.Enum('draft', 'active', 'maintenance', 'disabled', name='agencystatus', native_enum=False, length=20), nullable=False),
     sa.Column('auto_maintenance', sa.Boolean(), nullable=False),
-    sa.Column('stats_reset_at', sa.DateTime(), nullable=True),
+    sa.Column('stats_reset_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('data_scope', postgresql.JSONB(astext_type=sa.Text()), nullable=False),
     sa.Column('color', sa.String(length=50), nullable=True),
     sa.Column('endpoint_url', sa.String(length=1000), nullable=True),
@@ -53,8 +53,8 @@ def upgrade() -> None:
     sa.Column('total_calls', sa.Integer(), nullable=False),
     sa.Column('rating_up', sa.Integer(), nullable=False),
     sa.Column('rating_down', sa.Integer(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_agencies'))
     )
     op.create_table('audit_logs',
@@ -65,7 +65,7 @@ def upgrade() -> None:
     sa.Column('object_type', sa.String(length=30), nullable=True),
     sa.Column('object_id', sa.String(length=64), nullable=True),
     sa.Column('detail', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_audit_logs'))
     )
     op.create_table('conversations',
@@ -78,9 +78,9 @@ def upgrade() -> None:
     sa.Column('response_time', sa.String(length=50), nullable=True),
     sa.Column('external_session_id', sa.String(length=100), nullable=True),
     sa.Column('metadata', postgresql.JSONB(astext_type=sa.Text()), nullable=False),
-    sa.Column('deleted_at', sa.DateTime(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('user_id', sa.UUID(), nullable=True),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_conversations'))
     )
@@ -88,15 +88,15 @@ def upgrade() -> None:
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('event_type', sa.String(length=100), nullable=False),
     sa.Column('payload', postgresql.JSONB(astext_type=sa.Text()), nullable=False),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
-    sa.Column('dispatched_at', sa.DateTime(), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('dispatched_at', sa.DateTime(timezone=True), nullable=True),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_domain_events'))
     )
     op.create_table('executive_briefs',
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('content', sa.Text(), nullable=False),
     sa.Column('status', sa.String(length=16), nullable=False),
-    sa.Column('generated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('generated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_executive_briefs'))
     )
     op.create_table('llm_providers',
@@ -112,8 +112,8 @@ def upgrade() -> None:
     sa.Column('rate_limit_rpm', sa.Integer(), nullable=True),
     sa.Column('max_queue_size', sa.Integer(), nullable=False),
     sa.Column('enabled', sa.Boolean(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_llm_providers')),
     sa.UniqueConstraint('name', name=op.f('uq_llm_providers_name'))
     )
@@ -128,7 +128,7 @@ def upgrade() -> None:
     sa.Column('agency_id', sa.UUID(), nullable=True),
     sa.Column('conversation_id', sa.UUID(), nullable=True),
     sa.Column('api_key_id', sa.UUID(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_llm_usage'))
     )
     op.create_table('rate_limit_counters',
@@ -145,7 +145,7 @@ def upgrade() -> None:
     sa.Column('field_type', sa.String(length=20), nullable=False),
     sa.Column('group', sa.String(length=50), nullable=False),
     sa.Column('is_secret', sa.Boolean(), nullable=False),
-    sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_by', sa.String(length=255), nullable=True),
     sa.PrimaryKeyConstraint('key', name=op.f('pk_settings'))
     )
@@ -157,7 +157,7 @@ def upgrade() -> None:
     sa.Column('status', sa.String(length=20), nullable=False),
     sa.Column('latency_ms', sa.Integer(), nullable=False),
     sa.Column('detail', sa.Text(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('request_body', sa.Text(), nullable=True),
     sa.Column('response_body', sa.Text(), nullable=True),
     sa.Column('message_id', sa.UUID(), nullable=True),
@@ -170,7 +170,7 @@ def upgrade() -> None:
     sa.Column('agency_id', sa.UUID(), nullable=False),
     sa.Column('question', sa.Text(), nullable=False),
     sa.Column('expected_topics', postgresql.JSONB(astext_type=sa.Text()), nullable=False),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['agency_id'], ['agencies.id'], name=op.f('fk_golden_questions_agency_id_agencies'), ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_golden_questions'))
     )
@@ -181,8 +181,8 @@ def upgrade() -> None:
     sa.Column('model', sa.String(length=200), nullable=False),
     sa.Column('timeout_override', sa.Float(), nullable=True),
     sa.Column('enabled', sa.Boolean(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['provider_id'], ['llm_providers.id'], name=op.f('fk_llm_routes_provider_id_llm_providers'), ondelete='RESTRICT'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_llm_routes')),
     sa.UniqueConstraint('purpose', name=op.f('uq_llm_routes_purpose'))
@@ -203,9 +203,9 @@ def upgrade() -> None:
     sa.Column('category', sa.String(length=50), nullable=True),
     sa.Column('agency_ids', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.Column('errors', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-    sa.Column('deleted_at', sa.DateTime(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('user_id', sa.UUID(), nullable=True),
     sa.ForeignKeyConstraint(['conversation_id'], ['conversations.id'], name=op.f('fk_messages_conversation_id_conversations'), ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_messages'))
@@ -220,8 +220,8 @@ def upgrade() -> None:
     sa.Column('hidden', sa.Boolean(), nullable=False),
     sa.Column('sort_order', sa.Integer(), nullable=False),
     sa.Column('score', sa.Float(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['agency_id'], ['agencies.id'], name=op.f('fk_popular_questions_agency_id_agencies'), ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_popular_questions')),
     sa.UniqueConstraint('text_key', name=op.f('uq_popular_questions_text_key'))
@@ -232,7 +232,7 @@ def upgrade() -> None:
     sa.Column('score', sa.Float(), nullable=False),
     sa.Column('answer', sa.Text(), nullable=False),
     sa.Column('judge_reason', sa.Text(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['golden_question_id'], ['golden_questions.id'], name=op.f('fk_eval_results_golden_question_id_golden_questions'), ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_eval_results'))
     )

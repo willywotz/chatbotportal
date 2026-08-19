@@ -7,7 +7,7 @@ dispatcher later delivers undispatched rows to in-process consumers and stamps
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, func
+from sqlalchemy import DateTime, String, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Mapped, mapped_column
@@ -22,5 +22,5 @@ class DomainEvent(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=generate_uuid)
     event_type: Mapped[str] = mapped_column(String(100))
     payload: Mapped[dict] = mapped_column(MutableDict.as_mutable(JSONB), default=dict)
-    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    dispatched_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    dispatched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

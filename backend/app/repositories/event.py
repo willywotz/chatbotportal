@@ -14,11 +14,6 @@ async def add(session: AsyncSession, event_type: str, payload: dict) -> DomainEv
     return obj
 
 
-def _naive_now():
-    # `dispatched_at` is TIMESTAMP WITHOUT TIME ZONE; strip the tzinfo `now()` adds.
-    return now().replace(tzinfo=None)
-
-
 async def pending(session: AsyncSession, limit: int) -> list[DomainEvent]:
     stmt = (
         select(DomainEvent)
@@ -30,5 +25,5 @@ async def pending(session: AsyncSession, limit: int) -> list[DomainEvent]:
 
 
 async def mark_dispatched(session: AsyncSession, event: DomainEvent) -> None:
-    event.dispatched_at = _naive_now()
+    event.dispatched_at = now()
     await session.flush()

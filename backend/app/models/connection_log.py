@@ -5,7 +5,7 @@ ConnectionLog — records every agency connection test or query attempt.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, Integer, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -27,7 +27,7 @@ class ConnectionLog(Base):
     status: Mapped[str] = mapped_column(String(20))  # success | error
     latency_ms: Mapped[int] = mapped_column(Integer, default=0)
     detail: Mapped[str] = mapped_column(Text, default="")
-    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     request_body: Mapped[str | None] = mapped_column(Text, nullable=True, default="")
     response_body: Mapped[str | None] = mapped_column(Text, nullable=True, default="")
