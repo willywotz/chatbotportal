@@ -18,16 +18,13 @@ from app.trace_util import with_trace_query
 from app.utils import generate_uuid
 
 mcp = FastMCP(
-    name="AI Chatbot Portal MCP",
+    name="AI Chatbot Portal",
     instructions=(
-        "This server exposes Thai government agency data for the AI Chatbot Portal.\n\n"
-        "Available tool:\n"
-        "- list_agency: Returns a JSON object with an `agencies` array and `total` count. "
-        "Each agency contains: id, name, description, connection_type "
-        "(MCP | API | A2A), data_scope (list of data categories), "
-        "endpoint_url, expected_payload.\n\n"
-        "Always call list_agency before answering questions about available agencies. "
-        "Never fabricate agency data."
+        "Directory of Thai government agencies reachable through the AI Chatbot Portal.\n"
+        "Call `list_agency` to get every active agency, then answer only from that data — "
+        "never invent an agency, endpoint, or field.\n"
+        "Each agency gives: id, name, description, connection_type (MCP | API | A2A), "
+        "data_scope, endpoint_url, expected_payload."
     ),
 )
 
