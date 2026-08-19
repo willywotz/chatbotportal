@@ -10,7 +10,6 @@ import {
 } from './chatHelpers';
 
 vi.mock('@/features/chat/chatApi', () => ({
-  sendChatQueryWS: vi.fn(),
   sendChatQuerySSE: vi.fn(),
   sendChatQuery: vi.fn(),
 }));
@@ -24,16 +23,14 @@ vi.mock('@/shared/data/mockData', () => ({
 }));
 
 import { updateMessageRating } from '@/features/chat/feedbackApi';
-import { sendChatQuery, sendChatQuerySSE, sendChatQueryWS } from '@/features/chat/chatApi';
+import { sendChatQuery, sendChatQuerySSE } from '@/features/chat/chatApi';
 
 const mockUpdateRating = updateMessageRating as ReturnType<typeof vi.fn>;
-const mockSendWS = sendChatQueryWS as ReturnType<typeof vi.fn>;
 const mockSendSSE = sendChatQuerySSE as ReturnType<typeof vi.fn>;
 const mockSendChatQuery = sendChatQuery as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockSendWS.mockResolvedValue(false);
   mockSendSSE.mockResolvedValue(false);
 });
 

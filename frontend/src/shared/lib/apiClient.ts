@@ -14,7 +14,7 @@
  * Usage:
  *   import { api } from '@/shared/lib/apiClient';
  *   const data = await api.get<AgencyList>('/api/v1/agencies');
- *   const result = await api.post('/api/v1/chat', { query: '...' });
+ *   const result = await api.post('/api/v1/public/chat', { query: '...' });
  */
 
 import axios, { type AxiosInstance, type AxiosResponse } from 'axios';

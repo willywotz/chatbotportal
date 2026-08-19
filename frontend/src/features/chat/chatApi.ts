@@ -1,4 +1,5 @@
 import { api } from '@/shared/lib/apiClient';
+import { keycloak, updateToken } from '@/shared/lib/keycloak';
 import { STREAM_IDLE_TIMEOUT_MS } from '@/shared/constants/query';
 import type { AgentStep } from '@/shared/types';
 import type {
@@ -39,7 +40,7 @@ export interface ChatApiResponse {
 }
 
 export async function sendChatQuery(request: ChatApiRequest): Promise<ChatApiResponse> {
-  return api.post<ChatApiResponse>('/api/v1/chat', request);
+  return api.post<ChatApiResponse>('/api/v1/public/chat', request);
 }
 
 export type SSEEventType = 'step' | 'agencies' | 'intent' | 'routing' | 'agency_start' | 'agency_responded' | 'agency_verified' | 'answer' | 'done' | 'error';
@@ -57,7 +58,7 @@ export interface SSECallbacks {
   onError?: (event: ErrorEvent) => void;
 }
 
-/** Dispatches one decoded stream event (from SSE or WS) to its matching callback. */
+/** Dispatches one decoded SSE stream event to its matching callback. */
 export function dispatchStreamEvent(event: string, data: unknown, callbacks: SSECallbacks): void {
   switch (event) {
     case 'step': callbacks.onStep?.(data as StepEvent); break;
@@ -110,16 +111,29 @@ export async function sendChatQuerySSE(
   signal?: AbortSignal,
 ): Promise<boolean> {
   const baseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '';
-  const url = `${baseUrl}/api/v1/chat`;
+  const url = `${baseUrl}/api/v1/public/chat`;
+
+  if (keycloak.authenticated) {
+    try {
+      await updateToken(30);
+    } catch {
+      // Refresh failed; proceed unauthenticated and let the server 401.
+    }
+  }
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Accept': 'text/event-stream',
+  };
+  if (keycloak.token) {
+    headers.Authorization = `Bearer ${keycloak.token}`;
+  }
 
   let response: Response;
   try {
     response = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'text/event-stream',
-      },
+      headers,
       body: JSON.stringify({ ...request, stream: true }),
       credentials: 'include',
       signal,
@@ -200,57 +214,6 @@ export async function sendChatQuerySSE(
   }
 
   return true;
-}
-
-/**
- * Send chat query over the WS chat endpoint. Resolves `true` once a `done`
- * frame arrives or after any frame has been received (WS died mid-stream —
- * the caller must NOT fall back to SSE, that would double-persist the turn).
- * Resolves `false` only if the socket never opened or closed before its
- * first frame, signalling the caller to retry over SSE.
- */
-export async function sendChatQueryWS(
-  request: ChatApiRequest,
-  callbacks: SSECallbacks,
-  signal?: AbortSignal,
-): Promise<boolean> {
-  const httpBase = (import.meta.env.VITE_API_BASE_URL as string | undefined) || window.location.origin;
-  const url = `${httpBase.replace(/^http/, 'ws')}/api/v1/chat`;
-
-  return new Promise<boolean>((resolve) => {
-    let ws: WebSocket;
-    try {
-      ws = new WebSocket(url);
-    } catch {
-      resolve(false);
-      return;
-    }
-
-    let receivedFrame = false;
-    let settled = false;
-    const finish = (v: boolean) => {
-      if (settled) return;
-      settled = true;
-      try { ws.close(); } catch { /* noop */ }
-      resolve(v);
-    };
-
-    signal?.addEventListener('abort', () => finish(receivedFrame));
-    ws.onopen = () => ws.send(JSON.stringify(request));
-    ws.onmessage = (ev) => {
-      receivedFrame = true;
-      let frame: { event?: string; data?: unknown };
-      try {
-        frame = JSON.parse(ev.data as string);
-      } catch {
-        return;
-      }
-      if (frame.event) dispatchStreamEvent(frame.event, frame.data, callbacks);
-      if (frame.event === 'done') finish(true);
-    };
-    ws.onerror = () => { if (!receivedFrame) finish(false); }; // pre-frame error -> fall back
-    ws.onclose = () => finish(receivedFrame); // closed before frame -> false
-  });
 }
 
 function parseSSEBlock(block: string): { event: string; data: unknown } | null {
