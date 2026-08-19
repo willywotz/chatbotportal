@@ -23,9 +23,6 @@ async def _bind_scheduler_session(db_session, monkeypatch):
         join_transaction_mode="create_savepoint",
     )
     monkeypatch.setattr(scheduler, "AsyncSessionLocal", factory)
-    # Alembic's fileConfig (disable_existing_loggers=True, run by the session-scoped
-    # `_engine` fixture) disables any logger created at import time before it runs.
-    logging.getLogger("app.scheduler").disabled = False
 
 
 async def _mk_agency(db_session, **over) -> Agency:

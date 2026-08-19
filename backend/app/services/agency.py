@@ -8,6 +8,7 @@ import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.db import AsyncSessionLocal
 from app.errors import ApiError, ErrorCode
 from app.models.agency import Agency
 from app.repositories import agency as agency_repo
@@ -62,7 +63,8 @@ async def create_agency(session: AsyncSession, body: AgencyCreate) -> Agency:
 
 async def _flush_similarity_cache_best_effort() -> None:
     try:
-        await flush_similarity_cache()
+        async with AsyncSessionLocal() as session, session.begin():
+            await flush_similarity_cache(session)
     except Exception:
         logger.exception("failed to flush similarity cache after agency update")
 

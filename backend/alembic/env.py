@@ -18,7 +18,7 @@ config = context.config
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # 15-Factor III: config from environment, not the ini file.
 config.set_main_option("sqlalchemy.url", database_url(settings))

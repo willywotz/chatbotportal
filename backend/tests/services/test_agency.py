@@ -106,6 +106,26 @@ async def test_update_agency_demotes_active_agency_on_connection_identity_change
     assert updated.conformance_report is None
 
 
+async def test_update_agency_flushes_similarity_cache(db_session, monkeypatch):
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    import app.services.agency as agency_module
+    from app.repositories import setting as setting_repo
+    from app.schemas.agency import AgencyUpdate
+    from app.services.agency import update_agency
+
+    # _flush_similarity_cache_best_effort opens its OWN session; bind it to the
+    # test's connection (same DB transaction) so the flushed row is visible here.
+    conn = await db_session.connection()
+    factory = async_sessionmaker(bind=conn, expire_on_commit=False, join_transaction_mode="create_savepoint")
+    monkeypatch.setattr(agency_module, "AsyncSessionLocal", factory)
+
+    agency = await _agency(db_session)
+    await update_agency(db_session, agency, AgencyUpdate(name="renamed"))
+    row = await setting_repo.get(db_session, "SIMILARITY_CACHE_FLUSHED_AT")
+    assert row is not None
+
+
 async def test_delete_agency_removes_the_row(db_session):
     from app.repositories import agency as agency_repo
     from app.services.agency import delete_agency
