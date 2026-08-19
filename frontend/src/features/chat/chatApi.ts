@@ -135,7 +135,6 @@ export async function sendChatQuerySSE(
       method: 'POST',
       headers,
       body: JSON.stringify({ ...request, stream: true }),
-      credentials: 'include',
       signal,
     });
   } catch (err) {

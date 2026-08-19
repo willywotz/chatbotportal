@@ -5,9 +5,9 @@ import { AgencyLogo } from "./AgencyLogo";
 
 describe("AgencyLogo", () => {
   it("renders an <img> for an uploaded backend logo path", () => {
-    render(<AgencyLogo logo="/api/v1/agencies/1/logo?v=abcd1234" alt="กรมสรรพากร" />);
+    render(<AgencyLogo logo="/api/v1/public/agencies/1/logo?v=abcd1234" alt="กรมสรรพากร" />);
     const img = screen.getByRole("img", { name: "กรมสรรพากร" });
-    expect(img).toHaveAttribute("src", "/api/v1/agencies/1/logo?v=abcd1234");
+    expect(img).toHaveAttribute("src", "/api/v1/public/agencies/1/logo?v=abcd1234");
   });
 
   it("renders an <img> for an absolute http(s) URL", () => {

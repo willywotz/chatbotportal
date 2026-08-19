@@ -58,8 +58,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // On mount: Keycloak (initialized in main.tsx) already knows whether a
   // session exists; if so, ask the backend who the bearer token belongs to.
+  // Mock mode has no real Keycloak server (main.tsx skips initKeycloak()),
+  // so `keycloak.authenticated` stays false there — MSW's `/me` mock stands
+  // in for a signed-in session instead.
   useEffect(() => {
-    if (!keycloak.authenticated) {
+    const mocks = import.meta.env.VITE_USE_MOCKS === "true";
+    if (!keycloak.authenticated && !mocks) {
       setUser(null);
       setIsLoading(false);
       return;

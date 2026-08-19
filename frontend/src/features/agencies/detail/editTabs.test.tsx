@@ -236,7 +236,7 @@ describe("GeneralSection", () => {
 
   it("uploads a logo file and syncs the preview to the returned path", async () => {
     const user = userEvent.setup();
-    const uploadedLogo = `/api/v1/agencies/${ACTIVE_ID}/logo?v=abcd1234`;
+    const uploadedLogo = `/api/v1/public/agencies/${ACTIVE_ID}/logo?v=abcd1234`;
     mockUploadLogo.mockResolvedValueOnce({ ...activeAgency(), logo: uploadedLogo });
     render(wrap(<GeneralSection agency={activeAgency()} />));
     const file = new File(["x"], "logo.png", { type: "image/png" });

@@ -149,14 +149,14 @@ describe('sendChatQuerySSE — idle timeout', () => {
     expect(capturedBody).toEqual({ query: 'test', stream: true });
   });
 
-  it('sends credentials: include and no Authorization header when a guest', async () => {
+  it('sends no credentials and no Authorization header when a guest', async () => {
     server.use(makeCompletingSSEHandler());
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
     await sendChatQuerySSE({ query: 'test' }, {});
 
     const [, options] = fetchSpy.mock.calls[0];
-    expect(options?.credentials).toBe('include');
+    expect(options?.credentials).toBeUndefined();
     expect((options?.headers as Record<string, string> | undefined)?.Authorization).toBeUndefined();
 
     fetchSpy.mockRestore();
