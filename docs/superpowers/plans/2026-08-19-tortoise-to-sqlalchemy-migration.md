@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace the backend's Tortoise-ORM + Aerich data layer with SQLAlchemy 2 (async) + Alembic behind a full repository layer and Unit of Work, and swap the Postgres image to PGroonga.
+**Goal:** Replace the backend's Tortoise-ORM + Aerich data layer with SQLAlchemy 2 (async) + Alembic behind a full repository layer, using a request-scoped `get_db` session dependency, and swap the Postgres image to PGroonga.
 
-**Architecture:** All data access moves behind repository classes exposed off a per-request/per-job Unit of Work that owns one `AsyncSession` and one transaction boundary. Alembic (single squashed baseline) becomes the sole schema source of truth. Text search moves from pg_trgm to PGroonga. Tests run against a real Postgres testcontainer.
+**Architecture:** A FastAPI `get_db()` dependency yields a request-scoped `AsyncSession` wrapped in `session.begin()` — the dependency owns one transaction per request (commit-on-success, rollback-on-exception). All data access is via module-level repository functions taking `session` first; services take `session` and never call `commit()`. Alembic (single squashed baseline) is the sole schema source of truth. Text search moves from pg_trgm to PGroonga. Tests run against a real Postgres testcontainer.
 
 **Tech Stack:** FastAPI, SQLAlchemy 2 (async, asyncpg), Alembic, PostgreSQL 17 + PGroonga, pytest + testcontainers.
 
@@ -15,10 +15,11 @@
 - SQLAlchemy `>=2.0` (async), Alembic `>=1.13`, `asyncpg` direct dep, `testcontainers[postgres]>=4` (dev). Remove `tortoise-orm`, `aerich`, `pgvector`.
 - Postgres image (compose, deploy, testcontainers): `groonga/pgroonga:4.0.8-debian-17` — exact tag, verbatim.
 - Engine URL scheme: `postgresql+asyncpg://`. Keep `sslmode`→`ssl` mapping.
-- `async_sessionmaker(expire_on_commit=False)`.
+- `AsyncSessionLocal = async_sessionmaker(expire_on_commit=False)`. The `get_db()` dependency owns the transaction via `async with session.begin()`. Services/routers NEVER call `commit()`; use `await session.flush()` for mid-transaction PKs.
 - Schema source-of-truth is Alembic ONLY — no `generate_schemas`/`create_all` at runtime.
 - Tables stay schema-identical to today: enums stored as **varchar** (not native PG ENUM); same table/column names; FK `ondelete` preserved (CASCADE / RESTRICT / SET NULL as inventoried).
-- Services import zero `tortoise` and hold zero raw queries — all data access via repositories off the UoW.
+- Repositories are **module-level functions taking `session` first** (matching today's style). Services import zero `tortoise` and hold zero raw queries — all data access via repository functions.
+- Chat streaming persistence (`turn.py`) opens its OWN short-lived `AsyncSessionLocal()`+`begin()`, NOT the request-scoped `get_db` session (avoids pinning a connection for the stream's lifetime).
 - Branch: `refactor/sqlalchemy-migration` (already created). TDD per task, frequent commits. American English naming; full words for any new public route.
 
 ---
@@ -45,7 +46,9 @@
 
 ## Tortoise → SQLAlchemy 2 idiom table (apply everywhere)
 
-| Tortoise | SQLAlchemy 2 (async, `session` = UoW session) |
+`session` is the `AsyncSession` (request-scoped from `get_db`, or opened directly in non-request contexts).
+
+| Tortoise | SQLAlchemy 2 (async) |
 |---|---|
 | `Model.get_or_none(id=x)` | `await session.get(Model, x)` (PK) or `(await session.execute(select(Model).filter_by(**f))).scalar_one_or_none()` |
 | `Model.get(id=x)` (raises) | `await session.get(Model, x)` then `if row is None: raise` |
@@ -59,23 +62,23 @@
 | `qs.order_by("-created_at")` | `.order_by(Model.created_at.desc())` |
 | `qs.offset(o).limit(n)` | `.offset(o).limit(n)` |
 | `await qs` (list) | `(await session.execute(stmt)).scalars().all()` |
-| `await qs.count()` | `(await session.execute(select(func.count()).select_from(stmt.subquery()))).scalar_one()` |
+| `await qs.count()` | `(await session.execute(select(func.count()).select_from(stmt.order_by(None).subquery()))).scalar_one()` |
 | `await qs.first()` | `(await session.execute(stmt.limit(1))).scalars().first()` |
 | `await qs.exists()` | `(await session.execute(select(literal(True)).where(...).limit(1))).scalar() is not None` |
 | `Model.create(**f)` | `obj = Model(**f); session.add(obj); await session.flush(); return obj` |
-| `obj.save(update_fields=...)` | dirty attrs are flushed by UoW commit; call `await session.flush()` if an id/refresh is needed |
+| `obj.save(update_fields=...)` | dirty attrs flush on the request-transaction commit; call `await session.flush()` if an id/refresh is needed now |
 | `obj.delete()` | `await session.delete(obj)` |
 | `Model.filter(id=x).update(col=F("col")+1)` | `await session.execute(update(Model).where(Model.id==x).values(col=Model.col+1))` |
 | `obj.refresh_from_db(fields=[...])` | `await session.refresh(obj, attribute_names=[...])` |
 | `Model.bulk_create(rows, ignore_conflicts=True)` | `stmt = pg_insert(Model).values([...]).on_conflict_do_nothing(); await session.execute(stmt)` (`from sqlalchemy.dialects.postgresql import insert as pg_insert`) |
 | `obj.update_from_dict(d).save()` | `for k,v in d.items(): setattr(obj,k,v)` then flush on commit |
 | `.prefetch_related("agency")` | `.options(selectinload(Model.agency))` |
-| `in_transaction()` | the UoW already owns one transaction; use `uow.session`. For raw: `await session.execute(text("SET LOCAL TIME ZONE :tz"), {"tz": settings.TIMEZONE})` |
+| `in_transaction()` | the `get_db` dependency already owns one transaction; use `session`. For raw: `await session.execute(text("SET LOCAL TIME ZONE :tz"), {"tz": settings.TIMEZONE})` |
 | `conn.execute_query_dict(sql, params)` | `(await session.execute(text(sql), params_dict)).mappings().all()` — convert `$1` to `:name` bind params |
 | `RawSQL("expr")` annotation | `func.*` / `text("expr")` inside the read-model repo's `select` |
-| `Tortoise.get_connection("default")` | the UoW `session` |
+| `Tortoise.get_connection("default")` | the `session` |
 
-> Raw SQL note: replace asyncpg positional `$1` with SQLAlchemy named binds (`:query`, `:cutoff`, …). Use `SET LOCAL TIME ZONE` inside the UoW transaction so the timezone never leaks to the next pooled checkout.
+> Raw SQL note: replace asyncpg positional `$1` with SQLAlchemy named binds (`:query`, `:cutoff`, …). Use `SET LOCAL TIME ZONE` inside the request transaction so the timezone never leaks to the next pooled checkout.
 
 ---
 
@@ -125,16 +128,16 @@ git commit -m "build: swap tortoise/aerich/pgvector for sqlalchemy/alembic + pgr
 
 ---
 
-# Phase 1 — Declarative Base, engine, config
+# Phase 1 — Declarative Base, config, engine + get_db
 
-### Task 1: Declarative `Base` and shared column helpers
+### Task 1: Declarative `Base` and naming convention
 
 **Files:**
 - Create: `backend/app/models/base.py`
 - Test: `backend/tests/test_orm_base.py`
 
 **Interfaces:**
-- Produces: `Base` (DeclarativeBase), `uuid_pk()` → `mapped_column(...)`, timestamp mixin columns `created_at`/`updated_at` conventions used by all models.
+- Produces: `Base` (DeclarativeBase) with a deterministic naming convention (clean Alembic diffs). Consumed by every model.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -144,7 +147,6 @@ from app.models.base import Base
 
 def test_base_has_metadata_and_naming_convention():
     assert Base.metadata is not None
-    # deterministic constraint names for clean Alembic diffs
     assert "ix" in Base.metadata.naming_convention
 ```
 
@@ -181,7 +183,7 @@ Expected: PASS.
 
 ```bash
 git add backend/app/models/base.py backend/tests/test_orm_base.py
-git commit -m "feat(db): add SQLAlchemy declarative Base with naming convention"
+git commit -m "feat(db): SQLAlchemy declarative Base with naming convention"
 ```
 
 ### Task 2: Config — async URL + connect args (replaces `_build_tortoise_orm`)
@@ -197,7 +199,6 @@ git commit -m "feat(db): add SQLAlchemy declarative Base with naming convention"
 
 ```python
 # tests/test_database_config.py
-import pytest
 from app.config import Settings, database_url, connect_args
 
 
@@ -234,8 +235,7 @@ def database_url(s: "Settings") -> str:
     parsed = urlparse(s.DATABASE_URL)
     if not parsed.hostname:
         raise ValueError(f"DATABASE_URL is malformed: {s.DATABASE_URL!r}")
-    netloc = parsed.netloc
-    return urlunparse(("postgresql+asyncpg", netloc, parsed.path, "", "", ""))
+    return urlunparse(("postgresql+asyncpg", parsed.netloc, parsed.path, "", "", ""))
 
 
 def connect_args(s: "Settings") -> dict:
@@ -263,27 +263,32 @@ git add backend/app/config.py backend/tests/test_database_config.py
 git commit -m "feat(db): async DB URL + connect_args, drop TORTOISE_ORM"
 ```
 
-### Task 3: Engine + sessionmaker
+### Task 3: Engine, `AsyncSessionLocal`, and `get_db` dependency
 
 **Files:**
 - Create: `backend/app/db.py`
 - Test: `backend/tests/test_engine.py`
 
 **Interfaces:**
-- Produces: `engine` (`AsyncEngine`), `session_factory` (`async_sessionmaker[AsyncSession]`), `close_db()` coroutine. These are consumed by the UoW (Task 15) and startup (Task 40).
+- Produces: `engine` (`AsyncEngine`), `AsyncSessionLocal` (`async_sessionmaker[AsyncSession]`), `get_db()` (async generator FastAPI dependency that owns the request transaction), `close_db()`. Consumed by routers, services, startup (Task 30), and the test harness (Task 10). `run_migrations()`/`init_db()` land in Task 30.
 
 - [ ] **Step 1: Write the failing test**
 
 ```python
 # tests/test_engine.py
 from sqlalchemy.ext.asyncio import AsyncEngine
-from app.db import engine, session_factory
+from app.db import engine, AsyncSessionLocal, get_db
 
 
 def test_engine_uses_asyncpg_and_no_expire_on_commit():
     assert isinstance(engine, AsyncEngine)
     assert engine.url.drivername == "postgresql+asyncpg"
-    assert session_factory.kw["expire_on_commit"] is False
+    assert AsyncSessionLocal.kw["expire_on_commit"] is False
+
+
+def test_get_db_is_async_generator_callable():
+    import inspect
+    assert inspect.isasyncgenfunction(get_db)
 ```
 
 - [ ] **Step 2: Run to verify it fails**
@@ -294,6 +299,8 @@ Expected: FAIL (`ModuleNotFoundError: app.db`).
 - [ ] **Step 3: Implement `app/db.py`**
 
 ```python
+from collections.abc import AsyncGenerator
+
 from sqlalchemy.ext.asyncio import (
     AsyncSession, async_sessionmaker, create_async_engine,
 )
@@ -308,9 +315,19 @@ engine = create_async_engine(
     future=True,
 )
 
-session_factory = async_sessionmaker(
+AsyncSessionLocal = async_sessionmaker(
     engine, class_=AsyncSession, expire_on_commit=False,
 )
+
+
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    """Request-scoped session; the dependency owns one transaction.
+
+    Commit-on-success, rollback-on-exception. Callers never commit.
+    """
+    async with AsyncSessionLocal() as session:
+        async with session.begin():
+            yield session
 
 
 async def close_db() -> None:
@@ -326,14 +343,14 @@ Expected: PASS.
 
 ```bash
 git add backend/app/db.py backend/tests/test_engine.py
-git commit -m "feat(db): async engine + sessionmaker (expire_on_commit=False)"
+git commit -m "feat(db): async engine, sessionmaker, get_db transaction dependency"
 ```
 
 ---
 
 # Phase 2 — Models
 
-> Reference task 4 shows the full mapping shape for one model. Tasks 5–8 apply the identical pattern to the remaining models using the per-model deltas from the inventory table. Each model task ends by importing the class in `app/models/__init__.py` and running the metadata smoke test.
+> Reference task 4 shows the full mapping shape for one model. Tasks 5–7 apply the identical pattern to the remaining models using the per-model deltas from the inventory table. Each model task ends by importing the class in `app/models/__init__.py` and running the metadata smoke test.
 
 ### Task 4: `Agency` model (reference mapping)
 
@@ -373,7 +390,7 @@ import uuid
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import BigInteger, Boolean, Integer, String, Text, func
+from sqlalchemy import Boolean, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.ext.mutable import MutableList
 from sqlalchemy.orm import Mapped, mapped_column
@@ -427,7 +444,7 @@ class Agency(Base):
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 ```
 
-Notes carried to every model: enum columns are `String(n)` with `default=Enum.member` (SQLAlchemy coerces the `str, Enum` value on write/read); `auto_now_add`→`server_default=func.now()`; `auto_now`→ add `onupdate=func.now()`; JSON columns that services mutate in place use `MutableList/MutableDict.as_mutable(JSONB)`.
+Notes carried to every model: enum columns are `String(n)` with `default=Enum.member`; `auto_now_add`→`server_default=func.now()`; `auto_now`→ add `onupdate=func.now()`; JSON columns that services mutate in place use `MutableList/MutableDict.as_mutable(JSONB)`.
 
 - [ ] **Step 4: Run to verify it passes**
 
@@ -480,12 +497,12 @@ agency: Mapped["Agency | None"] = relationship(lazy="raise")
 ```
 Per-model FK deltas (ondelete verbatim from inventory):
 - **ConnectionLog** (`connection_logs`): `agency_id`→agencies **CASCADE**, nullable. Plain UUID cols `message_id`, `assistant_message_id`. `action` default "test".
-- **Conversation** (`conversations`): no FK; `title` String(500) default `"สนทนาใหม่"`; `metadata` → **map attribute `meta` to column name `metadata`** via `mapped_column("metadata", ...)` (SQLAlchemy reserves `Base.metadata`; keep DB column `metadata`, rename Python attr to `meta` and update the ~2 call sites). `agencies` JSONB default list; `response_time` String(50) null.
+- **Conversation** (`conversations`): no FK; `title` String(500) default `"สนทนาใหม่"`; the Tortoise `metadata` field → **map Python attribute `meta` to DB column `metadata`** via `mapped_column("metadata", JSONB, default=dict)` (SQLAlchemy reserves `Base.metadata`; keep the DB column name, rename the attribute, and update the ~2 call sites that read `conv.metadata`). `agencies` JSONB default list; `response_time` String(50) null.
 - **Message** (`messages`): `conversation_id`→conversations **CASCADE** (not null); plain UUID `parent_id`, `user_id`; JSONB list fields (`agent_steps`, `sources`, `summary_references`, `agency_ids`, `errors`).
 - **GoldenQuestion** (`golden_questions`): `agency_id`→agencies **CASCADE**.
 - **EvalResult** (`eval_results`): `golden_question_id`→golden_questions **CASCADE**; `score` Float.
 - **LlmRoute** (`llm_routes`): `provider_id`→llm_providers **RESTRICT**; `purpose` String(50) unique.
-- **PopularQuestion** (`popular_questions`): `agency_id`→agencies **SET NULL**, nullable; `text_key` unique; `source` enum-as-varchar String(10) default manual. `__table_args__` not needed beyond unique on text_key.
+- **PopularQuestion** (`popular_questions`): `agency_id`→agencies **SET NULL**, nullable; `text_key` unique; `source` enum-as-varchar String(10) default manual.
 
 - [ ] **Step 1:** Add per-model tests asserting the FK column, its `ondelete`, and the relationship exists. Example:
 ```python
@@ -543,11 +560,8 @@ import app.models  # noqa: F401  register all tables
 
 config.set_main_option("sqlalchemy.url", database_url(settings))
 target_metadata = Base.metadata
-
-def _engine():
-    return create_async_engine(database_url(settings), connect_args=connect_args(settings))
 ```
-Keep the async `run_migrations_online` using `connection.run_sync(...)`.
+Keep the async `run_migrations_online` using `connection.run_sync(...)`; pass `connect_args(settings)` when it builds the engine.
 - [ ] **Step 3:** `alembic.ini` — remove the hardcoded `sqlalchemy.url` line (env.py sets it; 15-factor).
 - [ ] **Step 4:** Run `cd backend && alembic history` — expect no error, empty history.
 - [ ] **Step 5:** Commit `chore(alembic): async migration scaffolding`.
@@ -556,7 +570,6 @@ Keep the async `run_migrations_online` using `connection.run_sync(...)`.
 
 **Files:**
 - Create: `backend/alembic/versions/0001_initial.py`
-- Delete: `backend/migrations/` (Aerich tree) — done in Task 44, not here.
 
 - [ ] **Step 1:** With a throwaway Postgres up (`docker compose up -d postgres`), run:
 `cd backend && alembic revision --autogenerate -m "initial"`
@@ -582,28 +595,29 @@ Expected: all tables created, PGroonga extension + index present (`\d messages`)
 - Test: `backend/tests/test_harness_smoke.py`
 
 **Interfaces:**
-- Produces: session-scoped `pg_container` (PGroonga image), and a function-scoped `uow` fixture yielding a `UnitOfWork` bound to a rolled-back transaction. Consumed by every DB test.
+- Produces: session-scoped `pg_container` (PGroonga image) + `_engine` (Alembic-upgraded); a function-scoped `db_session` fixture yielding an `AsyncSession` bound to a rolled-back outer transaction, which also overrides `get_db`. Consumed by every DB test.
 
 - [ ] **Step 1: Write the failing smoke test**
 
 ```python
 # tests/test_harness_smoke.py
 import pytest
+from sqlalchemy import text
 
 pytestmark = pytest.mark.asyncio
 
-async def test_pgroonga_available(uow):
-    from sqlalchemy import text
-    row = (await uow.session.execute(
+async def test_pgroonga_available(db_session):
+    row = (await db_session.execute(
         text("SELECT extname FROM pg_extension WHERE extname='pgroonga'")
     )).scalar_one_or_none()
     assert row == "pgroonga"
 ```
 
-- [ ] **Step 2:** Run — expect FAIL (no `uow` fixture / no container).
+- [ ] **Step 2:** Run — expect FAIL (no `db_session` fixture / no container).
 - [ ] **Step 3: Implement fixture in `conftest.py`**
 
 ```python
+import asyncio
 import pytest, pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from testcontainers.postgres import PostgresContainer
@@ -618,148 +632,77 @@ async def _engine(pg_container):
     from alembic import command
     from alembic.config import Config
     url = pg_container.get_connection_url()
-    eng = create_async_engine(url)
     cfg = Config("alembic.ini"); cfg.set_main_option("sqlalchemy.url", url)
-    # run sync alembic against the container
-    import asyncio
     await asyncio.to_thread(command.upgrade, cfg, "head")
+    eng = create_async_engine(url)
     yield eng
     await eng.dispose()
 
 @pytest_asyncio.fixture
-async def uow(_engine):
-    from app.unit_of_work import UnitOfWork
+async def db_session(_engine):
+    # outer transaction rolled back after each test; nested writes use savepoints
     conn = await _engine.connect()
     trans = await conn.begin()
-    factory = async_sessionmaker(bind=conn, class_=AsyncSession, expire_on_commit=False, join_transaction_mode="create_savepoint")
-    async with UnitOfWork(session_factory=factory) as u:
-        yield u
-    await trans.rollback()
-    await conn.close()
+    factory = async_sessionmaker(
+        bind=conn, class_=AsyncSession, expire_on_commit=False,
+        join_transaction_mode="create_savepoint",
+    )
+    session = factory()
+    # make the app's get_db yield THIS session
+    from app.main import app
+    from app.db import get_db
+    async def _override():
+        yield session
+    app.dependency_overrides[get_db] = _override
+    try:
+        yield session
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+        await session.close()
+        await trans.rollback()
+        await conn.close()
 ```
 
-Remove the old Tortoise `db` fixture. (Tasks that used `db` migrate to `uow` in Phase 8.)
+Remove the old Tortoise `db` fixture. (Tests using `db` migrate to `db_session` in Phase 8.)
 
 - [ ] **Step 4:** Run `pytest tests/test_harness_smoke.py -v` — expect PASS (Docker required).
-- [ ] **Step 5:** Commit `test: real Postgres+PGroonga testcontainer harness with UoW fixture`.
+- [ ] **Step 5:** Commit `test: real Postgres+PGroonga testcontainer harness with db_session fixture`.
 
 ---
 
-# Phase 5 — Unit of Work & repository base
+# Phase 5 — Repositories
 
-### Task 15: UnitOfWork
+> Repositories are module-level functions taking `session` first. Reference task 15 shows one full write-model repo. Task 16 ports the other two existing repos. Task 17 adds the remaining write-model repos. Tasks 18–19 build read-model repos including the PGroonga rewrite. Each repo is exercised directly with the `db_session` fixture.
 
-**Files:**
-- Create: `backend/app/unit_of_work.py`
-- Test: `backend/tests/test_unit_of_work.py`
-
-**Interfaces:**
-- Produces: `UnitOfWork` with `.session`, lazy repo attributes (`.agency`, `.conversation`, `.message`, `.event`, …), `commit()`, `flush()`; async-context that commits on clean exit, rolls back on exception. `uow_factory()` and FastAPI dep `get_uow()`.
-
-- [ ] **Step 1: Write the failing test**
-
-```python
-# tests/test_unit_of_work.py
-import pytest
-pytestmark = pytest.mark.asyncio
-
-async def test_uow_exposes_repositories_and_commits(uow):
-    from app.models.agency import Agency
-    a = await uow.agency.create(name="X")
-    await uow.flush()
-    assert a.id is not None
-    got = await uow.agency.by_id(a.id)
-    assert got.name == "X"
-```
-
-- [ ] **Step 2:** Run — expect FAIL (no `unit_of_work`).
-- [ ] **Step 3: Implement `app/unit_of_work.py`**
-
-```python
-from __future__ import annotations
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from app.db import session_factory as _default_factory
-
-
-class UnitOfWork:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession] = _default_factory):
-        self._factory = session_factory
-        self.session: AsyncSession | None = None
-        self._repos: dict = {}
-
-    async def __aenter__(self) -> "UnitOfWork":
-        self.session = self._factory()
-        return self
-
-    async def __aexit__(self, exc_type, exc, tb):
-        try:
-            if exc_type is None:
-                await self.session.commit()
-            else:
-                await self.session.rollback()
-        finally:
-            await self.session.close()
-
-    async def commit(self): await self.session.commit()
-    async def flush(self): await self.session.flush()
-
-    def _repo(self, key, cls):
-        if key not in self._repos:
-            self._repos[key] = cls(self.session)
-        return self._repos[key]
-
-    @property
-    def agency(self):
-        from app.repositories.agency import AgencyRepository
-        return self._repo("agency", AgencyRepository)
-    # ... one property per repository, added as repos land ...
-
-
-def uow_factory() -> UnitOfWork:
-    return UnitOfWork()
-
-
-async def get_uow():  # FastAPI dependency
-    async with UnitOfWork() as uow:
-        yield uow
-```
-
-- [ ] **Step 4:** Run — expect PASS (after Task 16 lands AgencyRepository; if running this task alone, stub `agency` property to import once AgencyRepository exists — sequence Task 16 immediately after).
-- [ ] **Step 5:** Commit `feat(db): UnitOfWork with lazy repositories and get_uow dependency`.
-
----
-
-# Phase 6 — Repositories
-
-> Reference task 16 shows a full repo (write-model). Task 17 ports the other two existing repos. Tasks 18–19 add the remaining write-model repos. Tasks 20–23 build read-model repos (analytics/similarity/etc.) including the PGroonga rewrite.
-
-### Task 16: `AgencyRepository` (reference write-model repo)
+### Task 15: `agency` repository (reference write-model repo)
 
 **Files:**
-- Rewrite: `backend/app/repositories/agency.py` (module functions → `AgencyRepository` class)
+- Rewrite: `backend/app/repositories/agency.py` (functions gain `session` first arg)
 - Test: `backend/tests/test_agency_repository.py`
 
 **Interfaces:**
-- Consumes: `uow.session`.
-- Produces: `AgencyRepository(session)` with `by_id`, `list_and_count`, `create`, `save`, `delete`, `increment_calls`, `count_all` (same names/semantics as today's module functions).
+- Produces: `by_id(session, agency_id)`, `list_and_count(session, *, status, connection_type, search_text)`, `create(session, **fields)`, `save(session, agency, *, update_fields=None)`, `delete(session, agency)`, `increment_calls(session, agency)`, `count_all(session)` (same names/semantics as today, `session` added first).
 
 - [ ] **Step 1: Write the failing test**
 
 ```python
 # tests/test_agency_repository.py
 import pytest
+from app.repositories import agency as agency_repo
 pytestmark = pytest.mark.asyncio
 
-async def test_increment_calls_is_atomic(uow):
-    a = await uow.agency.create(name="A", total_calls=0)
-    await uow.flush()
-    await uow.agency.increment_calls(a)
+async def test_increment_calls_is_atomic(db_session):
+    a = await agency_repo.create(db_session, name="A", total_calls=0)
+    await db_session.flush()
+    await agency_repo.increment_calls(db_session, a)
     assert a.total_calls == 1
 
-async def test_list_and_count_filters_search(uow):
-    await uow.agency.create(name="Alpha"); await uow.agency.create(name="Beta")
-    await uow.flush()
-    rows, total = await uow.agency.list_and_count(status="all", connection_type=None, search_text="alph")
+async def test_list_and_count_filters_search(db_session):
+    await agency_repo.create(db_session, name="Alpha")
+    await agency_repo.create(db_session, name="Beta")
+    await db_session.flush()
+    rows, total = await agency_repo.list_and_count(
+        db_session, status="all", connection_type=None, search_text="alph")
     assert total == 1 and rows[0].name == "Alpha"
 ```
 
@@ -773,107 +716,109 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.agency import Agency
 
 
-class AgencyRepository:
-    def __init__(self, session: AsyncSession):
-        self.session = session
+async def by_id(session: AsyncSession, agency_id) -> Agency | None:
+    return await session.get(Agency, agency_id)
 
-    async def by_id(self, agency_id) -> Agency | None:
-        return await self.session.get(Agency, agency_id)
 
-    async def list_and_count(self, *, status, connection_type, search_text):
-        stmt = select(Agency).order_by(Agency.name)
-        if status != "all":
-            stmt = stmt.where(Agency.status == status)
-        if connection_type:
-            stmt = stmt.where(Agency.connection_type == connection_type.upper())
-        if search_text:
-            stmt = stmt.where(Agency.name.ilike(f"%{search_text}%"))
-        rows = (await self.session.execute(stmt)).scalars().all()
-        total = (await self.session.execute(
-            select(func.count()).select_from(stmt.order_by(None).subquery())
-        )).scalar_one()
-        return list(rows), total
+async def list_and_count(session: AsyncSession, *, status, connection_type, search_text):
+    stmt = select(Agency).order_by(Agency.name)
+    if status != "all":
+        stmt = stmt.where(Agency.status == status)
+    if connection_type:
+        stmt = stmt.where(Agency.connection_type == connection_type.upper())
+    if search_text:
+        stmt = stmt.where(Agency.name.ilike(f"%{search_text}%"))
+    rows = (await session.execute(stmt)).scalars().all()
+    total = (await session.execute(
+        select(func.count()).select_from(stmt.order_by(None).subquery())
+    )).scalar_one()
+    return list(rows), total
 
-    async def create(self, **fields) -> Agency:
-        obj = Agency(**fields); self.session.add(obj); await self.session.flush(); return obj
 
-    async def save(self, agency: Agency, *, update_fields=None) -> None:
-        await self.session.flush()
+async def create(session: AsyncSession, **fields) -> Agency:
+    obj = Agency(**fields); session.add(obj); await session.flush(); return obj
 
-    async def delete(self, agency: Agency) -> None:
-        await self.session.delete(agency)
 
-    async def increment_calls(self, agency: Agency) -> Agency:
-        await self.session.execute(
-            update(Agency).where(Agency.id == agency.id).values(total_calls=Agency.total_calls + 1)
-        )
-        await self.session.refresh(agency, attribute_names=["total_calls"])
-        return agency
+async def save(session: AsyncSession, agency: Agency, *, update_fields=None) -> None:
+    await session.flush()
 
-    async def count_all(self) -> int:
-        return (await self.session.execute(select(func.count()).select_from(Agency))).scalar_one()
+
+async def delete(session: AsyncSession, agency: Agency) -> None:
+    await session.delete(agency)
+
+
+async def increment_calls(session: AsyncSession, agency: Agency) -> Agency:
+    await session.execute(
+        update(Agency).where(Agency.id == agency.id).values(total_calls=Agency.total_calls + 1)
+    )
+    await session.refresh(agency, attribute_names=["total_calls"])
+    return agency
+
+
+async def count_all(session: AsyncSession) -> int:
+    return (await session.execute(select(func.count()).select_from(Agency))).scalar_one()
 ```
 
 - [ ] **Step 4:** Run — expect PASS.
-- [ ] **Step 5:** Commit `feat(repo): AgencyRepository on SQLAlchemy`.
+- [ ] **Step 5:** Commit `feat(repo): agency repository on SQLAlchemy`.
 
-### Task 17: `ConversationRepository` + `MessageRepository`
+### Task 16: `conversation` + `message` repositories
 
 **Files:**
 - Rewrite: `app/repositories/conversation.py`, `app/repositories/message.py`
 - Test: `tests/test_conversation_repository.py`, `tests/test_message_repository.py`
 
-Port every method from the inventory (§3) using the idiom table. Key translations:
-- `conversation.list_and_count`: build `select(Conversation).where(Conversation.deleted_at.is_(None))`, add optional `user_id`, `title.ilike`, `agencies.contains([agency])` (JSONB `@>`), `created_at >=/<`, `order_by(desc(created_at))`, `.offset().limit()`; count via subquery.
-- `message.bulk_create(ignore_conflicts)`: `pg_insert(Message).values(rows).on_conflict_do_nothing()`.
-- `message.first_user_message`: `select(Message).where(conversation_id==, role=="user").order_by(Message.created_at).limit(1)`.
-- `message.set_category`: `update(Message).where(id==).values(category=...)`.
+Port every function from the inventory (§3), `session` first, using the idiom table. Key translations:
+- `conversation.list_and_count`: `select(Conversation).where(Conversation.deleted_at.is_(None))`, optional `user_id`, `title.ilike`, `agencies.contains([agency])` (JSONB `@>`), `created_at >=/<`, `order_by(Conversation.created_at.desc())`, `.offset().limit()`; count via `order_by(None).subquery()`.
+- `message.bulk_create(session, rows, ignore_conflicts)`: `pg_insert(Message).values(rows).on_conflict_do_nothing()`.
+- `message.first_user_message(session, conversation_id)`: `select(Message).where(conversation_id==, role=="user").order_by(Message.created_at).limit(1)`.
+- `message.set_category(session, message_id, category)`: `update(Message).where(id==).values(category=...)`.
 
 - [ ] **Step 1:** Tests: create conv+messages, assert filter/pagination, bulk_create dedup, first_user_message.
 - [ ] **Step 2:** Run — FAIL.
-- [ ] **Step 3:** Implement both repos as classes taking `session`.
+- [ ] **Step 3:** Implement both repos as `session`-first functions.
 - [ ] **Step 4:** Run — PASS.
-- [ ] **Step 5:** Commit `feat(repo): Conversation + Message repositories`.
+- [ ] **Step 5:** Commit `feat(repo): conversation + message repositories`.
 
-### Task 18: Remaining write-model repos — LlmProvider, LlmRoute, PopularQuestion, ConnectionLog, ExecutiveBrief, Setting, Evaluation, Event
+### Task 17: Remaining write-model repos — llm, popular_question, connection_log, executive_brief, setting, evaluation, event
 
 **Files:**
 - Create: `app/repositories/{llm,popular_question,connection_log,executive_brief,setting,evaluation,event}.py`
 - Test: one test file per repo
 
-Move the ORM call sites currently living in services (inventory §2) into repo methods. Explicit per-repo method set:
-- **llm.py**: `list_providers`, `create_provider`, `get_provider`, `update_provider(obj, data)`, `delete_provider`, `provider_has_routes(provider_id)`, `list_routes`, `route_purpose_exists`, `create_route`, `get_route`, `update_route`, `delete_route`. (`update_from_dict().save()` → `setattr` loop + flush.)
-- **popular_question.py**: `visible_with_agency()` (selectinload agency, hidden==False), `all_with_agency()`, `text_key_exists`, `create`, `update`, `delete`, `bulk_create`.
-- **connection_log.py**: `create`, `get`, `delete_older_than(cutoff)`, plus the stats aggregation moves to the read-model repo (Task 20).
-- **executive_brief.py**: `create(content,status)`, `latest()`.
-- **setting.py**: `all()`, `get(key)`, `upsert(key,value,...)`.
-- **evaluation.py**: `all_golden_with_agency()`.
-- **event.py**: `add(event_type, payload)`, `pending(limit)`, `mark_dispatched(event)`.
+Move the ORM call sites currently in services (inventory §2) into `session`-first repo functions. Explicit per-repo function set:
+- **llm.py**: `list_providers`, `create_provider`, `get_provider`, `update_provider(session, obj, data)`, `delete_provider`, `provider_has_routes(session, provider_id)`, `list_routes`, `route_purpose_exists`, `create_route`, `get_route`, `update_route`, `delete_route`. (`update_from_dict().save()` → `setattr` loop + flush.)
+- **popular_question.py**: `visible_with_agency(session)` (selectinload agency, hidden==False), `all_with_agency(session)`, `text_key_exists`, `create`, `update`, `delete`, `bulk_create`.
+- **connection_log.py**: `create`, `get`, `delete_older_than(session, cutoff)`; stats aggregation moves to the read-model repo (Task 18).
+- **executive_brief.py**: `create(session, content, status)`, `latest(session)`.
+- **setting.py**: `all(session)`, `get(session, key)`, `upsert(session, key, value, ...)`.
+- **evaluation.py**: `all_golden_with_agency(session)`.
+- **event.py**: `add(session, event_type, payload)`, `pending(session, limit)`, `mark_dispatched(session, event)`.
 
 - [ ] **Step 1:** Per repo: a focused test (create + read-back + the one non-trivial query).
 - [ ] **Step 2:** Run — FAIL.
-- [ ] **Step 3:** Implement repos; register each as a `uow` property.
+- [ ] **Step 3:** Implement repos.
 - [ ] **Step 4:** Run — PASS.
 - [ ] **Step 5:** Commit per repo (`feat(repo): <name> repository`).
 
-### Task 20: Read-model repos — analytics, connection-log stats, feedback, public-status
+### Task 18: Read-model repos — analytics, connection-log stats, feedback, public-status
 
 **Files:**
 - Create: `app/repositories/analytics.py`, `app/repositories/feedback_read.py`, `app/repositories/public_status_read.py`
 - Test: `tests/test_analytics_repo.py`, etc.
 
-Move each raw-SQL / `RawSQL` / aggregation block from `services/analytics/{brief,dashboard,health,heatmap,usage}.py`, `services/feedback.py`, `services/public_status.py`, `services/connection_log.py` into read-model repo methods that run `select(...)`/`text(...)` against `self.session`. Rules:
+Move each raw-SQL / `RawSQL` / aggregation block from `services/analytics/{brief,dashboard,health,heatmap,usage}.py`, `services/feedback.py`, `services/public_status.py`, `services/connection_log.py` into `session`-first read-model functions that run `select(...)`/`text(...)`. Rules:
 - Replace `conn.execute_query_dict(sql, [$1,...])` with `(await session.execute(text(sql_named), {...})).mappings().all()`, converting `$1`→`:name`.
-- Replace `conn.execute_query("SET TIME ZONE ...")` with `await session.execute(text("SET LOCAL TIME ZONE :tz"), {"tz": settings.TIMEZONE})` at the top of the method (runs inside the UoW transaction).
+- Replace `conn.execute_query("SET TIME ZONE ...")` with `await session.execute(text("SET LOCAL TIME ZONE :tz"), {"tz": settings.TIMEZONE})` at the top of the function (runs inside the caller's transaction).
 - Replace `.annotate(x=RawSQL("..."))...group_by().values()` with a Core `select(func...., text("..."))`.
 
 - [ ] **Step 1:** Tests seed messages/conversations/logs and assert the aggregate shapes (now runnable on real Postgres).
 - [ ] **Step 2:** Run — FAIL.
-- [ ] **Step 3:** Implement read-model methods.
+- [ ] **Step 3:** Implement read-model functions.
 - [ ] **Step 4:** Run — PASS.
 - [ ] **Step 5:** Commit `feat(repo): analytics/feedback/public-status read models`.
 
-### Task 23: `SimilarityRepository` — pg_trgm → PGroonga (the semantic change)
+### Task 19: `similarity` repository — pg_trgm → PGroonga (the semantic change)
 
 **Files:**
 - Create: `app/repositories/similarity.py`
@@ -881,22 +826,24 @@ Move each raw-SQL / `RawSQL` / aggregation block from `services/analytics/{brief
 - Test: `tests/test_similarity_pgroonga.py`
 
 **Interfaces:**
-- Produces: `SimilarityRepository(session).find_similar(query, cutoff) -> Message | None` and `.answer_for(match) -> tuple[Message, ConnectionLog] | None`.
+- Produces: `find_similar(session, query, cutoff) -> Message | None` and `answer_for(session, match) -> tuple[Message, ConnectionLog] | None`.
 
 - [ ] **Step 1: Write the failing test** (real Postgres + PGroonga)
 
 ```python
 import pytest
+from datetime import datetime, timezone, timedelta
+from app.repositories import similarity as similarity_repo
+from app.repositories import conversation as conversation_repo
+from app.repositories import message as message_repo
 pytestmark = pytest.mark.asyncio
 
-async def test_pgroonga_similar_search_finds_prior_question(uow):
-    # seed a successful conversation + a user question
-    conv = await uow.conversation.create(status="success", title="t")
-    await uow.message.create(conversation_id=conv.id, role="user", content="ขอข้อมูลภาษี")
-    await uow.flush()
-    from datetime import datetime, timezone, timedelta
+async def test_pgroonga_similar_search_finds_prior_question(db_session):
+    conv = await conversation_repo.create(db_session, status="success", title="t")
+    await message_repo.create(db_session, conversation_id=conv.id, role="user", content="ขอข้อมูลภาษี")
+    await db_session.flush()
     cutoff = datetime.now(timezone.utc) - timedelta(hours=1)
-    match = await uow.similarity.find_similar("ข้อมูลภาษี", cutoff)
+    match = await similarity_repo.find_similar(db_session, "ข้อมูลภาษี", cutoff)
     assert match is not None and "ภาษี" in match.content
 ```
 
@@ -905,37 +852,36 @@ async def test_pgroonga_similar_search_finds_prior_question(uow):
 
 ```python
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.conversation import Message
 
-class SimilarityRepository:
-    def __init__(self, session): self.session = session
 
-    async def find_similar(self, query: str, cutoff):
-        row = (await self.session.execute(text(
-            """
-            SELECT id, pgroonga_score(tableoid, ctid) AS score
-            FROM messages
-            WHERE role = 'user'
-              AND created_at >= :cutoff
-              AND content &@* :query
-            ORDER BY score DESC
-            LIMIT 1
-            """
-        ), {"cutoff": cutoff, "query": query})).mappings().first()
-        if not row:
-            return None
-        return await self.session.get(Message, row["id"])
+async def find_similar(session: AsyncSession, query: str, cutoff):
+    row = (await session.execute(text(
+        """
+        SELECT id, pgroonga_score(tableoid, ctid) AS score
+        FROM messages
+        WHERE role = 'user'
+          AND created_at >= :cutoff
+          AND content &@* :query
+        ORDER BY score DESC
+        LIMIT 1
+        """
+    ), {"cutoff": cutoff, "query": query})).mappings().first()
+    if not row:
+        return None
+    return await session.get(Message, row["id"])
 ```
-Rewrite `services/similarity.py`: `_similarity_search` → `uow.similarity.find_similar`; `_fetch_answer_by_match` → repo method using a single `text()` join (Postgres-only, drop the `?`/SQLite branch); keep the `SIMILARITY_CACHE_ENABLED`/`SIMILARITY_THRESHOLD` gate but re-interpret threshold as a PGroonga-score floor (add `AND pgroonga_score(...) >= :floor` if `SIMILARITY_THRESHOLD > 0`). Leave a `# withinlazy: PGroonga score floor needs tuning; tokenizer/normalizer knob` comment.
+Rewrite `services/similarity.py`: `_similarity_search` → `similarity_repo.find_similar(session, ...)`; `_fetch_answer_by_match` → `similarity_repo.answer_for(session, match)` using a single `text()` join (Postgres-only, drop the `?`/SQLite branch); keep the `SIMILARITY_CACHE_ENABLED`/`SIMILARITY_THRESHOLD` gate but re-interpret threshold as a PGroonga-score floor (add `AND pgroonga_score(...) >= :floor` when `SIMILARITY_THRESHOLD > 0`). Leave a `# withinlazy: PGroonga score floor needs tuning; tokenizer/normalizer knob` comment. `find_similar_question` gains a `session` parameter.
 
 - [ ] **Step 4:** Run — PASS.
 - [ ] **Step 5:** Commit `feat(search): PGroonga similar-search replaces pg_trgm`.
 
 ---
 
-# Phase 7 — Service & router rewiring to UoW
+# Phase 6 — Service & router rewiring
 
-### Task 30: `events.publish` takes the UoW; outbox stays transactional
+### Task 20: `events.publish(session, …)`; outbox stays transactional
 
 **Files:**
 - Modify: `app/services/events.py`, `app/services/agency_lifecycle.py:35` (caller), `app/services/chat/turn.py`
@@ -946,69 +892,69 @@ Rewrite `services/similarity.py`: `_similarity_search` → `uow.similarity.find_
 ```python
 import uuid
 import pytest
+from app.repositories import message as message_repo
+from app.repositories import event as event_repo
 pytestmark = pytest.mark.asyncio
 
-async def test_turn_and_event_commit_atomically(uow):
-    # conversation + 2 messages + a domain event must share one UoW commit
+async def test_turn_and_event_share_one_transaction(db_session):
     from app.services.chat import turn
     from app.services.events import publish
     conv_id = str(uuid.uuid4())
-    await turn.save_turn(uow=uow, query="q", conversation_id=conv_id, answer="a",
+    await turn.save_turn(session=db_session, query="q", conversation_id=conv_id, answer="a",
                          references=[], category=None, agency_ids=[], response_time=1,
                          user=None, succeeded=True)
-    await publish(uow, "chat.turn_saved", {"conversation_id": conv_id})
-    await uow.flush()
-    msgs = await uow.message.list_for_conversation(conv_id)
-    assert len(msgs) == 2
-    assert len(await uow.event.pending(10)) == 1  # event visible in the same session
+    await publish(db_session, "chat.turn_saved", {"conversation_id": conv_id})
+    await db_session.flush()
+    assert len(await message_repo.list_for_conversation(db_session, conv_id)) == 2
+    assert len(await event_repo.pending(db_session, 10)) == 1  # same transaction
 ```
 
 - [ ] **Step 2:** Run — FAIL.
-- [ ] **Step 3:** Change `publish(event_type, payload)` → `publish(uow, event_type, payload)` calling `uow.event.add(...)`. Update `agency_lifecycle` caller. Rewrite `turn.py`: drop `in_transaction()`, accept `uow`, call `uow.conversation`/`uow.message` and `publish(uow, ...)`; the single UoW commit is the atomic boundary. `dispatch_pending` takes its own `uow_factory()`.
+- [ ] **Step 3:** Change `publish(event_type, payload)` → `publish(session, event_type, payload)` calling `event_repo.add(session, ...)`. Update the `agency_lifecycle` caller. Rewrite `turn.py`: drop `in_transaction()`, take `session`, call `conversation_repo`/`message_repo` and `publish(session, ...)`. **Streaming ruling:** the chat stream entrypoint that calls `save_turn` opens its own `async with AsyncSessionLocal() as session, session.begin():` and passes that session in (NOT the request `get_db` session). `dispatch_pending` opens its own `async with AsyncSessionLocal() as session, session.begin():`.
 - [ ] **Step 4:** Run — PASS.
-- [ ] **Step 5:** Commit `refactor(events): publish through UoW; outbox commits with state`.
+- [ ] **Step 5:** Commit `refactor(events): publish through the session; outbox commits with state`.
 
-### Task 31: Rewire services to accept `uow` / repos
+### Task 21: Rewire services to accept `session`
 
 **Files:**
 - Modify: every service in inventory §2 that used Tortoise (agency, connection_log, feedback, popular_questions, public_status, similarity, settings, evaluation, llm/admin, analytics/*, chat/*).
-- Test: existing service tests (ported in Phase 9) + targeted new ones.
+- Test: existing service tests (ported in Phase 7) + targeted new ones.
 
-Procedure per service: add a `uow` (or specific repo) parameter to the entry functions the routers call; replace direct ORM/`tortoise` calls with `uow.<repo>.<method>()`; delete all `from tortoise...` imports. Verify `grep -rn "tortoise" app/services` is empty at the end.
+Procedure per service: add a `session` parameter to the entry functions the routers call; replace direct ORM/`tortoise` calls with `<repo>.<fn>(session, ...)`; delete all `from tortoise...` imports. Verify `grep -rn "tortoise" app/services` is empty at the end.
 
-- [ ] **Step 1–4:** Per service, adjust its test to pass `uow`, run red→green.
-- [ ] **Step 5:** Commit per service group (`refactor(service): route <name> through UoW`).
+- [ ] **Step 1–4:** Per service, adjust its test to pass `session` (`db_session` fixture), run red→green.
+- [ ] **Step 5:** Commit per service group (`refactor(service): route <name> through session`).
 
-### Task 34: Routers depend on `get_uow` and pass it to services
+### Task 22: Routers depend on `get_db` and pass `session` to services
 
 **Files:**
-- Modify: `app/routers/**` (24 files) — add `uow: UnitOfWork = Depends(get_uow)` and forward to services.
-- Test: existing router tests (Phase 9).
+- Modify: `app/routers/**` (24 files) — add `session: AsyncSession = Depends(get_db)` and forward to services.
+- Test: existing router tests (Phase 7).
 
-- [ ] **Step 1:** Pick one router (agencies/crud.py), add the dependency, thread `uow` into `agency_service` calls; run its test.
-- [ ] **Step 2–4:** Repeat per router; the request-scoped UoW commits at request end.
+- [ ] **Step 1:** Pick one router (agencies/crud.py), add the dependency, thread `session` into `agency_service` calls; run its test.
+- [ ] **Step 2–4:** Repeat per router; the request transaction commits at request end.
 - [ ] **Step 5:** Commit per router group.
 
-### Task 36: Non-request entry points — scheduler, MCP, seed, scripts
+### Task 23: Non-request entry points — scheduler, MCP, seed, scripts
 
 **Files:**
 - Modify: `app/scheduler.py`, `app/mcp/server.py:85`, `app/services/llm/seed.py`, `app/services/seed.py`, `backend/scripts/seed.py`, `backend/scripts/hash_existing_api_keys.py`
 - Test: `tests/test_scheduler_health.py` (exists), `tests/test_mcp_*` (exist)
 
-- [ ] **Step 1:** scheduler jobs wrap work in `async with uow_factory() as uow:` (health check `uow.connection_log.create`, `uow.agency` list, retention `uow.connection_log.delete_older_than`, `dispatch_pending`).
-- [ ] **Step 2:** `mcp/server.py._fetch_agencies` uses `async with uow_factory() as uow: rows = await uow.agency.list_for_mcp(...)` (add a read method returning the same `.values(...)` dict shape).
-- [ ] **Step 3:** `scripts/seed.py` replaces `Tortoise.init/close_connections` with `async with uow_factory()`; keep `run_migrations` optional. `hash_existing_api_keys.py`: swap Tortoise init for the engine; **leave the pre-existing `UserAPIKey` staleness untouched** (out of scope — flag in commit body).
+- [ ] **Step 1:** scheduler jobs wrap work in `async with AsyncSessionLocal() as session, session.begin():` (health check `connection_log.create`, `agency` list, retention `connection_log.delete_older_than`, `dispatch_pending`).
+- [ ] **Step 2:** `mcp/server.py._fetch_agencies` uses `async with AsyncSessionLocal() as session, session.begin(): rows = await agency_repo.list_for_mcp(session, ...)` (add a read function returning the same `.values(...)` dict shape).
+- [ ] **Step 3:** `scripts/seed.py` replaces `Tortoise.init/close_connections` with `async with AsyncSessionLocal() as session, session.begin():`. `hash_existing_api_keys.py`: swap Tortoise init for `AsyncSessionLocal`; **leave the pre-existing `UserAPIKey` staleness untouched** (out of scope — flag in commit body).
 - [ ] **Step 4:** Run the affected existing tests — expect PASS.
-- [ ] **Step 5:** Commit `refactor: non-request contexts use uow_factory`.
+- [ ] **Step 5:** Commit `refactor: non-request contexts open their own session`.
 
 ---
 
-# Phase 8 — Startup wiring
+# Phase 7 — Startup wiring
 
-### Task 40: `db.py` init/close + `main.py` lifespan + delete `database.py`
+### Task 30: `db.py` init/close + `main.py` lifespan + delete `database.py`
 
 **Files:**
-- Modify: `app/db.py` (add `run_migrations()` + `init_db()`), `app/main.py:86-95`, `app/config.py:187` (`load_settings_from_db` uses UoW)
+- Modify: `app/db.py` (add `run_migrations()` + `init_db()`), `app/main.py:86-95`, `app/config.py:187` (`load_settings_from_db` uses a session)
 - Delete: `app/database.py`
 - Test: `tests/test_startup_wiring.py`
 
@@ -1025,7 +971,7 @@ async def test_init_db_runs_migrations_then_seeds(monkeypatch):
     async def _fake_migrations():
         calls.append("migrate")
 
-    async def _fake_seed(uow):
+    async def _fake_seed(session):
         calls.append("seed")
 
     monkeypatch.setattr(db, "run_migrations", _fake_migrations)
@@ -1038,49 +984,49 @@ async def test_init_db_runs_migrations_then_seeds(monkeypatch):
 - [ ] **Step 3:** In `db.py` add:
 ```python
 async def run_migrations() -> None:
+    import asyncio
     from alembic import command
     from alembic.config import Config
-    import asyncio
     cfg = Config("alembic.ini"); cfg.set_main_option("sqlalchemy.url", database_url(settings))
     await asyncio.to_thread(command.upgrade, cfg, "head")
 
 async def init_db() -> None:
     await run_migrations()
     from app.services.llm.seed import seed_llm_defaults
-    async with uow_factory() as uow:
-        await seed_llm_defaults(uow)
+    async with AsyncSessionLocal() as session, session.begin():
+        await seed_llm_defaults(session)
 ```
-Update `main.py` to import `init_db`/`close_db` from `app.db`. Delete `app/database.py`. Update `load_settings_from_db` to use a UoW + `uow.setting.all()`.
+Update `main.py` to import `init_db`/`close_db` from `app.db`. Delete `app/database.py`. Update `load_settings_from_db` to open `async with AsyncSessionLocal() as session, session.begin():` and call `setting_repo.all(session)`.
 - [ ] **Step 4:** Run — PASS.
 - [ ] **Step 5:** Commit `feat(db): Alembic-driven startup; drop database.py + generate_schemas`.
 
 ---
 
-# Phase 9 — Test port sweep & Tortoise removal
+# Phase 8 — Test port sweep & Tortoise removal
 
-### Task 42: Port the ~30 `db`-fixture tests to the `uow` fixture
+### Task 40: Port the ~30 `db`-fixture tests to `db_session`
 
 **Files:**
-- Modify: the 30 test files listed by `grep -rln "def test.*db\|db)" backend/tests` that used the old `db` fixture.
+- Modify: the ~30 test files that used the old `db` fixture.
 
 Per-file procedure (mechanical, apply the idiom table):
-- Replace the `db` fixture param with `uow`.
-- Replace direct model calls (`await Agency.create(...)`) with `await uow.agency.create(...)` (or seed via `uow.session.add`).
-- Replace `await Model.filter(...)` assertions with repo/session queries.
-- For router tests using the FastAPI `app`, override `get_uow` to yield the test `uow` (add an `as_uow` override helper in conftest mirroring `as_principal`).
+- Replace the `db` fixture param with `db_session`.
+- Replace direct model calls (`await Agency.create(...)`) with repo calls (`await agency_repo.create(db_session, ...)`) or seed via `db_session.add(...)` + `flush`.
+- Replace `await Model.filter(...)` assertions with repo/`session` queries.
+- Router tests using the FastAPI `app` already get the overridden `get_db` from the `db_session` fixture — assert against `db_session` after the request.
 
 - [ ] **Step 1:** Port 5 files, run that subset green.
 - [ ] **Step 2–4:** Continue in batches of ~5, `pytest -q` after each batch.
-- [ ] **Step 5:** Commit per batch (`test: port <area> tests to uow fixture`).
+- [ ] **Step 5:** Commit per batch (`test: port <area> tests to db_session fixture`).
 
-### Task 43: Full suite green
+### Task 41: Full suite green
 
 - [ ] **Step 1:** `cd backend && python -m pytest -q`
 - [ ] **Step 2:** Fix stragglers (timestamp/enum/JSON assertions per the risks list).
 - [ ] **Step 3:** `grep -rn "tortoise" backend/app backend/tests` → **must be empty**.
 - [ ] **Step 4:** Commit `test: full suite green on SQLAlchemy + PGroonga`.
 
-### Task 44: Delete Aerich artifacts
+### Task 42: Delete Aerich artifacts
 
 **Files:**
 - Delete: `backend/migrations/` (entire Aerich tree)
@@ -1092,7 +1038,7 @@ Per-file procedure (mechanical, apply the idiom table):
 
 ---
 
-# Phase 10 — Validation & finalize
+# Phase 9 — Validation & finalize
 
 ### Task 45: Docker compose end-to-end
 
@@ -1111,6 +1057,7 @@ Per-file procedure (mechanical, apply the idiom table):
 
 ## Self-review notes (author)
 
-- **Spec coverage:** models (§3→Ph2), UoW (§4→Ph5), full repo layer incl read-models (§5→Ph6), PGroonga (§6→Task23/0/9), Alembic baseline (§7→Ph3), startup/config (§8→Ph1/Task40), testcontainers (§9→Ph4/9), risks (§10→Task43). All mapped.
+- **Spec coverage:** models (§3→Ph2), session/get_db (§4→Ph1 Task3), full repo layer incl read-models (§5→Ph5), PGroonga (§6→Task19/0/9), Alembic baseline (§7→Ph3), startup/config (§8→Ph1/Task30), testcontainers (§9→Ph4/8), risks (§10→Task41). All mapped.
 - **Extra vs spec (found in inventory):** FK relations + ondelete; `Conversation.metadata`→`meta` attribute rename; `Setting`/`RateLimitCounter` non-`id` PKs; `bulk_create`/`prefetch`/`update_from_dict`; stale `UserAPIKey` script left as-is. Documented in the tasks.
-- **Type consistency:** repo method names match across UoW properties, services, and tests (`by_id`, `list_and_count`, `create`, `save`, `delete`, `increment_calls`, `find_similar`, `event.add/pending/mark_dispatched`).
+- **Seam:** `get_db` dependency owns one transaction per request (`session.begin()`); repos are `session`-first module functions; services never commit; streaming persistence uses its own `AsyncSessionLocal`.
+- **Type consistency:** repo function names match across services and tests (`by_id`, `list_and_count`, `create`, `save`, `delete`, `increment_calls`, `find_similar`, `event.add/pending/mark_dispatched`), all with `session` as first parameter.
