@@ -22,6 +22,11 @@ async def get_provider(session: AsyncSession, provider_id) -> LlmProvider | None
     return await session.get(LlmProvider, provider_id)
 
 
+async def get_provider_by_name(session: AsyncSession, name: str) -> LlmProvider | None:
+    stmt = select(LlmProvider).where(LlmProvider.name == name)
+    return (await session.execute(stmt)).scalars().first()
+
+
 async def update_provider(session: AsyncSession, obj: LlmProvider, data: dict) -> LlmProvider:
     for key, value in data.items():
         setattr(obj, key, value)
@@ -63,6 +68,11 @@ async def create_route(session: AsyncSession, **fields) -> LlmRoute:
 
 async def get_route(session: AsyncSession, route_id) -> LlmRoute | None:
     return await session.get(LlmRoute, route_id)
+
+
+async def get_route_by_purpose(session: AsyncSession, purpose: str) -> LlmRoute | None:
+    stmt = select(LlmRoute).where(LlmRoute.purpose == purpose)
+    return (await session.execute(stmt)).scalars().first()
 
 
 async def update_route(session: AsyncSession, obj: LlmRoute, data: dict) -> LlmRoute:

@@ -65,3 +65,16 @@ async def by_ids(session: AsyncSession, ids) -> list[Agency]:
 async def by_name(session: AsyncSession, name: str) -> Agency | None:
     stmt = select(Agency).where(Agency.name == name).limit(1)
     return (await session.execute(stmt)).scalars().first()
+
+
+_MCP_COLUMNS = (
+    "id", "name", "status", "description", "connection_type",
+    "data_scope", "endpoint_url", "expected_payload", "api_headers",
+)
+
+
+async def list_for_mcp(session: AsyncSession) -> list[dict]:
+    """Every agency, as plain dicts keyed for the MCP `list_agency` tool."""
+    stmt = select(*(getattr(Agency, col) for col in _MCP_COLUMNS))
+    rows = (await session.execute(stmt)).all()
+    return [dict(zip(_MCP_COLUMNS, row)) for row in rows]
