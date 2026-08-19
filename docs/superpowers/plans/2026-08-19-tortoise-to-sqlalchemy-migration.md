@@ -17,7 +17,7 @@
 - Engine URL scheme: `postgresql+asyncpg://`. Keep `sslmode`→`ssl` mapping.
 - `AsyncSessionLocal = async_sessionmaker(expire_on_commit=False)`. The `get_db()` dependency owns the transaction via `async with session.begin()`. Services/routers NEVER call `commit()`; use `await session.flush()` for mid-transaction PKs.
 - Schema source-of-truth is Alembic ONLY — no `generate_schemas`/`create_all` at runtime.
-- Tables stay schema-identical to today: enums stored as **varchar** (not native PG ENUM); same table/column names; FK `ondelete` preserved (CASCADE / RESTRICT / SET NULL as inventoried).
+- Tables stay schema-identical to today: enums stored as **varchar** via `mapped_column(Enum(EnumClass, native_enum=False, create_constraint=False, length=n), default=EnumClass.member)` — NOT plain `String` (reads must coerce back to the enum; the app calls `.status.value` / `.connection_type.value`) and NOT native PG ENUM. Keep the original explicit `length` (e.g. connection_type=10, status=20). Same table/column names; FK `ondelete` preserved (CASCADE / RESTRICT / SET NULL as inventoried).
 - Repositories are **module-level functions taking `session` first** (matching today's style). Services import zero `tortoise` and hold zero raw queries — all data access via repository functions.
 - Chat streaming persistence (`turn.py`) opens its OWN short-lived `AsyncSessionLocal()`+`begin()`, NOT the request-scoped `get_db` session (avoids pinning a connection for the stream's lifetime).
 - Branch: `refactor/sqlalchemy-migration` (already created). TDD per task, frequent commits. American English naming; full words for any new public route.
@@ -444,7 +444,7 @@ class Agency(Base):
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 ```
 
-Notes carried to every model: enum columns are `String(n)` with `default=Enum.member`; `auto_now_add`→`server_default=func.now()`; `auto_now`→ add `onupdate=func.now()`; JSON columns that services mutate in place use `MutableList/MutableDict.as_mutable(JSONB)`.
+Notes carried to every model: enum columns use `mapped_column(Enum(EnumClass, native_enum=False, create_constraint=False, length=n), default=EnumClass.member)` (varchar storage, reads coerce back to the enum — the app relies on `.value`); `auto_now_add`→`server_default=func.now()`; `auto_now`→ add `onupdate=func.now()`; JSON columns that services mutate in place use `MutableList/MutableDict.as_mutable(JSONB)`. For Agency, `connection_type` uses `length=10`, `status` uses `length=20`.
 
 - [ ] **Step 4: Run to verify it passes**
 
@@ -502,7 +502,7 @@ Per-model FK deltas (ondelete verbatim from inventory):
 - **GoldenQuestion** (`golden_questions`): `agency_id`→agencies **CASCADE**.
 - **EvalResult** (`eval_results`): `golden_question_id`→golden_questions **CASCADE**; `score` Float.
 - **LlmRoute** (`llm_routes`): `provider_id`→llm_providers **RESTRICT**; `purpose` String(50) unique.
-- **PopularQuestion** (`popular_questions`): `agency_id`→agencies **SET NULL**, nullable; `text_key` unique; `source` enum-as-varchar String(10) default manual.
+- **PopularQuestion** (`popular_questions`): `agency_id`→agencies **SET NULL**, nullable; `text_key` unique; `source` uses `Enum(PopularQuestionSource, native_enum=False, create_constraint=False, length=10)` default manual.
 
 - [ ] **Step 1:** Add per-model tests asserting the FK column, its `ondelete`, and the relationship exists. Example:
 ```python
