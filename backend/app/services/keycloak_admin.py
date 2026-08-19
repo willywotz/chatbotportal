@@ -60,7 +60,7 @@ async def _admin_token() -> str:
 
 async def _request(method: str, path: str, **kwargs) -> httpx.Response:
     token = await _admin_token()
-    url = f"{settings.KEYCLOAK_URL}/admin/realms/{settings.KEYCLOAK_REALM}{path}"
+    url = f"{settings.keycloak_admin_base}{path}"
     headers = {"Authorization": f"Bearer {token}"}
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.request(method, url, headers=headers, **kwargs)

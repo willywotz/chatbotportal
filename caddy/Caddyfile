@@ -44,6 +44,14 @@
 		reverse_proxy jaeger:16686
 	}
 
+	# Keycloak (relative path /auth set on the keycloak service). The browser
+	# does OIDC here; the backend reaches Keycloak directly (KEYCLOAK_INTERNAL_URL).
+	# reverse_proxy sets X-Forwarded-* so Keycloak issues public-origin URLs.
+	@keycloak path /auth/*
+	handle @keycloak {
+		reverse_proxy keycloak:8080
+	}
+
 	# Everything else -> SPA (frontend:8080, see frontend/nginx.conf).
 	reverse_proxy frontend:8080
 }

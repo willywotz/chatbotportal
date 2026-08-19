@@ -32,7 +32,8 @@ services:
       ENV: ${ENV:-development}
       CORS_ORIGINS: ${CORS_ORIGINS:-["*"]}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      KEYCLOAK_URL: ${KEYCLOAK_URL:-http://keycloak:8080}
+      KEYCLOAK_URL: ${KEYCLOAK_URL:-http://localhost:8080/auth}
+      KEYCLOAK_INTERNAL_URL: ${KEYCLOAK_INTERNAL_URL:-http://keycloak:8080/auth}
       KEYCLOAK_REALM: ${KEYCLOAK_REALM:-chatbotportal}
       KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-portal-spa}
       KEYCLOAK_AUDIENCE: ${KEYCLOAK_AUDIENCE:-backend}
@@ -115,6 +116,8 @@ services:
     command:
       - "--set=extensions.jaeger_query.base_path=/jaeger"
 
+  # Behind Caddy (no published host port) — reached by the browser at /auth via
+  # the gateway, and by the backend directly on the network (KEYCLOAK_INTERNAL_URL).
   keycloak:
     image: quay.io/keycloak/keycloak:26.0
     command: ["start-dev", "--import-realm"]
@@ -122,10 +125,14 @@ services:
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_BOOTSTRAP_PASSWORD:-admin}
+      # Serve under /auth so it shares the gateway origin with the SPA and API.
+      KC_HTTP_RELATIVE_PATH: /auth
+      # Trust Caddy's X-Forwarded-* so issued URLs (incl. the token issuer) use
+      # the public origin. start-dev derives the hostname from these headers; a
+      # hardened prod (start mode) should also set KC_HOSTNAME to the public URL.
+      KC_PROXY_HEADERS: xforwarded
     volumes:
       - ./deploy/keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
-    ports:
-      - "8080:8080"
     networks:
       - chatbot-network
 

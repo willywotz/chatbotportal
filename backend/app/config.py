@@ -42,7 +42,14 @@ class Settings(BaseSettings):
     CORS_ORIGINS: list[str] = ["*"]
 
     # ── Keycloak ─────────────────────────────────────────────────────────────
+    # KEYCLOAK_URL is the PUBLIC, browser-facing base (through Caddy, e.g.
+    # https://<domain>/auth). It defines the token ISSUER, so it must equal the
+    # `iss` the SPA's tokens carry. KEYCLOAK_INTERNAL_URL is the server-side base
+    # the backend uses to reach Keycloak directly on the compose network (JWKS,
+    # token, admin API) — like the backend talks to jaeger directly. It falls back
+    # to KEYCLOAK_URL when Keycloak is not behind a proxy (e.g. tests).
     KEYCLOAK_URL: str = "http://keycloak:8080"
+    KEYCLOAK_INTERNAL_URL: str = ""
     KEYCLOAK_REALM: str = "chatbotportal"
     KEYCLOAK_CLIENT_ID: str = "portal-spa"
     KEYCLOAK_AUDIENCE: str = "backend"
@@ -50,16 +57,26 @@ class Settings(BaseSettings):
     KEYCLOAK_ADMIN_CLIENT_SECRET: str = ""
 
     @property
+    def _keycloak_internal_base(self) -> str:
+        return self.KEYCLOAK_INTERNAL_URL or self.KEYCLOAK_URL
+
+    @property
     def keycloak_issuer(self) -> str:
+        # PUBLIC — must match the token's `iss` claim.
         return f"{self.KEYCLOAK_URL}/realms/{self.KEYCLOAK_REALM}"
 
     @property
     def keycloak_jwks_url(self) -> str:
-        return f"{self.keycloak_issuer}/protocol/openid-connect/certs"
+        # Server-side fetch — reach Keycloak internally; the keys are the same.
+        return f"{self._keycloak_internal_base}/realms/{self.KEYCLOAK_REALM}/protocol/openid-connect/certs"
 
     @property
     def keycloak_token_url(self) -> str:
-        return f"{self.keycloak_issuer}/protocol/openid-connect/token"
+        return f"{self._keycloak_internal_base}/realms/{self.KEYCLOAK_REALM}/protocol/openid-connect/token"
+
+    @property
+    def keycloak_admin_base(self) -> str:
+        return f"{self._keycloak_internal_base}/admin/realms/{self.KEYCLOAK_REALM}"
 
     # ── LLM / OpenRouter ────────────────────────────────────────────────────
     OPENROUTER_API_KEY: str = ""
