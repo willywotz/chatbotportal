@@ -6,9 +6,18 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { server } from "@/mocks/server";
+import { login } from "@/shared/lib/keycloak";
 import PublicPortal from "./PublicPortal";
 
 const { resetMock } = vi.hoisted(() => ({ resetMock: vi.fn() }));
+
+// Keep the real keycloak instance (the axios client uses it); stub login only.
+vi.mock("@/shared/lib/keycloak", async () => {
+  const actual = await vi.importActual<typeof import("@/shared/lib/keycloak")>(
+    "@/shared/lib/keycloak",
+  );
+  return { ...actual, login: vi.fn() };
+});
 
 vi.mock("@/features/chat/useChat", () => ({
   useChat: () => ({
@@ -58,10 +67,12 @@ describe("PublicPortal popular questions", () => {
 });
 
 describe("PublicPortal login button", () => {
-  it("links to the login form so an anon user can sign in as a real user", async () => {
+  it("redirects straight to Keycloak when an anon user clicks login", async () => {
+    vi.mocked(login).mockClear();
     renderPortal();
-    const login = await screen.findByRole("link", { name: /เข้าสู่ระบบ/ });
-    expect(login).toHaveAttribute("href", "/login");
+    const button = await screen.findByRole("button", { name: /เข้าสู่ระบบ/ });
+    await userEvent.click(button);
+    expect(login).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -292,7 +292,9 @@ Auth is **Keycloak OIDC**. There is **no local password/session/API-key auth** �
 - **Frontend migrated 2026-08-19 (Keycloak OIDC).** The SPA uses `keycloak-js` (`src/shared/lib/keycloak.ts`,
   `check-sso` init at boot so guests pass through), sends `Authorization: Bearer` via the axios interceptor
   (`apiClient.ts`, with silent refresh; no cookies), and `useAuth` derives the user from `GET /me`.
-  `ProtectedRoute` redirects to Keycloak login on demand; `LoginPage` is a redirect button. Chat and
+  `ProtectedRoute` redirects to Keycloak login on demand; the public portal's "เข้าสู่ระบบ" button
+  calls `login()` directly (straight to Keycloak, returns to `/chat`) — no intermediate app page.
+  `LoginPage` (`/login`) stays only as a manual deep-link fallback. Chat and
   agency queries hit `/api/v1/public/chat` (guest-open); the logo GET is `/api/v1/public/agencies/{id}/logo`.
   The API-keys feature, the chat WebSocket, the `group_by=api_key` usage view, and the change-password
   dialog are removed (Keycloak owns passwords — the sidebar links to the Keycloak account console).
