@@ -22,6 +22,7 @@ import pytest_asyncio
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 from testcontainers.postgres import PostgresContainer
 
 from app.auth.dependencies import get_current_user
@@ -77,7 +78,10 @@ async def _engine(pg_container):
     cfg.set_main_option("sqlalchemy.url", url)
     await asyncio.to_thread(command.upgrade, cfg, "head")
 
-    engine = create_async_engine(url)
+    # NullPool: a session-scoped engine outlives many function-scoped event loops
+    # (pytest-asyncio default); pooled connections from a prior loop would error
+    # with "attached to a different loop" on reuse.
+    engine = create_async_engine(url, poolclass=NullPool)
     yield engine
     await engine.dispose()
 
