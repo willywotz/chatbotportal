@@ -111,6 +111,45 @@ async def test_anonymous_strips_agency_auth_header():
     assert agencies[0]["api_headers"] == []
 
 
+async def _fetch_agency_with(headers: list[dict], user_is_admin: bool | None) -> dict:
+    agency = {
+        "id": "a1", "name": "A", "status": "active", "description": "d",
+        "connection_type": "MCP", "data_scope": [], "endpoint_url": "http://e/",
+        "expected_payload": {}, "api_headers": headers,
+    }
+    ctx = MagicMock()
+    ctx.get_state = AsyncMock(side_effect=lambda key: {"user_is_admin": user_is_admin}.get(key))
+    with patch.object(server.Agency, "all", return_value=MagicMock(
+        values=AsyncMock(return_value=[agency])
+    )), patch.object(server, "get_http_request", return_value=MagicMock(
+        headers={"X-Forwarded-Host": "example.test"}, url=MagicMock(scheme="https"),
+    )):
+        return (await server._fetch_agencies(ctx))[0]
+
+
+@pytest.mark.asyncio
+async def test_non_admin_strips_every_authorization_header():
+    """Two adjacent Authorization headers must both go for a non-admin caller.
+
+    A del-while-iterating loop skipped the header after each removal, leaking
+    the second credential.
+    """
+    agency = await _fetch_agency_with(
+        [{"name": "Authorization", "value": "s1"}, {"name": "Authorization", "value": "s2"}],
+        user_is_admin=False,
+    )
+    assert agency["api_headers"] == []
+
+
+@pytest.mark.asyncio
+async def test_non_admin_keeps_non_authorization_headers():
+    agency = await _fetch_agency_with(
+        [{"name": "X-Api-Key", "value": "k"}, {"name": "Authorization", "value": "s"}],
+        user_is_admin=False,
+    )
+    assert agency["api_headers"] == [{"name": "X-Api-Key", "value": "k"}]
+
+
 @pytest.mark.asyncio
 async def test_fetch_agencies_stable_ids_across_payload_keys():
     """Repeated __user_id__ / __conversation_id__ placeholders in one response

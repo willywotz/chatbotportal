@@ -5,11 +5,11 @@ discover which government agencies are available and how to reach them.
 
 Registered resources
 --------------------
-  agencies://list → list_agency()   All active agencies (summary)
+  agencies://list → list_agency_resource()   All active agencies (JSON string)
 
 Registered tools
 ----------------
-    list_agency → list_agency()   All active agencies (summary)
+  list_agency → list_agency_tool()   All active agencies (agencies + total)
 """
 
 import json
@@ -21,7 +21,8 @@ from fastmcp.server.context import Context
 from fastmcp.server.dependencies import get_http_request
 from fastmcp.server.middleware import Middleware, MiddlewareContext
 from opentelemetry import trace
-from starlette.datastructures import URLPath
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from app.auth.keycloak import InvalidToken, verify_token
 from app.config import settings
@@ -113,16 +114,17 @@ async def list_agency_resource(ctx: Context = CurrentContext()) -> str:
 @mcp.tool("list_agency", description="Return a JSON array of all active government agencies.")
 async def list_agency_tool(ctx: Context = CurrentContext()) -> dict:
     """
-    Tool wrapper for list_agency_resource, which returns a JSON string.
+    Return active agencies as an object with an `agencies` list and a `total`
+    count. The `agencies://list` resource returns the same data as a JSON string.
     """
 
     agencies = await _fetch_agencies(ctx)
 
     return {"agencies": agencies, "total": len(agencies)}
 
-async def _fetch_agencies(ctx: Context) -> dict:
+async def _fetch_agencies(ctx: Context) -> list[dict]:
     """
-    Return a JSON array of all *active* government agencies.
+    Return a list of all *active* government agencies.
 
     Each item contains:
     - id
@@ -154,14 +156,12 @@ async def _fetch_agencies(ctx: Context) -> dict:
     resolved_user_id = str(await ctx.get_state("user_id") or generate_uuid())
     resolved_conversation_id = str(await ctx.get_state("conversation_id") or generate_uuid())
 
-    for index, agency in enumerate(agencies):
-        if agency["api_headers"] is None:
-            agencies[index]["api_headers"] = []
-
-        for j, header in enumerate(agency["api_headers"]):
-            if header.get("name").lower() == "authorization" and not user_is_admin:
-                # Strip the credential so non-admin callers never see it (trust boundary).
-                del agencies[index]["api_headers"][j]
+    for agency in agencies:
+        headers = agency["api_headers"] or []
+        if not user_is_admin:
+            # Strip every credential so non-admin callers never see it (trust boundary).
+            headers = [h for h in headers if h.get("name", "").lower() != "authorization"]
+        agency["api_headers"] = headers
 
         if agency["connection_type"] == "API":
             agency["endpoint_url"] = _agent_proxy_endpoint(request, agency["id"])
@@ -173,9 +173,6 @@ async def _fetch_agencies(ctx: Context) -> dict:
                 agency["expected_payload"][k] = v.replace("__conversation_id__", resolved_conversation_id)
 
     return agencies
-
-from starlette.requests import Request
-from starlette.responses import JSONResponse
 
 @mcp.custom_route("/health", methods=["GET"])
 async def health_check(request: Request) -> JSONResponse:

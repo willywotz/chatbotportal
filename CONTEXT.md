@@ -1579,3 +1579,16 @@ repositories. `app/repositories/` holds the seam; use-case services no longer do
 these aggregates' command paths. Remaining: the deferred Agency peripheral sites, and the smaller
 aggregates (LlmRoute/LlmProvider/ConnectionLog/Session/etc.) as the need arises — each a small copy
 of the template.
+
+## 2026-08-19 — MCP server refactor + credential-leak fix
+
+Branch `refactor/mcp-server-cleanup`. Cleaned `app/mcp/server.py`.
+- **Security fix (trust boundary):** `_fetch_agencies` stripped agency `Authorization` headers from
+  non-admin callers with a `del`-while-iterating loop. Two adjacent `Authorization` headers made the
+  index skip one, so the second credential leaked. Replaced with a filter comprehension that removes
+  every `Authorization` header. Two new guard tests in `test_mcp_role_access.py` cover the multi-header
+  and mixed-header cases (TDD: red → green).
+- **Cleanup:** removed the dead `URLPath` import; moved the `Request`/`JSONResponse` imports from the
+  file bottom to the top (sorted); corrected the module and `list_agency_tool` docstrings (the tool does
+  not "wrap" the resource); fixed `_fetch_agencies` return annotation `dict` → `list[dict]`.
+- **Behavior preserved** apart from the leak fix. MCP suite 19 → **21 pass**; `test_dispatch` 48 pass.
