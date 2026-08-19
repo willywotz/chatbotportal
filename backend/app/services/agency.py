@@ -289,8 +289,9 @@ async def parse_spec(spec_text: str) -> dict[str, Any]:
     }
 
     from app.services.llm import Purpose, chat
-    res = await chat(purpose=Purpose.PARSE_SPEC, messages=payload["messages"],
-                     tools=payload["tools"], tool_choice=payload["tool_choice"])
+    async with AsyncSessionLocal() as session, session.begin():
+        res = await chat(session, purpose=Purpose.PARSE_SPEC, messages=payload["messages"],
+                         tools=payload["tools"], tool_choice=payload["tool_choice"])
     tool_call = (res.tool_calls or [{}])[0]
     args_raw = tool_call.get("function", {}).get("arguments")
     if not args_raw:

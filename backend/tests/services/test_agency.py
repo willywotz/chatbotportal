@@ -27,6 +27,25 @@ async def test_parse_spec_raises_on_http_error():
             await parse_spec("some spec text")
 
 
+async def test_parse_spec_calls_chat_with_session():
+    """chat() is session-first; parse_spec must thread a session through."""
+    from app.services.agency import parse_spec
+    from app.services.llm import LlmResult, LlmUsageInfo
+
+    fake_chat = AsyncMock(return_value=LlmResult(
+        content="", tool_calls=[{"function": {"arguments": '{"a": 1}'}}],
+        usage=LlmUsageInfo(model="m", prompt_tokens=0, completion_tokens=0, cost_usd=None),
+        raw={},
+    ))
+
+    with patch("app.services.llm.chat", fake_chat):
+        result = await parse_spec("some spec text")
+
+    from sqlalchemy.ext.asyncio import AsyncSession
+    assert isinstance(fake_chat.call_args.args[0], AsyncSession)
+    assert result == {"a": 1}
+
+
 async def test_get_agency_or_404_raises_for_missing_agency(db_session):
     from app.services.agency import get_agency_or_404
 

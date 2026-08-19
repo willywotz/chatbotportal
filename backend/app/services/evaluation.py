@@ -2,6 +2,8 @@
 import json
 import logging
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.db import AsyncSessionLocal
 from app.repositories import evaluation as evaluation_repo
 from app.services.conformance import _ask
@@ -27,8 +29,8 @@ async def run_evaluation() -> int:
         try:
             res = await _ask(gq.agency, gq.question)
             answer = res["answer"] if res["ok"] else ""
-            score, reason = await _judge(gq.question, gq.expected_topics, answer)
             async with AsyncSessionLocal() as session, session.begin():
+                score, reason = await _judge(session, gq.question, gq.expected_topics, answer)
                 await evaluation_repo.create_eval_result(
                     session, golden_question_id=gq.id, score=score, answer=answer, judge_reason=reason,
                 )
@@ -38,11 +40,11 @@ async def run_evaluation() -> int:
     return ran
 
 
-async def _judge(question: str, topics: list, answer: str) -> tuple[float, str]:
+async def _judge(session: AsyncSession, question: str, topics: list, answer: str) -> tuple[float, str]:
     if not answer.strip():
         return 0.0, "no answer from agency"
     prompt = _JUDGE_PROMPT.format(question=question, topics=", ".join(topics), answer=answer[:4000])
     from app.services.llm import Purpose, chat
-    res = await chat(purpose=Purpose.JUDGE, messages=[{"role": "user", "content": prompt}])
+    res = await chat(session, purpose=Purpose.JUDGE, messages=[{"role": "user", "content": prompt}])
     data = json.loads(res.content)
     return float(data["score"]), str(data.get("reason", ""))

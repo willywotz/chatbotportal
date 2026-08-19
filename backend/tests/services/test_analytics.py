@@ -140,6 +140,26 @@ async def test_regenerate_weekly_brief_persists_ok_row(db_session):
     assert result.content == "generated brief"
 
 
+async def test_regenerate_weekly_brief_calls_chat_with_session(db_session):
+    """chat() is session-first; regenerate_weekly_brief must thread its session through."""
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from app.services.analytics import brief
+    from app.services.llm import LlmResult, LlmUsageInfo
+
+    llm_result = LlmResult(
+        content="generated brief", tool_calls=None,
+        usage=LlmUsageInfo(model="m", prompt_tokens=0, completion_tokens=0, cost_usd=None),
+        raw={},
+    )
+    fake_chat = AsyncMock(return_value=llm_result)
+
+    with patch("app.services.llm.chat", new=fake_chat):
+        await brief.regenerate_weekly_brief(db_session)
+
+    assert isinstance(fake_chat.call_args.args[0], AsyncSession)
+
+
 async def test_regenerate_weekly_brief_persists_error_row_on_llm_failure(db_session):
     from app.services.analytics import brief
 

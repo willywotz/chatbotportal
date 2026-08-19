@@ -19,11 +19,11 @@ _BRIEF_PLACEHOLDER = "ยังไม่มีรายงานสรุปป�
 _BRIEF_FALLBACK = "ไม่สามารถสร้างสรุปประจำสัปดาห์ได้ในขณะนี้"
 
 
-async def _generate_brief_content(prompt: str) -> tuple[str, str]:
+async def _generate_brief_content(session: AsyncSession, prompt: str) -> tuple[str, str]:
     """Call the LLM for the brief. Returns (content, status) where status is 'ok' | 'error'."""
     from app.services.llm import Purpose, chat
     try:
-        res = await chat(purpose=Purpose.BRIEF, messages=[{"role": "user", "content": prompt}])
+        res = await chat(session, purpose=Purpose.BRIEF, messages=[{"role": "user", "content": prompt}])
         return res.content, "ok"
     except Exception as e:
         logger.error("Error generating weekly brief: %s", e)
@@ -37,7 +37,7 @@ async def regenerate_weekly_brief(session: AsyncSession):
     """
     metrics = await _compute_executive_metrics(session)
     prompt = _build_brief_prompt(metrics)
-    content, status = await _generate_brief_content(prompt)
+    content, status = await _generate_brief_content(session, prompt)
     return await brief_repo.create(session, content=content, status=status)
 
 
