@@ -658,7 +658,8 @@
         }
       ],
       "realmRoles": [
-        "admin"
+        "admin",
+        "default-roles-chatbotportal"
       ]
     },
     {
