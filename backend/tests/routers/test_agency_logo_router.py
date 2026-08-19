@@ -1,28 +1,23 @@
 """Agency logo upload/serve/delete — HTTP-level tests against a tmp UPLOAD_DIR.
 
-Mirrors tests/routers/test_popular_questions_router.py: `db` fixture (in-memory
-SQLite) + httpx AsyncClient over the real ASGI app, auth via the as_principal
-fixture. The logo GET lives under /public, so it needs no auth.
+httpx AsyncClient over the real ASGI app (the `client` fixture), auth via the
+as_principal fixture, seeding via `db_session`. The logo GET lives under
+/public, so it needs no auth.
 """
 import hashlib
 from pathlib import Path
 
 import pytest
-from httpx import ASGITransport, AsyncClient
 
 from app.config import settings
-from app.main import app
 from app.models import Agency
+from app.repositories import agency as agency_repo
 
 _PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
 _JPEG_BYTES = b"\xff\xd8\xff" + b"\x00" * 32
 _WEBP_BYTES = b"RIFF" + b"\x00\x00\x00\x00" + b"WEBP" + b"\x00" * 32
 
 _USER_SCOPES = ["agency:list", "conversation:read:own", "conversation:write:own", "message:rate"]
-
-
-async def _client():
-    return AsyncClient(transport=ASGITransport(app=app), base_url="http://t")
 
 
 @pytest.fixture(autouse=True)
@@ -35,22 +30,20 @@ def _logos_dir(tmp_path: Path) -> Path:
     return tmp_path / "agency-logos"
 
 
-@pytest.mark.usefixtures("db")
-async def test_upload_valid_png_sets_logo_url_and_writes_file(_tmp_upload_dir, as_principal):
+async def test_upload_valid_png_sets_logo_url_and_writes_file(_tmp_upload_dir, client, as_principal, db_session):
     as_principal()
-    ag = await Agency.create(name="A", status="draft")
-    async with await _client() as c:
-        r = await c.post(
-            f"/api/v1/agencies/{ag.id}/logo",
-            files={"file": ("logo.png", _PNG_BYTES, "image/png")},
-        )
+    ag = await agency_repo.create(db_session, name="A", status="draft")
+    r = await client.post(
+        f"/api/v1/agencies/{ag.id}/logo",
+        files={"file": ("logo.png", _PNG_BYTES, "image/png")},
+    )
 
     assert r.status_code == 200
     body = r.json()
     digest = hashlib.sha256(_PNG_BYTES).hexdigest()[:8]
     assert body["logo"] == f"/api/v1/public/agencies/{ag.id}/logo?v={digest}"
 
-    refreshed = await Agency.get(id=ag.id)
+    refreshed = await db_session.get(Agency, ag.id)
     assert refreshed.logo == f"/api/v1/public/agencies/{ag.id}/logo?v={digest}"
 
     written = list(_logos_dir(_tmp_upload_dir).glob(f"{ag.id}-*"))
@@ -58,7 +51,6 @@ async def test_upload_valid_png_sets_logo_url_and_writes_file(_tmp_upload_dir, a
     assert written[0].name == f"{ag.id}-{digest}.png"
 
 
-@pytest.mark.usefixtures("db")
 @pytest.mark.parametrize(
     "filename,content_type,data",
     [
@@ -66,72 +58,63 @@ async def test_upload_valid_png_sets_logo_url_and_writes_file(_tmp_upload_dir, a
         ("logo.webp", "image/webp", _WEBP_BYTES),
     ],
 )
-async def test_upload_accepts_jpeg_and_webp(filename, content_type, data, as_principal):
+async def test_upload_accepts_jpeg_and_webp(filename, content_type, data, client, as_principal, db_session):
     as_principal()
-    ag = await Agency.create(name="A", status="draft")
-    async with await _client() as c:
-        r = await c.post(
-            f"/api/v1/agencies/{ag.id}/logo",
-            files={"file": (filename, data, content_type)},
-        )
+    ag = await agency_repo.create(db_session, name="A", status="draft")
+    r = await client.post(
+        f"/api/v1/agencies/{ag.id}/logo",
+        files={"file": (filename, data, content_type)},
+    )
     assert r.status_code == 200
 
 
-@pytest.mark.usefixtures("db")
-async def test_upload_rejects_non_image_content_type(as_principal):
+async def test_upload_rejects_non_image_content_type(client, as_principal, db_session):
     as_principal()
-    ag = await Agency.create(name="A", status="draft")
-    async with await _client() as c:
-        r = await c.post(
-            f"/api/v1/agencies/{ag.id}/logo",
-            files={"file": ("logo.txt", b"just plain text", "text/plain")},
-        )
+    ag = await agency_repo.create(db_session, name="A", status="draft")
+    r = await client.post(
+        f"/api/v1/agencies/{ag.id}/logo",
+        files={"file": ("logo.txt", b"just plain text", "text/plain")},
+    )
     assert r.status_code in (400, 415)
 
 
-@pytest.mark.usefixtures("db")
-async def test_upload_rejects_bytes_that_dont_match_declared_type(as_principal):
+async def test_upload_rejects_bytes_that_dont_match_declared_type(client, as_principal, db_session):
     """A fake extension/content-type whose bytes aren't a real image."""
     as_principal()
-    ag = await Agency.create(name="A", status="draft")
-    async with await _client() as c:
-        r = await c.post(
-            f"/api/v1/agencies/{ag.id}/logo",
-            files={"file": ("logo.png", b"not actually a png", "image/png")},
-        )
+    ag = await agency_repo.create(db_session, name="A", status="draft")
+    r = await client.post(
+        f"/api/v1/agencies/{ag.id}/logo",
+        files={"file": ("logo.png", b"not actually a png", "image/png")},
+    )
     assert r.status_code in (400, 415)
 
 
-@pytest.mark.usefixtures("db")
-async def test_upload_rejects_oversized_file(as_principal):
+async def test_upload_rejects_oversized_file(client, as_principal, db_session):
     as_principal()
-    ag = await Agency.create(name="A", status="draft")
+    ag = await agency_repo.create(db_session, name="A", status="draft")
     oversized = _PNG_BYTES + b"\x00" * (512 * 1024)
-    async with await _client() as c:
-        r = await c.post(
-            f"/api/v1/agencies/{ag.id}/logo",
-            files={"file": ("logo.png", oversized, "image/png")},
-        )
+    r = await client.post(
+        f"/api/v1/agencies/{ag.id}/logo",
+        files={"file": ("logo.png", oversized, "image/png")},
+    )
     assert r.status_code in (400, 413)
 
 
-@pytest.mark.usefixtures("db")
-async def test_reupload_sweeps_orphaned_old_file(_tmp_upload_dir, as_principal):
+async def test_reupload_sweeps_orphaned_old_file(_tmp_upload_dir, client, as_principal, db_session):
     as_principal()
-    ag = await Agency.create(name="A", status="draft")
-    async with await _client() as c:
-        r1 = await c.post(
-            f"/api/v1/agencies/{ag.id}/logo",
-            files={"file": ("logo.png", _PNG_BYTES, "image/png")},
-        )
-        assert r1.status_code == 200
-        old_digest = hashlib.sha256(_PNG_BYTES).hexdigest()[:8]
+    ag = await agency_repo.create(db_session, name="A", status="draft")
+    r1 = await client.post(
+        f"/api/v1/agencies/{ag.id}/logo",
+        files={"file": ("logo.png", _PNG_BYTES, "image/png")},
+    )
+    assert r1.status_code == 200
+    old_digest = hashlib.sha256(_PNG_BYTES).hexdigest()[:8]
 
-        new_bytes = _PNG_BYTES + b"\x01"
-        r2 = await c.post(
-            f"/api/v1/agencies/{ag.id}/logo",
-            files={"file": ("logo.png", new_bytes, "image/png")},
-        )
+    new_bytes = _PNG_BYTES + b"\x01"
+    r2 = await client.post(
+        f"/api/v1/agencies/{ag.id}/logo",
+        files={"file": ("logo.png", new_bytes, "image/png")},
+    )
 
     assert r2.status_code == 200
     new_digest = hashlib.sha256(new_bytes).hexdigest()[:8]
@@ -142,29 +125,25 @@ async def test_reupload_sweeps_orphaned_old_file(_tmp_upload_dir, as_principal):
     assert remaining == [f"{ag.id}-{new_digest}.png"]
 
 
-@pytest.mark.usefixtures("db")
-async def test_upload_forbidden_for_non_owner_non_admin(as_principal):
+async def test_upload_forbidden_for_non_owner_non_admin(client, as_principal, db_session):
     as_principal(role="user", scopes=_USER_SCOPES)
-    ag = await Agency.create(name="A", status="draft")
-    async with await _client() as c:
-        r = await c.post(
-            f"/api/v1/agencies/{ag.id}/logo",
-            files={"file": ("logo.png", _PNG_BYTES, "image/png")},
-        )
+    ag = await agency_repo.create(db_session, name="A", status="draft")
+    r = await client.post(
+        f"/api/v1/agencies/{ag.id}/logo",
+        files={"file": ("logo.png", _PNG_BYTES, "image/png")},
+    )
     assert r.status_code == 403
 
 
-@pytest.mark.usefixtures("db")
-async def test_get_logo_returns_bytes_with_cache_headers(as_principal):
+async def test_get_logo_returns_bytes_with_cache_headers(client, as_principal, db_session):
     as_principal()
-    ag = await Agency.create(name="A", status="draft")
-    async with await _client() as c:
-        upload = await c.post(
-            f"/api/v1/agencies/{ag.id}/logo",
-            files={"file": ("logo.png", _PNG_BYTES, "image/png")},
-        )
-        assert upload.status_code == 200
-        r = await c.get(f"/api/v1/public/agencies/{ag.id}/logo")
+    ag = await agency_repo.create(db_session, name="A", status="draft")
+    upload = await client.post(
+        f"/api/v1/agencies/{ag.id}/logo",
+        files={"file": ("logo.png", _PNG_BYTES, "image/png")},
+    )
+    assert upload.status_code == 200
+    r = await client.get(f"/api/v1/public/agencies/{ag.id}/logo")
 
     assert r.status_code == 200
     assert r.content == _PNG_BYTES
@@ -173,40 +152,34 @@ async def test_get_logo_returns_bytes_with_cache_headers(as_principal):
     assert r.headers["content-type"] == "image/png"
 
 
-@pytest.mark.usefixtures("db")
-async def test_get_logo_404_for_emoji_only_agency():
-    ag = await Agency.create(name="A", status="draft", logo="🏛️")
-    async with await _client() as c:
-        r = await c.get(f"/api/v1/public/agencies/{ag.id}/logo")
+async def test_get_logo_404_for_emoji_only_agency(client, db_session):
+    ag = await agency_repo.create(db_session, name="A", status="draft", logo="🏛️")
+    r = await client.get(f"/api/v1/public/agencies/{ag.id}/logo")
     assert r.status_code == 404
 
 
-@pytest.mark.usefixtures("db")
-async def test_get_logo_allowed_with_no_token(as_principal):
+async def test_get_logo_allowed_with_no_token(client, as_principal, db_session):
     """The logo GET now lives under /public: an anonymous <img> fetch must succeed."""
     as_principal()
-    ag = await Agency.create(name="A", status="draft")
-    async with await _client() as c:
-        upload = await c.post(
-            f"/api/v1/agencies/{ag.id}/logo",
-            files={"file": ("logo.png", _PNG_BYTES, "image/png")},
-        )
-        assert upload.status_code == 200
-        r = await c.get(f"/api/v1/public/agencies/{ag.id}/logo")
+    ag = await agency_repo.create(db_session, name="A", status="draft")
+    upload = await client.post(
+        f"/api/v1/agencies/{ag.id}/logo",
+        files={"file": ("logo.png", _PNG_BYTES, "image/png")},
+    )
+    assert upload.status_code == 200
+    r = await client.get(f"/api/v1/public/agencies/{ag.id}/logo")
     assert r.status_code == 200
 
 
-@pytest.mark.usefixtures("db")
-async def test_delete_agency_removes_logo_file(_tmp_upload_dir, as_principal):
+async def test_delete_agency_removes_logo_file(_tmp_upload_dir, client, as_principal, db_session):
     as_principal()
-    ag = await Agency.create(name="A", status="draft")
-    async with await _client() as c:
-        upload = await c.post(
-            f"/api/v1/agencies/{ag.id}/logo",
-            files={"file": ("logo.png", _PNG_BYTES, "image/png")},
-        )
-        assert upload.status_code == 200
-        delete = await c.delete(f"/api/v1/agencies/{ag.id}")
+    ag = await agency_repo.create(db_session, name="A", status="draft")
+    upload = await client.post(
+        f"/api/v1/agencies/{ag.id}/logo",
+        files={"file": ("logo.png", _PNG_BYTES, "image/png")},
+    )
+    assert upload.status_code == 200
+    delete = await client.delete(f"/api/v1/agencies/{ag.id}")
 
     assert delete.status_code == 204
     assert list(_logos_dir(_tmp_upload_dir).glob(f"{ag.id}-*")) == []

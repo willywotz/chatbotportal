@@ -1,19 +1,21 @@
-from app.models import Agency
+from app.models import AgencyStatus, ConnectionType
+from app.repositories import agency as agency_repo
 from app.routers.public_status import public_agencies
 
 
-async def test_public_agencies_display_fields_only(db):
-    ag = await Agency.create(
+async def test_public_agencies_display_fields_only(db_session):
+    ag = await agency_repo.create(
+        db_session,
         name="กรมการปกครอง",
         short_name="ปค.",
         logo="🏛️",
         description="บัตรประชาชน ทะเบียนบ้าน",
-        connection_type="MCP",
-        status="active",
+        connection_type=ConnectionType.MCP,
+        status=AgencyStatus.active,
         endpoint_url="https://secret.internal/api",
     )
 
-    rows = await public_agencies()
+    rows = await public_agencies(db_session)
 
     assert rows == [
         {
@@ -29,10 +31,10 @@ async def test_public_agencies_display_fields_only(db):
     assert "endpoint_url" not in rows[0]
 
 
-async def test_public_agencies_excludes_draft(db):
-    await Agency.create(name="Draft", status="draft")
-    await Agency.create(name="Live", status="active")
+async def test_public_agencies_excludes_draft(db_session):
+    await agency_repo.create(db_session, name="Draft", status=AgencyStatus.draft)
+    await agency_repo.create(db_session, name="Live", status=AgencyStatus.active)
 
-    rows = await public_agencies()
+    rows = await public_agencies(db_session)
 
     assert [r["name"] for r in rows] == ["Live"]

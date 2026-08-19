@@ -1,6 +1,8 @@
 """Agency conformance battery — required before draft -> active."""
 import asyncio
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models import Agency
 from app.repositories import agency as agency_repo
 from app.services.chat.dispatch import dispatch_one
@@ -28,7 +30,7 @@ def _has_thai(text: str) -> bool:
     return any("฀" <= ch <= "๿" for ch in text)
 
 
-async def run_conformance(agency: Agency) -> dict:
+async def run_conformance(session: AsyncSession, agency: Agency) -> dict:
     checks: list[dict] = []
     first = await _ask(agency, _THAI_PROBE)
     checks.append({"name": "responds", "passed": first["ok"], "detail": first.get("error") or f"{first['latency_ms']}ms"})
@@ -43,5 +45,5 @@ async def run_conformance(agency: Agency) -> dict:
 
     report = {"ran_at": now().isoformat(), "passed": all(c["passed"] for c in checks), "checks": checks}
     agency.conformance_report = report
-    await agency_repo.save(agency, update_fields=["conformance_report"])
+    await agency_repo.save(session, agency, update_fields=["conformance_report"])
     return report

@@ -83,7 +83,7 @@ async def run_agency_conformance(
 ):
     agency = await agency_service.get_agency_or_404(session, agency_id)
     from app.services.conformance import run_conformance
-    return await run_conformance(agency)
+    return await run_conformance(session, agency)
 
 
 @router.get(

@@ -1,27 +1,19 @@
 """Test-action visibility on GET /connection-logs and /information."""
-import pytest
-
-from app.main import app
-from app.models import Agency, ConnectionLog
-from httpx import ASGITransport, AsyncClient
+from app.models import AgencyStatus
+from app.repositories import agency as agency_repo
+from app.repositories import connection_log as connection_log_repo
 
 
-async def _client():
-    return AsyncClient(transport=ASGITransport(app=app), base_url="http://t")
+async def _seed_one_each(session, ag):
+    await connection_log_repo.create(session, agency_id=ag.id, connection_type="API", status="success", action="test")
+    await connection_log_repo.create(session, agency_id=ag.id, connection_type="API", status="success", action="query")
 
 
-async def _seed_one_each(ag):
-    await ConnectionLog.create(agency=ag, connection_type="API", status="success", action="test")
-    await ConnectionLog.create(agency=ag, connection_type="API", status="success", action="query")
-
-
-@pytest.mark.usefixtures("db")
-async def test_test_action_hidden_by_default(as_principal):
+async def test_test_action_hidden_by_default(client, as_principal, db_session):
     as_principal()
-    ag = await Agency.create(name="A", status="active")
-    await _seed_one_each(ag)
-    async with await _client() as c:
-        r = await c.get("/api/v1/connection-logs")
+    ag = await agency_repo.create(db_session, name="A", status=AgencyStatus.active)
+    await _seed_one_each(db_session, ag)
+    r = await client.get("/api/v1/connection-logs")
     body = r.json()
     assert [i["action"] for i in body["items"]] == ["query"]
     assert body["total_items"] == 1
@@ -29,26 +21,22 @@ async def test_test_action_hidden_by_default(as_principal):
     assert body["successful_connections"] == 1
 
 
-@pytest.mark.usefixtures("db")
-async def test_include_test_shows_all(as_principal):
+async def test_include_test_shows_all(client, as_principal, db_session):
     as_principal()
-    ag = await Agency.create(name="A", status="active")
-    await _seed_one_each(ag)
-    async with await _client() as c:
-        r = await c.get("/api/v1/connection-logs", params={"include_test": True})
+    ag = await agency_repo.create(db_session, name="A", status=AgencyStatus.active)
+    await _seed_one_each(db_session, ag)
+    r = await client.get("/api/v1/connection-logs", params={"include_test": True})
     body = r.json()
     assert body["total_items"] == 2
     assert body["total_connections"] == 2
     assert {i["action"] for i in body["items"]} == {"test", "query"}
 
 
-@pytest.mark.usefixtures("db")
-async def test_info_excludes_test_by_default(as_principal):
+async def test_info_excludes_test_by_default(client, as_principal, db_session):
     as_principal()
-    ag = await Agency.create(name="A", status="active")
-    await _seed_one_each(ag)
-    async with await _client() as c:
-        default = (await c.get("/api/v1/connection-logs/information")).json()
-        with_test = (await c.get("/api/v1/connection-logs/information", params={"include_test": True})).json()
+    ag = await agency_repo.create(db_session, name="A", status=AgencyStatus.active)
+    await _seed_one_each(db_session, ag)
+    default = (await client.get("/api/v1/connection-logs/information")).json()
+    with_test = (await client.get("/api/v1/connection-logs/information", params={"include_test": True})).json()
     assert default["total_connections"] == 1
     assert with_test["total_connections"] == 2

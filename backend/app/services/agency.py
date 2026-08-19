@@ -197,6 +197,12 @@ async def run_connection_test(session: AsyncSession, agency: Agency) -> dict[str
         status="success" if raw["success"] else "error",
         latency_ms=latency_ms,
         detail=detail,
+        # Explicit created_at, not the column's server_default: Postgres's
+        # `now()` is transaction-scoped, so a server-generated value here
+        # would be pinned to the request's transaction start — before
+        # `stats_reset_at` above — breaking the health/uptime "since reset"
+        # window this row is meant to fall inside.
+        created_at=agency.stats_reset_at,
     )
     return raw
 
