@@ -3,11 +3,13 @@
  *
  * Base URL:  VITE_API_BASE_URL  (default: http://localhost:8000)
  *
- * The instance sends the HttpOnly session cookie on every request
- * (`withCredentials: true`); no Authorization header is attached.
+ * A request interceptor refreshes the Keycloak token (when authenticated)
+ * and attaches it as `Authorization: Bearer <token>`; no session cookie is
+ * sent.
  *
  * A response interceptor unwraps Axios errors and surfaces the FastAPI
- * `detail` field as a plain Error message.
+ * `detail` field as a plain Error message, and re-triggers Keycloak login
+ * on a 401 for a previously-authenticated session.
  *
  * Usage:
  *   import { api } from '@/shared/lib/apiClient';
@@ -16,6 +18,8 @@
  */
 
 import axios, { type AxiosInstance, type AxiosResponse } from 'axios';
+
+import { keycloak, updateToken } from '@/shared/lib/keycloak';
 
 var baseURL = import.meta.env.VITE_API_BASE_URL as string | undefined;
 
@@ -26,13 +30,33 @@ if (!baseURL || baseURL.trim() === '') {
 const axiosInstance: AxiosInstance = axios.create({
   baseURL: baseURL,
   headers: { 'Content-Type': 'application/json' },
-  withCredentials: true,
+});
+
+// -- Request interceptor: refresh and attach the Keycloak bearer token ------
+axiosInstance.interceptors.request.use(async (config) => {
+  if (keycloak.authenticated) {
+    try {
+      await updateToken(30);
+    } catch {
+      // Refresh failed; let the request proceed and fail with a 401.
+    }
+  }
+  if (keycloak.token) {
+    config.headers = config.headers ?? {};
+    (config.headers as Record<string, string>).Authorization = `Bearer ${keycloak.token}`;
+  }
+  return config;
 });
 
 // -- Response interceptor: surface FastAPI error message as Error ------------
 axiosInstance.interceptors.response.use(
   (response: AxiosResponse) => response,
   (error) => {
+    // Only re-login when a previously-authenticated session got a 401;
+    // an anonymous 401 must not trigger a redirect loop.
+    if (error?.response?.status === 401 && keycloak.authenticated) {
+      keycloak.login();
+    }
     const data = error?.response?.data;
     // New envelope shape: {"error": {"code", "message", "retryable"}}
     const envelopeMessage = data?.error?.message;
