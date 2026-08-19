@@ -28,7 +28,6 @@ const PublicPortal = lazy(() => import("@/features/public/PublicPortal"));
 const InfoPage = lazy(() => import("@/features/public/InfoPage"));
 const StatusPage = lazy(() => import("@/features/status/StatusPage"));
 const LoginPage = lazy(() => import("@/features/auth/LoginPage"));
-const ApiKeysPage = lazy(() => import("@/features/api-keys/ApiKeysPage"));
 const SettingsPage = lazy(() => import("@/features/settings/SettingsPage"));
 const SettingsLayout = lazy(() => import("@/features/settings/SettingsLayout"));
 const LlmSettingsPage = lazy(() => import("@/features/llm/LlmSettingsPage"));
@@ -104,7 +103,6 @@ const App = () => (
                   <Route index element={<SettingsIndexRedirect />} />
                   <Route path="system" element={<ProtectedRoute requireAdmin><SettingsPage /></ProtectedRoute>} />
                   <Route path="llm" element={<ProtectedRoute requireAdmin><LlmSettingsPage /></ProtectedRoute>} />
-                  <Route path="api-keys" element={<ProtectedRoute requireAdmin><ApiKeysPage /></ProtectedRoute>} />
                   <Route path="users" element={<ProtectedRoute requireAdmin><UsersPage /></ProtectedRoute>} />
                   <Route path="usage" element={<ProtectedRoute allowedRoles={["staff", "admin"]}><UsageAnalyticsPage /></ProtectedRoute>} />
                   <Route path="connections" element={<ProtectedRoute requireAdmin><ConnectionLogsPage /></ProtectedRoute>} />
@@ -112,7 +110,6 @@ const App = () => (
                 </Route>
 
                 {/* Redirect old top-level routes to their new tab */}
-                <Route path="/api-keys" element={<Navigate to="/settings/api-keys" replace />} />
                 <Route path="/users" element={<Navigate to="/settings/users" replace />} />
                 <Route path="/usage" element={<Navigate to="/settings/usage" replace />} />
                 <Route path="/connection-logs" element={<Navigate to="/settings/connections" replace />} />

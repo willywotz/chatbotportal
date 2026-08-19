@@ -1,5 +1,7 @@
+import { useEffect, useRef } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/features/auth/useAuth";
+import { keycloak } from "@/shared/lib/keycloak";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import type { Role } from "@/features/auth/roles";
 
@@ -9,23 +11,35 @@ interface ProtectedRouteProps {
   allowedRoles?: Role[];
 }
 
+function LoadingSkeleton() {
+  return (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="space-y-4 w-64">
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-4 w-3/4" />
+        <Skeleton className="h-4 w-1/2" />
+      </div>
+    </div>
+  );
+}
+
 export function ProtectedRoute({ children, requireAdmin = false, allowedRoles }: ProtectedRouteProps) {
   const { user, isAdmin, isLoading } = useAuth();
+  const loginTriggered = useRef(false);
+
+  useEffect(() => {
+    if (!isLoading && !user && !loginTriggered.current) {
+      loginTriggered.current = true;
+      keycloak.login({ redirectUri: window.location.href });
+    }
+  }, [isLoading, user]);
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="space-y-4 w-64">
-          <Skeleton className="h-8 w-full" />
-          <Skeleton className="h-4 w-3/4" />
-          <Skeleton className="h-4 w-1/2" />
-        </div>
-      </div>
-    );
+    return <LoadingSkeleton />;
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <LoadingSkeleton />;
   }
 
   // A role not permitted for this route is sent to /chat (reachable by every authenticated role).

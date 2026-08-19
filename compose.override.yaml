@@ -45,6 +45,12 @@ services:
       # Same-origin through Caddy: the browser hits the gateway origin, which
       # proxies /api -> backend. Empty = window.location.origin.
       VITE_API_BASE_URL: ""
+      # Vite dev reads VITE_* at RUNTIME (unlike the prod nginx build, which
+      # bakes them via build args). Keycloak's public /auth origin, browser-facing
+      # — must match KEYCLOAK_URL and the gateway port (EXTERNAL_HTTP_PORT).
+      VITE_KEYCLOAK_URL: ${VITE_KEYCLOAK_URL:-http://localhost:8080/auth}
+      VITE_KEYCLOAK_REALM: ${VITE_KEYCLOAK_REALM:-chatbotportal}
+      VITE_KEYCLOAK_CLIENT_ID: ${VITE_KEYCLOAK_CLIENT_ID:-portal-spa}
     # Vite dev server has no /healthz route (that lives in the production
     # nginx.conf); probe "/" instead so the container becomes healthy and Caddy
     # (depends_on: frontend healthy) starts.

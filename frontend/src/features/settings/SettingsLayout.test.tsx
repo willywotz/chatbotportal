@@ -26,15 +26,14 @@ function renderAt(path: string) {
 }
 
 describe("SettingsLayout", () => {
-  it("shows all seven tabs for an admin", () => {
+  it("shows all six tabs for an admin", () => {
     mockUseAuth.mockReturnValue({ user: { role: "admin" }, isAdmin: true });
     renderAt("/settings/system");
     for (const label of [
       "ตั้งค่าระบบ",
       "LLM",
-      "API Keys",
       "จัดการผู้ใช้",
-      "การใช้งาน API Key",
+      "การใช้งาน",
       "ประวัติการเชื่อมต่อ",
       "บันทึกการตรวจสอบ",
     ]) {
@@ -45,8 +44,7 @@ describe("SettingsLayout", () => {
   it("shows only the Usage tab for staff", () => {
     mockUseAuth.mockReturnValue({ user: { role: "staff" }, isAdmin: false });
     renderAt("/settings/usage");
-    expect(screen.getByRole("tab", { name: "การใช้งาน API Key" })).toBeInTheDocument();
-    expect(screen.queryByRole("tab", { name: "API Keys" })).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "การใช้งาน" })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "จัดการผู้ใช้" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "บันทึกการตรวจสอบ" })).not.toBeInTheDocument();
   });

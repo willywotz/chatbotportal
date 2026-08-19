@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { api } from "@/shared/lib/apiClient";
+import { keycloak, logout } from "@/shared/lib/keycloak";
 import { type Role } from "@/features/auth/roles";
 
 export interface AuthUser {
@@ -15,7 +16,6 @@ export interface AuthUser {
   displayName: string;
   role: Role;
   avatarUrl: string | null;
-  isEphemeral: boolean;
 }
 
 interface AuthContextType {
@@ -23,10 +23,6 @@ interface AuthContextType {
   isAdmin: boolean;
   isLoading: boolean;
   signOut: () => void;
-  /** Call after a successful login to set the authenticated user */
-  setAuth: (user: AuthUser) => void;
-  /** Bootstraps an anonymous session when no user is signed in; no-op otherwise */
-  ensureSession: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -34,42 +30,52 @@ const AuthContext = createContext<AuthContextType>({
   isAdmin: false,
   isLoading: true,
   signOut: () => {},
-  setAuth: () => {},
-  ensureSession: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
+
+/** The `/authentication/me` principal, as the FastAPI backend returns it (snake_case). */
+interface MePayload {
+  id: string;
+  email: string;
+  display_name?: string;
+  role: Role;
+}
+
+function toAuthUser(payload: MePayload): AuthUser {
+  return {
+    id: payload.id,
+    email: payload.email,
+    displayName: payload.display_name ?? "",
+    role: payload.role,
+    avatarUrl: null,
+  };
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // On mount: the session cookie (if any) is sent automatically — ask the
-  // server who we are.
+  // On mount: Keycloak (initialized in main.tsx) already knows whether a
+  // session exists; if so, ask the backend who the bearer token belongs to.
+  // Mock mode has no real Keycloak server (main.tsx skips initKeycloak()),
+  // so `keycloak.authenticated` stays false there — MSW's `/me` mock stands
+  // in for a signed-in session instead.
   useEffect(() => {
+    const mocks = import.meta.env.VITE_USE_MOCKS === "true";
+    if (!keycloak.authenticated && !mocks) {
+      setUser(null);
+      setIsLoading(false);
+      return;
+    }
     api
-      .get<{ user: AuthUser }>("/api/v1/authentication/me")
-      .then(({ user }) => setUser(user))
+      .get<MePayload>("/api/v1/authentication/me")
+      .then((payload) => setUser(toAuthUser(payload)))
       .catch(() => setUser(null))
       .finally(() => setIsLoading(false));
   }, []);
 
-  const setAuth = useCallback((authUser: AuthUser) => setUser(authUser), []);
-
-  const signOut = useCallback(() => {
-    api.post("/api/v1/authentication/logout", {}).catch(() => {});
-    setUser(null);
-  }, []);
-
-  const ensureSession = useCallback(async () => {
-    if (user) return;
-    try {
-      const res = await api.post<{ user: AuthUser }>("/api/v1/authentication/anonymous", {});
-      setUser(res.user);
-    } catch {
-      // Proceed anyway; the chat request may 401 and surface an error.
-    }
-  }, [user]);
+  const signOut = useCallback(() => logout(), []);
 
   return (
     <AuthContext.Provider
@@ -78,8 +84,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAdmin: user?.role === "admin",
         isLoading,
         signOut,
-        setAuth,
-        ensureSession,
       }}
     >
       {children}

@@ -15,6 +15,8 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "redirectUris": [
+        "http://localhost:8080/*",
+        "http://localhost:8090/*",
         "http://localhost:5173/*"
       ],
       "webOrigins": [
@@ -656,7 +658,8 @@
         }
       ],
       "realmRoles": [
-        "admin"
+        "admin",
+        "default-roles-chatbotportal"
       ]
     },
     {
@@ -666,9 +669,19 @@
       "clientRoles": {
         "realm-management": [
           "view-users",
-          "manage-users"
+          "manage-users",
+          "view-realm",
+          "manage-realm"
         ]
       }
     }
+  ],
+  "defaultDefaultClientScopes": [
+    "web-origins",
+    "acr",
+    "roles",
+    "profile",
+    "basic",
+    "email"
   ]
 }

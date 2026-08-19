@@ -8,7 +8,7 @@ import { queryAgency } from './agencyApi';
 describe('queryAgency — unified chat envelope mapping', () => {
   it('falls back to summary/agency_name when answer/title are absent', async () => {
     server.use(
-      http.post('*/api/v1/chat', () =>
+      http.post('*/api/v1/public/chat', () =>
         HttpResponse.json({
           success: true,
           data: {

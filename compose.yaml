@@ -38,7 +38,9 @@ services:
       KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-portal-spa}
       KEYCLOAK_AUDIENCE: ${KEYCLOAK_AUDIENCE:-backend}
       KEYCLOAK_ADMIN_CLIENT_ID: ${KEYCLOAK_ADMIN_CLIENT_ID:-portal-admin}
-      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:-}
+      # Dev default matches the portal-admin secret in deploy/keycloak/realm-export.json
+      # so the user-management proxy works out of the box. PROD MUST override this.
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:-portal-admin-dev-secret}
     depends_on:
       postgres:
         condition: service_healthy
@@ -64,6 +66,12 @@ services:
     build:
       context: ./frontend
       target: production
+      args:
+        # Vite inlines these at build time. Public /auth origin (browser-facing);
+        # must equal KEYCLOAK_URL. Prod: override to https://<domain>/auth.
+        VITE_KEYCLOAK_URL: ${VITE_KEYCLOAK_URL:-http://localhost:8080/auth}
+        VITE_KEYCLOAK_REALM: ${VITE_KEYCLOAK_REALM:-chatbotportal}
+        VITE_KEYCLOAK_CLIENT_ID: ${VITE_KEYCLOAK_CLIENT_ID:-portal-spa}
     restart: unless-stopped
     environment:
       VITE_API_BASE_URL: "${VITE_API_BASE_URL:-}"
