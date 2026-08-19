@@ -55,3 +55,13 @@ async def count_all(session: AsyncSession) -> int:
 async def list_by_statuses(session: AsyncSession, statuses: list[str]) -> list[Agency]:
     stmt = select(Agency).where(Agency.status.in_(statuses))
     return list((await session.execute(stmt)).scalars().all())
+
+
+async def by_ids(session: AsyncSession, ids) -> list[Agency]:
+    stmt = select(Agency).where(Agency.id.in_(ids))
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def by_name(session: AsyncSession, name: str) -> Agency | None:
+    stmt = select(Agency).where(Agency.name == name).limit(1)
+    return (await session.execute(stmt)).scalars().first()

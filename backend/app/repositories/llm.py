@@ -42,6 +42,11 @@ async def list_routes(session: AsyncSession) -> list[LlmRoute]:
     return list((await session.execute(select(LlmRoute))).scalars().all())
 
 
+async def enabled_route_for_purpose(session: AsyncSession, purpose: str) -> LlmRoute | None:
+    stmt = select(LlmRoute).where(LlmRoute.purpose == purpose, LlmRoute.enabled.is_(True)).limit(1)
+    return (await session.execute(stmt)).scalars().first()
+
+
 async def route_purpose_exists(session: AsyncSession, purpose: str, *, exclude_id=None) -> bool:
     stmt = select(literal(True)).where(LlmRoute.purpose == purpose)
     if exclude_id is not None:

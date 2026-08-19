@@ -37,3 +37,13 @@ async def test_route_purpose_exists(db_session):
     await llm_repo.create_route(db_session, purpose="chat", provider_id=p.id, model="m1")
     assert await llm_repo.route_purpose_exists(db_session, "chat") is True
     assert await llm_repo.route_purpose_exists(db_session, "chat", exclude_id=None) is True
+
+
+async def test_enabled_route_for_purpose_skips_disabled(db_session):
+    p = await _provider(db_session)
+    assert await llm_repo.enabled_route_for_purpose(db_session, "chat") is None
+    await llm_repo.create_route(db_session, purpose="chat", provider_id=p.id, model="m1", enabled=False)
+    assert await llm_repo.enabled_route_for_purpose(db_session, "chat") is None
+    route = await llm_repo.create_route(db_session, purpose="brief", provider_id=p.id, model="m2")
+    found = await llm_repo.enabled_route_for_purpose(db_session, "brief")
+    assert found.id == route.id

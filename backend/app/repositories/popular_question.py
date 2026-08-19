@@ -1,11 +1,17 @@
 from __future__ import annotations
 
-from sqlalchemy import insert, literal, select
+from sqlalchemy import delete as sa_delete
+from sqlalchemy import func, insert, literal, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.popular_question import PopularQuestion
+from app.models.conversation import Conversation, Message
+from app.models.popular_question import PopularQuestion, PopularQuestionSource
+
+
+async def by_id(session: AsyncSession, question_id) -> PopularQuestion | None:
+    return await session.get(PopularQuestion, question_id)
 
 
 async def visible_with_agency(session: AsyncSession) -> list[PopularQuestion]:
@@ -22,9 +28,51 @@ async def all_with_agency(session: AsyncSession) -> list[PopularQuestion]:
     return list((await session.execute(stmt)).scalars().all())
 
 
-async def text_key_exists(session: AsyncSession, text_key: str) -> bool:
-    stmt = select(literal(True)).where(PopularQuestion.text_key == text_key).limit(1)
-    return (await session.execute(stmt)).scalar() is not None
+async def text_key_exists(session: AsyncSession, text_key: str, *, exclude_id=None) -> bool:
+    stmt = select(literal(True)).where(PopularQuestion.text_key == text_key)
+    if exclude_id is not None:
+        stmt = stmt.where(PopularQuestion.id != exclude_id)
+    return (await session.execute(stmt.limit(1))).scalar() is not None
+
+
+async def delete_stale_auto(session: AsyncSession) -> None:
+    """Drop unpinned, unhidden auto-generated rows ahead of a regenerate pass."""
+    stmt = sa_delete(PopularQuestion).where(
+        PopularQuestion.source == PopularQuestionSource.auto,
+        PopularQuestion.pinned.is_(False),
+        PopularQuestion.hidden.is_(False),
+    )
+    await session.execute(stmt)
+
+
+async def recent_successful_turn_count(session: AsyncSession, cutoff) -> int:
+    stmt = (
+        select(func.count())
+        .select_from(Message)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(Message.role == "user", Message.created_at >= cutoff, Conversation.status == "success")
+    )
+    return (await session.execute(stmt)).scalar_one()
+
+
+async def recent_successful_user_messages(session: AsyncSession, cutoff, limit: int) -> list[dict]:
+    stmt = (
+        select(Message.id, Message.content)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(Message.role == "user", Message.created_at >= cutoff, Conversation.status == "success")
+        .order_by(Message.created_at.desc())
+        .limit(limit)
+    )
+    rows = (await session.execute(stmt)).all()
+    return [{"id": r.id, "content": r.content} for r in rows]
+
+
+async def assistant_replies_for(session: AsyncSession, parent_ids) -> list[dict]:
+    stmt = select(Message.parent_id, Message.agency_ids).where(
+        Message.role == "assistant", Message.parent_id.in_(parent_ids),
+    )
+    rows = (await session.execute(stmt)).all()
+    return [{"parent_id": r.parent_id, "agency_ids": r.agency_ids} for r in rows]
 
 
 async def create(session: AsyncSession, **fields) -> PopularQuestion:
