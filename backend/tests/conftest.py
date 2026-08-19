@@ -1,24 +1,32 @@
 """
 Shared pytest fixtures.
 
-`db` spins up an in-memory SQLite database with the app's Tortoise models so
-tests that exercise real queries (e.g. admin-count guardrails) run without a
-live PostgreSQL instance. SQLite is sufficient: the User model uses only
-portable field types (UUID/Char/Boolean/Datetime).
+`db_session` runs the app's Alembic migrations against a session-scoped
+Postgres+PGroonga testcontainer, then hands each test an `AsyncSession`
+bound to an outer transaction that is rolled back afterward. Nested writes
+inside a test use savepoints, so a test's own commits never leak.
 """
 
+import asyncio
+import os
 import time
 import uuid
+
+# This machine's docker credsStore breaks the testcontainers Ryuk sidecar pull;
+# session-scoped containers are cleaned up by their context manager regardless.
+os.environ.setdefault("TESTCONTAINERS_RYUK_DISABLED", "true")
 
 import jwt
 import pytest
 import pytest_asyncio
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from tortoise import Tortoise
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from testcontainers.postgres import PostgresContainer
 
 from app.auth.dependencies import get_current_user
 from app.auth.keycloak import Principal
+from app.config import settings
 
 _KID = "test-key"
 
@@ -52,17 +60,44 @@ def as_principal():
     installed["app"].dependency_overrides.pop(get_current_user, None)
 
 
-@pytest_asyncio.fixture(scope="function")
-async def db():
-    await Tortoise.init(
-        db_url="sqlite://:memory:",
-        modules={"models": ["app.models"]},
+@pytest.fixture(scope="session")
+def pg_container():
+    with PostgresContainer("groonga/pgroonga:4.0.8-debian-17", driver="asyncpg") as pg:
+        yield pg
+
+
+@pytest_asyncio.fixture(scope="session")
+async def _engine(pg_container):
+    from alembic import command
+    from alembic.config import Config
+
+    url = pg_container.get_connection_url()
+    settings.DATABASE_URL = url  # alembic/env.py derives sqlalchemy.url from settings
+    cfg = Config("alembic.ini")
+    cfg.set_main_option("sqlalchemy.url", url)
+    await asyncio.to_thread(command.upgrade, cfg, "head")
+
+    engine = create_async_engine(url)
+    yield engine
+    await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def db_session(_engine):
+    """Outer transaction rolled back after each test; nested writes use savepoints."""
+    conn = await _engine.connect()
+    trans = await conn.begin()
+    factory = async_sessionmaker(
+        bind=conn, class_=AsyncSession, expire_on_commit=False,
+        join_transaction_mode="create_savepoint",
     )
-    await Tortoise.generate_schemas()
+    session = factory()
     try:
-        yield
+        yield session
     finally:
-        await Tortoise.close_connections()
+        await session.close()
+        await trans.rollback()
+        await conn.close()
 
 
 @pytest_asyncio.fixture(autouse=True)
