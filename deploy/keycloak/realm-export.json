@@ -668,7 +668,9 @@
       "clientRoles": {
         "realm-management": [
           "view-users",
-          "manage-users"
+          "manage-users",
+          "view-realm",
+          "manage-realm"
         ]
       }
     }
