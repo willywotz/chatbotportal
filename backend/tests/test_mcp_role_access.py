@@ -195,6 +195,25 @@ async def test_fetch_agencies_stable_ids_across_payload_keys():
 
 
 @pytest.mark.asyncio
+async def test_fetch_agencies_tolerates_null_expected_payload():
+    """An agency row with expected_payload = NULL must not crash the tool."""
+    ctx = MagicMock()
+    ctx.get_state = AsyncMock(return_value=None)
+    agency = {
+        "id": "a1", "name": "A", "status": "active", "description": "d",
+        "connection_type": "MCP", "data_scope": [], "endpoint_url": "http://e/",
+        "expected_payload": None, "api_headers": [],
+    }
+    with patch.object(server.Agency, "all", return_value=MagicMock(
+        values=AsyncMock(return_value=[agency])
+    )), patch.object(server, "get_http_request", return_value=MagicMock(
+        headers={"X-Forwarded-Host": "example.test"}, url=MagicMock(scheme="https"),
+    )):
+        result = await server._fetch_agencies(ctx)
+    assert result[0]["expected_payload"] == {}
+
+
+@pytest.mark.asyncio
 async def test_fetch_agencies_resolves_both_placeholders_in_one_value():
     """A single value with both placeholders must resolve both, not drop one."""
     ctx = MagicMock()

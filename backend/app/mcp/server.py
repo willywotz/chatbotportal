@@ -109,7 +109,8 @@ async def _fetch_agencies(ctx: Context) -> list[dict]:
         if agency["connection_type"] == "API":
             agency["endpoint_url"] = _agent_proxy_endpoint(request, agency["id"])
 
-        payload = agency["expected_payload"]
+        payload = agency["expected_payload"] or {}
+        agency["expected_payload"] = payload
         for key, value in payload.items():
             if isinstance(value, str):
                 for token, resolved in placeholders.items():
