@@ -7,8 +7,6 @@ from typing import Literal
 
 from pydantic import BaseModel, EmailStr
 
-from app.models.user import User
-
 Role = Literal["user", "staff", "admin"]
 
 
@@ -33,18 +31,6 @@ class UserResponse(BaseModel):
     avatarUrl: str | None = None
     isActive: bool
     createdAt: datetime
-
-    @classmethod
-    def from_user(cls, user: User) -> "UserResponse":
-        return cls(
-            id=str(user.id),
-            email=user.email,
-            displayName=user.display_name or user.email.split("@")[0],
-            role=user.role,
-            avatarUrl=user.avatar_url,
-            isActive=user.is_active,
-            createdAt=user.created_at,
-        )
 
 
 class UserCreateResponse(BaseModel):

@@ -13,7 +13,7 @@ import { useChat } from '@/features/chat/useChat';
 import { usePublicPopularQuestions } from '@/features/popular-questions/popularQuestionsApi';
 import { usePublicAgencies } from '@/features/public/publicAgenciesApi';
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { login } from '@/shared/lib/keycloak';
 
 export default function PublicPortal() {
   const {
@@ -37,10 +37,13 @@ export default function PublicPortal() {
   };
 
   const loginButton = (
-    <Button asChild variant="outline" size="sm" className="rounded-full bg-white">
-      <Link to="/login">
-        เข้าสู่ระบบ <ArrowRight className="w-3 h-3" />
-      </Link>
+    <Button
+      variant="outline"
+      size="sm"
+      className="rounded-full bg-white"
+      onClick={() => login(`${window.location.origin}/chat`)}
+    >
+      เข้าสู่ระบบ <ArrowRight className="w-3 h-3" />
     </Button>
   );
 

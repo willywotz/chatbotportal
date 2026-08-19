@@ -146,11 +146,11 @@ start scheduler → mount MCP. `uvicorn --workers 4` in prod, so MCP runs **stat
   translation, WebSocket session), `analytics/` (brief, dashboard, health), `similarity`,
   `rate_limit` (LLM-provider throttle only), `session`, `evaluation`, `mcp_discovery`,
   `usage_context`, `log_sanitize`, `audit`, `cache_flush`, `user`.
-- `auth/` — `security.py` (bcrypt, JWT, API-key hashing) and `dependencies.py` (the **sole**
-  authz module: dual-token resolution + the RBAC chokepoint). The former `authz.py` ReBAC engine
-  was removed in the 2026-07 RBAC simplification and no longer exists.
+- `auth/` — `keycloak.py` (JWKS `verify_token` → `Principal`) and `dependencies.py`
+  (`get_current_user*`, `require_scope`). `security.py`/`ws.py` and the allowlist were removed in
+  the 2026-08 Keycloak migration. See "Auth & RBAC" below.
 - `mcp/` — FastMCP `server.py` (exposes `list_agency` tool / `agencies://list` resource,
-  API-key authed) and `client.py`.
+  Keycloak-bearer authed, anonymous allowed) and `client.py`.
 - `scheduler.py` — APScheduler jobs (see below).
 - `concurrency.py`, `database.py`, `errors.py` (unified error envelope), `utils/` (uuid7, retry).
 
@@ -223,9 +223,8 @@ route". The panel shows ✓ latency / ✗ error inline.
 | Model | Table | Purpose / key fields |
 |---|---|---|
 | `Agency` | `agencies` | Government agency. `connection_type` (API/MCP/A2A), `status` (draft/active/maintenance/disabled), `auto_maintenance`, `endpoint_url`, `expected_payload` (placeholder JSON), `api_headers`, `data_scope`, routing (`priority`, `router_hint`, `dispatch_timeout_s`, `mcp_tool_name`), `conformance_report`, metrics (`total_calls`, `rating_up/down`), `stats_reset_at`. `logo` holds an emoji **or** an uploaded-image URL (`/api/v1/agencies/{id}/logo?v=<hash>`). |
-| `User` | `users` | Account. `role` = `user|staff|admin`, bcrypt `hashed_password`. |
-| `UserAPIKey` | `user_api_keys` | Programmatic keys. `key_hash` (only hash stored), `key_prefix`, `expires_at`, `revoked_at`, `last_used_at`. Keys are prefixed **`tcg_`**. |
-| `Conversation` | `conversations` | Chat session. `title`/`preview`, `agencies` (names), `status`, `message_count`, `external_session_id`, FK `user` (SET_NULL). |
+| ~~`User`~~ / ~~`UserAPIKey`~~ / ~~`Session`~~ | — | **Removed 2026-08-19** (Keycloak migration, mig `30`). Identity lives in Keycloak; user rows are gone. |
+| `Conversation` | `conversations` | Chat session. `title`/`preview`, `agencies` (names), `status`, `message_count`, `external_session_id`, `user_id` (plain nullable UUID = Keycloak sub; the FK to `users` was dropped). |
 | `Message` | `messages` | Turn message. `role`, `content`, `agent_steps`, `sources`, `summary` + `summary_references` (v5 executive summary and its citations; **not** named `references` — reserved SQL keyword), `rating`, `feedback_text`, `category` (Thai), `agency_ids`, `errors`, `parent_id`. |
 | `ConnectionLog` | `connection_logs` | Every agency call/probe. `action` (test/query), `connection_type`, `status`, `latency_ms`, sanitized `request_body`/`response_body`, `message_id`/`assistant_message_id` (links to Message; enables cache). |
 | `GoldenQuestion` / `EvalResult` | `golden_questions` / `eval_results` | Per-agency QA regression set + LLM-judge scores. |
@@ -243,63 +242,73 @@ embedding + add pg_trgm, `24` drop `relationships`/collapse roles, `25` drop rat
 always regenerate via `aerich migrate` against an upgraded DB. See `docs/aerich-migrations.md`
 and the mandatory rules in `CLAUDE.md`.
 
-## Auth & RBAC
+## Auth & RBAC (Keycloak — migrated 2026-08-19)
 
-- **Bearer token** = JWT (from `POST /api/v1/auth/login`) **or** a `tcg_` API key. Both resolve
-  through `app/auth/dependencies.py::_resolve_token`. Optional-auth endpoints (chat, conversations)
-  allow anonymous, but a **bad `tcg_` key is rejected (401)** rather than silently degrading.
-  Any **`GET` under `/api/v1/public/`** (e.g. `public_status`, `popular_questions`) is exempt from
-  the role chokepoint for **every** role — the shared frontend `apiClient` attaches the JWT on all
-  requests, so an authenticated `user` hitting a public GET must not 403. Keep routers under
-  that prefix strictly read-only. The chokepoint also exempts one non-`/public/` path: **`GET
-  /api/v1/agencies/{id}/logo`** (public agency-logo image; `_AGENCY_LOGO_GET_PATTERN` in
-  `auth/dependencies.py`, GET-only so the `POST` upload stays guarded). Uploaded logos are stored on
-  the `agency-uploads` named volume (backend-only mount, `Settings.UPLOAD_DIR`) as content-hashed
-  files and served by the backend with `immutable` caching — see ADR 0003.
-- **Roles**: `user` (chat, architecture list, **own conversation history**), `staff` (everything
-  `user` has **plus read-only** Dashboard · Executive · Agency Health · Usage Heatmap ·
-  Usage Analytics · Feedback), and `admin` (full), plus anonymous. `user` ⊂ `staff` ⊂ `admin`;
-  the only delta between `user` and `staff` is the six read-only dashboard GETs (`_STAFF_GET_EXACT`).
-  New accounts default to least-privilege `user`; public self-registration for `user` is a planned
-  follow-up (`docs/superpowers/specs/2026-07-23-rbac-staff-role-design.md`). The frontend login
-  (`เข้าสู่ระบบ`) now serves both citizens and staff.
-  On `/history` a non-admin sees and deletes **only their own** conversations: `list_conversations`
-  filters `user_id` for non-admins, and the three detail handlers apply an own-or-admin check.
-  `GET /history/{id}/messages` is allowlisted **GET-only** via
-  `_HISTORY_MESSAGES_GET_PATTERN`, deliberately separate from the all-verbs
-  `_HISTORY_PATH`, so a future write verb on that sub-resource does not inherit access.
-  `staff` is read-only on those six pages: the staff allowlist grants only their six backing GETs
-  (`_STAFF_GET_EXACT`), so writes like `POST /executive-summary/regenerate` stay admin-only
-  and the UI hides the control (`canRegenerate={isAdmin}`) rather than letting it 403. A plain
-  `user` cannot reach those six pages at all.
-  **There is no public self-registration** — `POST /auth/register` and the `/signup` page were
-  removed, because self-serve signup plus these grants would have let anyone reach the
-  operational dashboards. Admins create accounts via `POST /api/v1/users`. Enforced by a
-  **global chokepoint** `enforce_role_allowlist` (`dependencies.py`) that is **deny-by-default**:
-  anonymous and unresolvable tokens pass through (so the endpoint's own auth returns 401 rather
-  than a misleading 403), `admin` passes through to per-endpoint `require_admin`, and
-  `_ROLE_ALLOWLIST` maps `user` → `_is_allowed_for_basic_user` and `staff` → `_is_allowed_for_staff`
-  (= basic-user **+** `_STAFF_GET_EXACT`). **Every other role — including rows left behind by a
-  not-yet-run migration — falls back to the least-privilege basic-user allowlist.** That fallback
-  matters: an earlier design failed *open* for unknown roles, which would have let a residual
-  `auditor` mint an API key during a deploy window.
-  The `viewer`/`auditor`/`agency_owner` roles and the ReBAC/ABAC engine (`authz.py`,
-  `relationships` table) were removed 2026-07 — see
-  `docs/superpowers/specs/2026-07-23-rbac-simplification-design.md`.
-- **The OpenAI programmatic surface is a shared write** (`_is_shared_write`), allowed for every
-  authenticated role exactly like `/chat` — it is a programmatic surface, not a privileged one.
-  Two subtree regexes grant it: `_RESPONSES_PATH` (`^/api/v1/responses(?:/.*)?$`) and
-  `_OAI_CONVERSATION_PATH` (`^/api/v1/conversations(?:/.*)?$`). These are coarse role gates only;
-  each endpoint under them enforces its own `owns()` ownership check (404, never 403), mirroring
-  the `_HISTORY_PATH` precedent.
-  The **WebSocket on that same path is not covered by the HTTP chokepoint** (a WS route is a
-  different ASGI protocol): it resolves auth itself in `routers/responses.py::_ws_user`, from
-  the `Authorization` header only. A bad or invalid token there degrades to anonymous
-  rather than 401 — deliberate, and there is no query-param token fallback (it would leak keys
-  into access logs).
-- **MCP mount is intentionally outside** the role chokepoint (mounted sub-app bypasses FastAPI
-  deps); MCP auth is by API key in `mcp/server.py` — any active user, no role check. See the big
-  comment in `main.py` and `tests/test_mcp_role_access.py` before touching this.
+Auth is **Keycloak OIDC**. There is **no local password/session/API-key auth** — the `users`,
+`sessions`, `user_api_keys` tables and the `tcg_` keys are gone. Design + plan:
+`docs/superpowers/specs/2026-08-18-keycloak-auth-migration-design.md`,
+`docs/superpowers/plans/2026-08-18-keycloak-auth-migration.md`.
+
+- **Token**: the SPA runs Authorization-Code + PKCE against Keycloak and sends
+  `Authorization: Bearer <access token>`. The backend verifies it **locally** against cached JWKS
+  (`app/auth/keycloak.py::verify_token`, RS256) — no per-request call to Keycloak. A verified token
+  becomes a frozen **`Principal`** `{ id (Keycloak sub), email, display_name, role, scopes }`, where
+  `scopes` is `resource_access.backend.roles`. `get_current_user` (401 if missing/invalid) and
+  `get_current_user_optional` (guest ⇒ `None`, bad token ⇒ 401) live in `app/auth/dependencies.py`.
+- **Authorization = per-route scopes, no runtime gate.** Each protected route declares
+  `Security(require_scope, scopes=["…"])` (403 on a missing scope). The old
+  `enforce_role_allowlist` global chokepoint, `_is_*` predicates, and `require_admin` are **deleted**.
+  The "no route silently unprotected" guarantee is the CI test **`tests/test_route_audit.py`**
+  (every `/api/v1` route must be under `/public`, be the agent-proxy/`/me` whitelist, or carry
+  `require_scope`).
+- **Anonymous surface = the `/api/v1/public/*` namespace** (auth-optional; a token is read if
+  present but never required): `public_status`, `popular_questions`, **guest chat `POST
+  /api/v1/public/chat`**, and the **agency-logo image `GET /api/v1/public/agencies/{id}/logo`**.
+  Plus two whitelisted non-`/public` routes: **`/api/v1/agent-proxy/{id}`** (external OneChat
+  callback, its own UUID+agency-credential auth) and **`GET /api/v1/authentication/me`** (valid
+  token, no scope). Logos are still stored on the `agency-uploads` volume, content-hashed,
+  `immutable`-cached — see ADR 0003.
+- **Roles → scopes live in Keycloak**, not code. Composite realm roles `user` / `staff` / `admin`
+  bundle `backend` client-roles (the scope names: `agency:list|read|write`,
+  `conversation:read:own|read:all|write:own`, `message:rate`, `dashboard:read`,
+  `executive:read|write`, `health:read`, `usage:read`, `analytics:read`,
+  `feedback:read|read:detail`, `audit:read`, `connlog:read`, `llm:read|write`,
+  `settings:read|write`, `popular:read|write`, `user:manage`). Full role→scope matrix in the plan
+  and `deploy/keycloak/realm-export.json`. Granting a role a new permission is a **realm edit, no
+  deploy**. `staff` = `user` + the six read-only dashboards; `admin` = everything.
+- **Ownership is scope-based**, not role-based: a token with `conversation:read:all` sees every
+  conversation; otherwise `services/conversation.py` filters to `principal.id` (the sub). No
+  `role == "admin"` literals remain in services.
+- **User management proxies to Keycloak.** `routers/users.py` (guarded by `user:manage`) calls
+  `app/services/keycloak_admin.py` — a service-account (client-credentials) client for the Keycloak
+  Admin REST API. CRUD: list, create, update, activate/deactivate, and **hard delete**
+  (`DELETE /api/v1/users/{id}` → `keycloak_admin.delete_user`; the router refuses deleting your own
+  account — 403). The Users page (`/settings/users`) has a per-row "ลบ" action (confirm dialog,
+  disabled on your own row). The old last-admin guardrail lives in the **Keycloak console** (the
+  authoritative recovery path with a bootstrap admin). A user's name is a single **display name**
+  (stored in Keycloak `firstName`; `_display_name` reads it). The realm's declarative user profile
+  (`realm-export.json` → `attributes["kc.user.profile.config"]`) makes `firstName`/`lastName`
+  **optional** and hides `lastName` from users, so first login does not force a first/last-name
+  screen — without this, Keycloak 26 requires both by default.
+- **MCP mount (`/mcp`) is outside** the app (mounted sub-app). Its own `AuthMiddleware`
+  (`mcp/server.py`) verifies a Keycloak **bearer** via `verify_token` when present, else anonymous;
+  no role check. See `tests/test_mcp_role_access.py`.
+- **Config** (env, 15-Factor): `KEYCLOAK_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_CLIENT_ID` (SPA),
+  `KEYCLOAK_AUDIENCE` (`backend`), `KEYCLOAK_ADMIN_CLIENT_ID` / `KEYCLOAK_ADMIN_CLIENT_SECRET`. A
+  Keycloak service + `deploy/keycloak/realm-export.json` are in `compose.yaml`.
+- **Frontend migrated 2026-08-19 (Keycloak OIDC).** The SPA uses `keycloak-js` (`src/shared/lib/keycloak.ts`,
+  `check-sso` init at boot so guests pass through), sends `Authorization: Bearer` via the axios interceptor
+  (`apiClient.ts`, with silent refresh; no cookies), and `useAuth` derives the user from `GET /me`.
+  `ProtectedRoute` redirects to Keycloak login on demand; the public portal's "เข้าสู่ระบบ" button
+  calls `login()` directly (straight to Keycloak, returns to `/chat`) — no intermediate app page.
+  `LoginPage` (`/login`) stays only as a manual deep-link fallback. Chat and
+  agency queries hit `/api/v1/public/chat` (guest-open); the logo GET is `/api/v1/public/agencies/{id}/logo`.
+  The API-keys feature, the chat WebSocket, the `group_by=api_key` usage view, and the change-password
+  dialog are removed (Keycloak owns passwords — the sidebar links to the Keycloak account console).
+  Env: `VITE_KEYCLOAK_URL` (public `/auth` base), `VITE_KEYCLOAK_REALM`, `VITE_KEYCLOAK_CLIENT_ID`.
+  Client-side role gating (`roles.ts`/`ProtectedRoute`) is UX-only; the backend's per-route scopes are the
+  real control. **Deploy:** the prod build must set `VITE_KEYCLOAK_URL` to the prod `/auth` origin, and the
+  realm's `portal-spa` `redirectUris` must include the prod SPA origin (dev covers localhost:8080/5173).
 
 ## agent-proxy (`agent-proxy/`, Go)
 

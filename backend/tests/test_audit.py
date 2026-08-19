@@ -1,14 +1,16 @@
+import uuid
+
+from app.auth.keycloak import Principal
 from app.models import AuditLog
-from app.models.user import User
 from app.services.audit import record_audit
 
 
 async def test_record_audit_creates_row(db):
-    actor = await User.create(email="admin@x.com", hashed_password="h", role="admin")
+    actor = Principal(id=str(uuid.uuid4()), email="admin@x.com", display_name=None, role="admin", scopes=frozenset())
     await record_audit(actor, "agency.status_change", object_type="agency",
                        object_id="abc-123", detail={"from": "draft", "to": "active"})
     row = await AuditLog.first()
-    assert row.actor_id == actor.id
+    assert str(row.actor_id) == actor.id
     assert row.actor_email == "admin@x.com"
     assert row.action == "agency.status_change"
     assert row.object_type == "agency"

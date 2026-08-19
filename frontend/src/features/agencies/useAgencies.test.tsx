@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { resetMockData } from "@/mocks/fixtures";
+import { keycloak } from "@/shared/lib/keycloak";
 
 import {
   useAgencies,
@@ -65,7 +66,12 @@ describe("useUpdateAgencyStatus", () => {
 });
 
 describe("useUploadAgencyLogo", () => {
-  it("sends the logo upload with credentials: include and no Authorization header", async () => {
+  afterEach(() => {
+    keycloak.authenticated = false;
+    keycloak.token = undefined;
+  });
+
+  it("sends the logo upload with no credentials and no Authorization header when unauthenticated", async () => {
     const agency = { id: ACTIVE_ID, name: "n", logo: "l" };
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify(agency), { status: 200 }),
@@ -76,8 +82,28 @@ describe("useUploadAgencyLogo", () => {
     await result.current.mutateAsync({ id: ACTIVE_ID, file });
 
     const [, options] = fetchSpy.mock.calls[0];
-    expect(options?.credentials).toBe("include");
+    expect(options?.credentials).toBeUndefined();
     expect((options?.headers as Record<string, string> | undefined)?.Authorization).toBeUndefined();
+
+    fetchSpy.mockRestore();
+  });
+
+  it("attaches the Keycloak bearer token when authenticated", async () => {
+    keycloak.authenticated = true;
+    keycloak.token = "tok123";
+    const agency = { id: ACTIVE_ID, name: "n", logo: "l" };
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(agency), { status: 200 }),
+    );
+    const { result } = renderHook(() => useUploadAgencyLogo(), { wrapper });
+    const file = new File(["x"], "logo.png", { type: "image/png" });
+
+    await result.current.mutateAsync({ id: ACTIVE_ID, file });
+
+    const [, options] = fetchSpy.mock.calls[0];
+    expect((options?.headers as Record<string, string> | undefined)?.Authorization).toBe(
+      "Bearer tok123",
+    );
 
     fetchSpy.mockRestore();
   });

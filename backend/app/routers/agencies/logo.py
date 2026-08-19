@@ -10,12 +10,12 @@ import uuid
 from collections.abc import Callable
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, HTTPException, Security, UploadFile, status
 from fastapi.responses import FileResponse
 
-from app.auth.dependencies import require_admin
+from app.auth.dependencies import require_scope
+from app.auth.keycloak import Principal
 from app.config import settings
-from app.models.user import User
 from app.routers.agencies._utils import _with_health
 from app.schemas.agency import AgencyResponse
 from app.services import agency as agency_service
@@ -60,7 +60,7 @@ def sweep_agency_logo_files(agency_id: uuid.UUID | str) -> None:
 async def upload_agency_logo(
     agency_id: uuid.UUID,
     file: UploadFile = File(...),
-    _: User = Depends(require_admin),
+    _: Principal = Security(require_scope, scopes=["agency:write"]),
 ):
     agency = await agency_service.get_agency_or_404(agency_id)
 
@@ -88,11 +88,10 @@ async def upload_agency_logo(
     path.write_bytes(data)
     path.chmod(0o644)
 
-    agency = await agency_service.update_logo(agency, f"/api/v1/agencies/{agency_id}/logo?v={digest}")
+    agency = await agency_service.update_logo(agency, f"/api/v1/public/agencies/{agency_id}/logo?v={digest}")
     return await _with_health(agency)
 
 
-@router.get("/{agency_id}/logo", summary="Get agency logo image")
 async def get_agency_logo(agency_id: uuid.UUID):
     matches = sorted(_logos_dir().glob(f"{agency_id}-*"))
     if not matches:

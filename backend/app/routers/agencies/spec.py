@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, Security, status
 from pydantic import BaseModel
 
-from app.auth.dependencies import get_current_user, require_admin
-from app.models.user import User
+from app.auth.dependencies import require_scope
+from app.auth.keycloak import Principal
 from app.schemas.agency import McpDiscoverRequest, McpDiscoverResponse, McpToolInfo
 from app.services.agency import parse_spec
 from app.services.llm import LlmError
@@ -16,7 +16,7 @@ class ParseSpecRequest(BaseModel):
 
 
 @router.post("/mcp/discover", response_model=McpDiscoverResponse, summary="Discover MCP tools at an endpoint")
-async def mcp_discover(body: McpDiscoverRequest, _: User = Depends(require_admin)):
+async def mcp_discover(body: McpDiscoverRequest, _: Principal = Security(require_scope, scopes=["agency:write"])):
     if not body.endpoint_url.strip():
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="endpoint_url is required")
     try:
@@ -27,7 +27,7 @@ async def mcp_discover(body: McpDiscoverRequest, _: User = Depends(require_admin
 
 
 @router.post("/parse-specification", summary="Parse an OpenAPI spec via LLM and extract structured metadata")
-async def parse_api_spec(body: ParseSpecRequest, _: User = Depends(get_current_user)):
+async def parse_api_spec(body: ParseSpecRequest, _: Principal = Security(require_scope, scopes=["agency:write"])):
     if not body.spec_text.strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="spec_text is required")
 

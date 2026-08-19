@@ -1,17 +1,17 @@
 """Tests for app.services.feedback."""
+import uuid
+
 import pytest
 
 from app.errors import ApiError
 from app.models.agency import Agency
 from app.models.conversation import Conversation, Message
-from app.models.user import User
 from app.services.feedback import agency_low_rated, agency_low_rated_or_404
 
 
 async def test_agency_low_rated_returns_only_down_rated(db):
     ag = await Agency.create(name="A", status="active")
-    user = await User.create(email="u@x.com", hashed_password="h")
-    conv = await Conversation.create(title="t", user_id=user.id)
+    conv = await Conversation.create(title="t", user_id=uuid.uuid4())
     await Message.create(conversation_id=conv.id, role="assistant", content="bad",
                          rating="down", agency_ids=[str(ag.id)])
     await Message.create(conversation_id=conv.id, role="assistant", content="good",
@@ -30,8 +30,7 @@ async def test_agency_low_rated_or_404_raises_for_missing_agency(db):
 
 async def test_agency_low_rated_or_404_returns_rows_for_existing_agency(db):
     ag = await Agency.create(name="B", status="active")
-    user = await User.create(email="u2@x.com", hashed_password="h")
-    conv = await Conversation.create(title="t", user_id=user.id)
+    conv = await Conversation.create(title="t", user_id=uuid.uuid4())
     await Message.create(conversation_id=conv.id, role="assistant", content="bad",
                          rating="down", agency_ids=[str(ag.id)])
 

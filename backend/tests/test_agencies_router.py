@@ -6,17 +6,17 @@ active/inactive, so Tortoise's CharEnumField rejected `draft`/`maintenance`/
 `disabled` on insert.
 """
 
+import uuid
+
 import pytest
 
-from app.models.user import User
+from app.auth.keycloak import Principal
 from app.routers import agencies as agencies_router
 from app.schemas.agency import AgencyCreate
 
 
 async def _admin(email="admin@example.com"):
-    return await User.create(
-        email=email, hashed_password="x", role="admin", is_active=True
-    )
+    return Principal(id=str(uuid.uuid4()), email=email, display_name=None, role="admin", scopes=frozenset())
 
 
 @pytest.mark.asyncio

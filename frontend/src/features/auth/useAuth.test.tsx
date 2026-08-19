@@ -2,39 +2,50 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "@/shared/lib/apiClient";
+import { keycloak, logout } from "@/shared/lib/keycloak";
 import { AuthProvider, useAuth, type AuthUser } from "./useAuth";
 
 vi.mock("@/shared/lib/apiClient", () => ({
-  api: { get: vi.fn(), post: vi.fn() },
+  api: { get: vi.fn() },
 }));
 
-beforeEach(() => vi.clearAllMocks());
+vi.mock("@/shared/lib/keycloak", () => ({
+  keycloak: { authenticated: false },
+  logout: vi.fn(),
+}));
 
+beforeEach(() => {
+  vi.clearAllMocks();
+  keycloak.authenticated = false;
+});
+
+// The backend returns the principal fields flat and snake_case (see
+// routers/auth.py): { id, email, display_name, role }.
+const mePayload = { id: "1", email: "a@b.co", display_name: "A", role: "admin" };
 const authUser: AuthUser = {
   id: "1",
   email: "a@b.co",
   displayName: "A",
   role: "admin",
   avatarUrl: null,
-  isEphemeral: false,
 };
 
 function Consumer() {
-  const { user, isLoading, signOut, setAuth, ensureSession } = useAuth();
+  const { user, isAdmin, isLoading, signOut } = useAuth();
   return (
     <div>
       <span>loading:{String(isLoading)}</span>
       <span>user:{user?.email ?? "none"}</span>
-      <button onClick={() => setAuth(authUser)}>set</button>
+      <span>admin:{String(isAdmin)}</span>
       <button onClick={() => signOut()}>signout</button>
-      <button onClick={() => ensureSession()}>ensure</button>
     </div>
   );
 }
 
 describe("AuthProvider", () => {
-  it("restores the user by calling GET /api/v1/authentication/me on mount", async () => {
-    vi.mocked(api.get).mockResolvedValueOnce({ user: authUser });
+  it("loads the user from GET /api/v1/authentication/me when keycloak.authenticated is true", async () => {
+    keycloak.authenticated = true;
+    vi.mocked(api.get).mockResolvedValueOnce(mePayload);
     render(
       <AuthProvider>
         <Consumer />
@@ -42,10 +53,23 @@ describe("AuthProvider", () => {
     );
     await waitFor(() => expect(screen.getByText("loading:false")).toBeInTheDocument());
     expect(api.get).toHaveBeenCalledWith("/api/v1/authentication/me");
-    expect(screen.getByText("user:a@b.co")).toBeInTheDocument();
+    expect(screen.getByText(`user:${authUser.email}`)).toBeInTheDocument();
+    expect(screen.getByText("admin:true")).toBeInTheDocument();
   });
 
-  it("sets user to null when /auth/me fails", async () => {
+  it("sets user to null without calling /me when keycloak.authenticated is false", async () => {
+    render(
+      <AuthProvider>
+        <Consumer />
+      </AuthProvider>,
+    );
+    await waitFor(() => expect(screen.getByText("loading:false")).toBeInTheDocument());
+    expect(api.get).not.toHaveBeenCalled();
+    expect(screen.getByText("user:none")).toBeInTheDocument();
+  });
+
+  it("sets user to null when /me fails", async () => {
+    keycloak.authenticated = true;
     vi.mocked(api.get).mockRejectedValueOnce(new Error("401"));
     render(
       <AuthProvider>
@@ -56,55 +80,14 @@ describe("AuthProvider", () => {
     expect(screen.getByText("user:none")).toBeInTheDocument();
   });
 
-  it("setAuth sets the user without a token argument", async () => {
-    vi.mocked(api.get).mockResolvedValueOnce({ user: null });
+  it("signOut calls keycloak logout()", async () => {
     render(
       <AuthProvider>
         <Consumer />
       </AuthProvider>,
     );
     await waitFor(() => expect(screen.getByText("loading:false")).toBeInTheDocument());
-    await act(async () => screen.getByText("set").click());
-    expect(screen.getByText("user:a@b.co")).toBeInTheDocument();
-  });
-
-  it("signOut calls POST /api/v1/authentication/logout and clears the user", async () => {
-    vi.mocked(api.get).mockResolvedValueOnce({ user: authUser });
-    vi.mocked(api.post).mockResolvedValueOnce({ ok: true });
-    render(
-      <AuthProvider>
-        <Consumer />
-      </AuthProvider>,
-    );
-    await waitFor(() => expect(screen.getByText("user:a@b.co")).toBeInTheDocument());
     await act(async () => screen.getByText("signout").click());
-    expect(api.post).toHaveBeenCalledWith("/api/v1/authentication/logout", {});
-    expect(screen.getByText("user:none")).toBeInTheDocument();
-  });
-
-  it("ensureSession posts /auth/anonymous and sets the user when none is set", async () => {
-    vi.mocked(api.get).mockResolvedValueOnce({ user: null });
-    vi.mocked(api.post).mockResolvedValueOnce({ user: authUser });
-    render(
-      <AuthProvider>
-        <Consumer />
-      </AuthProvider>,
-    );
-    await waitFor(() => expect(screen.getByText("user:none")).toBeInTheDocument());
-    await act(async () => screen.getByText("ensure").click());
-    expect(api.post).toHaveBeenCalledWith("/api/v1/authentication/anonymous", {});
-    expect(screen.getByText("user:a@b.co")).toBeInTheDocument();
-  });
-
-  it("ensureSession is a no-op when a user is already set", async () => {
-    vi.mocked(api.get).mockResolvedValueOnce({ user: authUser });
-    render(
-      <AuthProvider>
-        <Consumer />
-      </AuthProvider>,
-    );
-    await waitFor(() => expect(screen.getByText("user:a@b.co")).toBeInTheDocument());
-    await act(async () => screen.getByText("ensure").click());
-    expect(api.post).not.toHaveBeenCalled();
+    expect(logout).toHaveBeenCalled();
   });
 });

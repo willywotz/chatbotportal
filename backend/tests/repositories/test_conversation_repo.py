@@ -1,6 +1,7 @@
+import uuid
+
 import pytest
 
-from app.models.user import User
 from app.repositories import conversation as repo
 from app.utils import now
 
@@ -23,12 +24,12 @@ async def test_by_id_exclude_deleted(db):
 async def test_list_and_count_filters_and_pages(db):
     # Agency (agencies__contains) filtering is a Postgres-only JSONB lookup
     # and is not exercised under the SQLite test DB.
-    u = await User.create(email="o@x.com", hashed_password="h", role="user")
+    u_id = uuid.uuid4()
     for i in range(3):
-        await repo.create(title=f"keep {i}", agencies=[], status="active", user_id=u.id)
-    await repo.create(title="other", agencies=[], status="active", user_id=u.id)
+        await repo.create(title=f"keep {i}", agencies=[], status="active", user_id=u_id)
+    await repo.create(title="other", agencies=[], status="active", user_id=u_id)
     rows, total = await repo.list_and_count(
-        user_id=u.id, title_contains="keep", agency_contains=None,
+        user_id=u_id, title_contains="keep", agency_contains=None,
         created_from=None, created_to=None, offset=0, limit=2)
     assert total == 3 and len(rows) == 2                             # total is pre-page count
 

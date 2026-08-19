@@ -7,10 +7,10 @@ chokepoint untouched). Everything under ``/popular-questions`` is admin CRUD.
 import logging
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, Depends, status
+from fastapi import APIRouter, BackgroundTasks, Security, status
 
-from app.auth.dependencies import require_admin
-from app.models.user import User
+from app.auth.dependencies import require_scope
+from app.auth.keycloak import Principal
 from app.schemas.popular_question import (
     PopularQuestionCreate,
     PopularQuestionListResponse,
@@ -40,7 +40,7 @@ async def get_public_popular_questions() -> dict:
 @router.get(
     "/popular-questions",
     response_model=PopularQuestionListResponse,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Security(require_scope, scopes=["popular:read"])],
     summary="List all popular questions (admin)",
 )
 async def list_popular_questions():
@@ -55,7 +55,7 @@ async def list_popular_questions():
     status_code=status.HTTP_201_CREATED,
     summary="Create a manual popular question",
 )
-async def create_popular_question(body: PopularQuestionCreate, _: User = Depends(require_admin)):
+async def create_popular_question(body: PopularQuestionCreate, _: Principal = Security(require_scope, scopes=["popular:write"])):
     pq = await create_question(body)
     return await to_response(pq)
 
@@ -65,7 +65,7 @@ async def create_popular_question(body: PopularQuestionCreate, _: User = Depends
     response_model=PopularQuestionResponse,
     summary="Partial update a popular question",
 )
-async def update_popular_question(question_id: uuid.UUID, body: PopularQuestionUpdate, _: User = Depends(require_admin)):
+async def update_popular_question(question_id: uuid.UUID, body: PopularQuestionUpdate, _: Principal = Security(require_scope, scopes=["popular:write"])):
     pq = await update_question(question_id, body)
     return await to_response(pq)
 
@@ -75,7 +75,7 @@ async def update_popular_question(question_id: uuid.UUID, body: PopularQuestionU
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a popular question",
 )
-async def delete_popular_question(question_id: uuid.UUID, _: User = Depends(require_admin)):
+async def delete_popular_question(question_id: uuid.UUID, _: Principal = Security(require_scope, scopes=["popular:write"])):
     await delete_question(question_id)
 
 
@@ -84,6 +84,6 @@ async def delete_popular_question(question_id: uuid.UUID, _: User = Depends(requ
     status_code=status.HTTP_202_ACCEPTED,
     summary="Trigger popular questions regeneration",
 )
-async def trigger_regenerate(background_tasks: BackgroundTasks, _: User = Depends(require_admin)):
+async def trigger_regenerate(background_tasks: BackgroundTasks, _: Principal = Security(require_scope, scopes=["popular:write"])):
     background_tasks.add_task(regenerate)
     return {"status": "scheduled"}

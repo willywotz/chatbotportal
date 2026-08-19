@@ -18,10 +18,10 @@ from typing import Any, AsyncIterator, Callable, Coroutine, NamedTuple
 from opentelemetry import trace
 from opentelemetry.trace import StatusCode
 
+from app.auth.keycloak import Principal
 from app.config import settings
 from app.models.connection_log import ConnectionLog
 from app.models.conversation import Message
-from app.models.user import User
 from app.repositories import conversation as conversation_repo
 from app.services.chat.llm import classify_message_category
 from app.services.chat.pipeline_snapshot import build_pipeline_snapshot
@@ -61,7 +61,7 @@ class ConversationNotFound(Exception):
 class TurnPlan:
     query: str
     conversation_id: str
-    user: User | None
+    user: Principal | None
     stream_version: str
     assistant_message_id: uuid.UUID
     cached: tuple[Message, Message, Any] | None = None
@@ -73,7 +73,7 @@ def _stream_version() -> str:
 
 
 async def prepare_turn(
-    *, query: str, conversation_id: str, user: User | None, is_continuation: bool,
+    *, query: str, conversation_id: str, user: Principal | None, is_continuation: bool,
     requested_version: str | None = None,
 ) -> TurnPlan:
     """Resolve everything needed to run a turn, failing loudly if it cannot.

@@ -9,10 +9,8 @@ list_agencies and create_agency are registered directly on this router
 rejects sub-routers whose combined prefix+path would be empty.
 """
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, status
 
-from app.auth.dependencies import require_admin
-from app.models.user import User
 from app.routers.agencies import crud, golden, lifecycle, logo, spec
 from app.schemas.agency import AgencyCreate, AgencyListResponse, AgencyResponse
 
