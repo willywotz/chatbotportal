@@ -4,19 +4,23 @@ A producer appends a row here (in its own DB transaction); a background
 dispatcher later delivers undispatched rows to in-process consumers and stamps
 `dispatched_at`. This decouples producers from consumers.
 """
-from tortoise import fields
-from tortoise.models import Model
+import uuid
+from datetime import datetime
 
+from sqlalchemy import String, func
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.ext.mutable import MutableDict
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.models.base import Base
 from app.utils import generate_uuid
 
 
-class DomainEvent(Model):
-    id = fields.UUIDField(primary_key=True, default=generate_uuid)
-    event_type = fields.CharField(max_length=100)
-    payload = fields.JSONField(default=dict)
-    created_at = fields.DatetimeField(auto_now_add=True)
-    dispatched_at = fields.DatetimeField(null=True)
+class DomainEvent(Base):
+    __tablename__ = "domain_events"
 
-    class Meta:
-        table = "domain_events"
-        ordering = ["created_at"]
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=generate_uuid)
+    event_type: Mapped[str] = mapped_column(String(100))
+    payload: Mapped[dict] = mapped_column(MutableDict.as_mutable(JSONB), default=dict)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    dispatched_at: Mapped[datetime | None] = mapped_column(nullable=True)

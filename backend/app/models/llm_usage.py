@@ -1,26 +1,29 @@
 """Per-call LLM token/cost accounting."""
-from tortoise import fields
-from tortoise.models import Model
+import uuid
+from datetime import datetime
 
+from sqlalchemy import Float, Integer, String, func
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.models.base import Base
 from app.utils import generate_uuid
 
 
-class LlmUsage(Model):
-    id = fields.UUIDField(primary_key=True, default=generate_uuid)
-    model = fields.CharField(max_length=100)
-    purpose = fields.CharField(max_length=30)  # free-form; see app.services.llm.purpose.Purpose for known values
-    prompt_tokens = fields.IntField(default=0)
-    completion_tokens = fields.IntField(default=0)
-    cost_usd = fields.FloatField(null=True)
-    user_id = fields.UUIDField(null=True)
-    agency_id = fields.UUIDField(null=True)
-    conversation_id = fields.UUIDField(null=True)
-    api_key_id = fields.UUIDField(null=True)
-    created_at = fields.DatetimeField(auto_now_add=True)
+class LlmUsage(Base):
+    __tablename__ = "llm_usage"
 
-    class Meta:
-        table = "llm_usage"
-        ordering = ["-created_at"]
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=generate_uuid)
+    model: Mapped[str] = mapped_column(String(100))
+    purpose: Mapped[str] = mapped_column(String(30))  # free-form; see app.services.llm.purpose.Purpose for known values
+    prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    agency_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    conversation_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    api_key_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     @property
     def total_tokens(self) -> int:

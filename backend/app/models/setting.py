@@ -1,15 +1,18 @@
-from tortoise import fields
-from tortoise.models import Model
+from datetime import datetime
+
+from sqlalchemy import Boolean, String, Text, func
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.models.base import Base
 
 
-class Setting(Model):
-    key = fields.CharField(max_length=100, primary_key=True)
-    value = fields.TextField()
-    field_type = fields.CharField(max_length=20, default="str")
-    group = fields.CharField(max_length=50)
-    is_secret = fields.BooleanField(default=False)
-    updated_at = fields.DatetimeField(auto_now=True)
-    updated_by = fields.CharField(max_length=255, null=True)
+class Setting(Base):
+    __tablename__ = "settings"
 
-    class Meta:
-        table = "settings"
+    key: Mapped[str] = mapped_column(String(100), primary_key=True)
+    value: Mapped[str] = mapped_column(Text)
+    field_type: Mapped[str] = mapped_column(String(20), default="str")
+    group: Mapped[str] = mapped_column(String(50))
+    is_secret: Mapped[bool] = mapped_column(Boolean, default=False)
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+    updated_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
