@@ -25,7 +25,7 @@ async def test_scoped_route_reachable_with_matching_scope(as_principal):
     assert r.status_code == 200
 
 
-async def test_public_route_reachable_with_no_token(db):
+async def test_public_route_reachable_with_no_token():
     async with await _client() as c:
         r = await c.get("/api/v1/public/status")
     assert r.status_code == 200

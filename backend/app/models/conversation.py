@@ -53,7 +53,7 @@ class Message(Base):
     conversation: Mapped["Conversation"] = relationship(lazy="raise")
     role: Mapped[str] = mapped_column(String(20))  # user | assistant
     content: Mapped[str] = mapped_column(Text)
-    agent_steps: Mapped[list] = mapped_column(MutableList.as_mutable(JSONB), default=list)  # list of AgentStep objects
+    agent_steps: Mapped[dict | list] = mapped_column(JSONB, default=list)  # {} pipeline snapshot, or [] when none captured
     sources: Mapped[list] = mapped_column(MutableList.as_mutable(JSONB), default=list)  # list of source references
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)  # v5 executive summary (LLM-written); None in v4 mode
     summary_references: Mapped[list] = mapped_column(MutableList.as_mutable(JSONB), default=list)  # v5 references[] — scoped to `summary` only

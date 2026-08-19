@@ -24,12 +24,15 @@ import pytest
 import uvicorn
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette.applications import Starlette
 from starlette.routing import Mount
-from tortoise import Tortoise
 
 import app.main as main
-from app.models.agency import Agency
+from app.mcp import server as mcp_server
+from app.repositories import agency as agency_repo
+
+pytestmark = pytest.mark.asyncio
 
 _CALLS = 5
 _SESSIONS = 3
@@ -43,26 +46,33 @@ def _free_port() -> int:
     return port
 
 
-@contextlib.asynccontextmanager
-async def _mcp_lifespan(_app):
-    await Tortoise.init(db_url="sqlite://:memory:", modules={"models": ["app.models"]})
-    await Tortoise.generate_schemas()
-    await Agency.create(
-        name="DOPA", description="d", connection_type="API", data_scope=["x"],
-        endpoint_url="http://e/dopa/chat",
-        expected_payload={"query": "", "session_id": ""}, status="active",
-    )
-    async with main.mcp_app.lifespan(_app):
-        yield
-    await Tortoise.close_connections()
-
-
 def _transport(url: str) -> StreamableHttpTransport:
     return StreamableHttpTransport(url, headers={"X-Forwarded-Host": "example.test"})
 
 
-@pytest.mark.asyncio
-async def test_repeated_list_agency_calls_have_no_session_error():
+async def test_repeated_list_agency_calls_have_no_session_error(db_session, monkeypatch):
+    # list_agency_tool opens its own short-lived session; bind it to the
+    # test's connection so it sees this seeded agency and rolls back with it.
+    conn = await db_session.connection()
+    factory = async_sessionmaker(
+        bind=conn, class_=AsyncSession, expire_on_commit=False,
+        join_transaction_mode="create_savepoint",
+    )
+    monkeypatch.setattr(mcp_server, "AsyncSessionLocal", factory)
+
+    await agency_repo.create(
+        db_session,
+        name="DOPA", description="d", connection_type="API", data_scope=["x"],
+        endpoint_url="http://e/dopa/chat",
+        expected_payload={"query": "", "session_id": ""}, status="active",
+    )
+    await db_session.flush()
+
+    @contextlib.asynccontextmanager
+    async def _mcp_lifespan(_app):
+        async with main.mcp_app.lifespan(_app):
+            yield
+
     root = Starlette(routes=[Mount("/mcp", app=main.mcp_app)], lifespan=_mcp_lifespan)
     port = _free_port()
     server = uvicorn.Server(

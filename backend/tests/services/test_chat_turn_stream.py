@@ -6,10 +6,16 @@ import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models.conversation import Conversation, Message
+from app.repositories import conversation as conversation_repo
+from app.repositories import message as message_repo
 from app.services.chat import stream as turn_stream
 from app.services.chat.stream import ConversationNotFound, prepare_turn, run_turn
+from app.services.chat.turn import save_turn
+
+pytestmark = pytest.mark.asyncio
 
 
 def _inert_schedule(coro) -> None:
@@ -17,8 +23,19 @@ def _inert_schedule(coro) -> None:
     coro.close()
 
 
-@pytest.mark.asyncio
-async def test_prepare_turn_allocates_assistant_message_id(db):
+@pytest.fixture(autouse=True)
+async def _bind_own_session(db_session, monkeypatch):
+    """prepare_turn/_persist open their own short-lived sessions; bind them to
+    the test's connection so writes are visible/rolled back with db_session."""
+    conn = await db_session.connection()
+    factory = async_sessionmaker(
+        bind=conn, class_=AsyncSession, expire_on_commit=False,
+        join_transaction_mode="create_savepoint",
+    )
+    monkeypatch.setattr(turn_stream, "AsyncSessionLocal", factory)
+
+
+async def test_prepare_turn_allocates_assistant_message_id(db_session):
     with patch.object(turn_stream, "find_similar_question", new=AsyncMock(return_value=None)):
         plan = await prepare_turn(
             query="q", conversation_id=str(uuid.uuid4()), user=None, is_continuation=False
@@ -28,16 +45,14 @@ async def test_prepare_turn_allocates_assistant_message_id(db):
     assert plan.stream_version == "v5"
 
 
-@pytest.mark.asyncio
-async def test_prepare_turn_raises_for_unknown_conversation(db):
+async def test_prepare_turn_raises_for_unknown_conversation(db_session):
     with pytest.raises(ConversationNotFound):
         await prepare_turn(
             query="q", conversation_id=str(uuid.uuid4()), user=None, is_continuation=True
         )
 
 
-@pytest.mark.asyncio
-async def test_run_turn_persists_with_the_preallocated_id(db):
+async def test_run_turn_persists_with_the_preallocated_id(db_session):
     conv_id = str(uuid.uuid4())
     with patch.object(turn_stream, "find_similar_question", new=AsyncMock(return_value=None)):
         plan = await prepare_turn(
@@ -55,13 +70,19 @@ async def test_run_turn_persists_with_the_preallocated_id(db):
     assert names == ["step", "answer", "done"]
 
 
-@pytest.mark.asyncio
-async def test_run_turn_replays_a_cache_hit(db):
-    conv = await Conversation.create(status="success")
-    user_msg = await Message.create(conversation=conv, role="user", content="q")
-    asst_msg = await Message.create(
-        parent_id=user_msg.id, conversation=conv, role="assistant", content="cached answer"
+async def test_run_turn_replays_a_cache_hit(db_session):
+    conv = await conversation_repo.create(
+        db_session, id=str(uuid.uuid4()), title="t", preview="p", agencies=[],
+        status="success", message_count=0, response_time="0",
     )
+    user_msg = await message_repo.create(
+        db_session, conversation_id=conv.id, role="user", content="q",
+    )
+    asst_msg = await message_repo.create(
+        db_session, parent_id=user_msg.id, conversation_id=conv.id, role="assistant",
+        content="cached answer",
+    )
+    await db_session.flush()
     conn_log = MagicMock(response_body=json.dumps({"answer": "cached answer"}))
 
     with patch.object(
@@ -79,15 +100,14 @@ async def test_run_turn_replays_a_cache_hit(db):
     assert events[1].data["message_id"] == str(plan.assistant_message_id)
 
 
-@pytest.mark.asyncio
-async def test_save_turn_honours_an_explicit_assistant_message_id(db):
-    from app.services.chat.turn import save_turn
-
+async def test_save_turn_honours_an_explicit_assistant_message_id(db_session):
     wanted = uuid.uuid4()
     saved = await save_turn(
+        session=db_session,
         query="q", conversation_id=str(uuid.uuid4()), answer="a", references=[],
         category=None, agency_ids=[], response_time=0, user=None, succeeded=True,
         assistant_message_id=wanted,
     )
     assert saved.assistant_message_id == str(wanted)
-    assert (await Message.get(id=wanted)).content == "a"
+    fetched = await db_session.get(Message, wanted)
+    assert fetched.content == "a"
