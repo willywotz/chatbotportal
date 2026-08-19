@@ -3,31 +3,33 @@ ConnectionLog — records every agency connection test or query attempt.
 """
 
 import uuid
+from datetime import datetime
 
-from tortoise import fields, models
+from sqlalchemy import ForeignKey, Integer, String, Text, func
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.agency import Agency
+from app.models.base import Base
 from app.utils import generate_uuid
 
 
-class ConnectionLog(models.Model):
-    id = fields.UUIDField(primary_key=True, default=generate_uuid)
-    agency: fields.ForeignKeyRelation = fields.ForeignKeyField(
-        "models.Agency",
-        related_name="connection_logs",
-        on_delete=fields.CASCADE,
-        null=True,
+class ConnectionLog(Base):
+    __tablename__ = "connection_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=generate_uuid)
+    agency_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agencies.id", ondelete="CASCADE"), nullable=True,
     )
-    action = fields.CharField(max_length=50, default="test")   # test | query
-    connection_type = fields.CharField(max_length=20)          # MCP | API | A2A
-    status = fields.CharField(max_length=20)                   # success | error
-    latency_ms = fields.IntField(default=0)
-    detail = fields.TextField(default="")
-    created_at = fields.DatetimeField(auto_now_add=True)
+    agency: Mapped["Agency | None"] = relationship(lazy="raise")
+    action: Mapped[str] = mapped_column(String(50), default="test")  # test | query
+    connection_type: Mapped[str] = mapped_column(String(20))  # MCP | API | A2A
+    status: Mapped[str] = mapped_column(String(20))  # success | error
+    latency_ms: Mapped[int] = mapped_column(Integer, default=0)
+    detail: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
-    request_body = fields.TextField(default="", null=True)
-    response_body = fields.TextField(default="", null=True)
-    message_id = fields.UUIDField(null=True)  # Link to Message if this log is for a query attempt
-    assistant_message_id = fields.UUIDField(null=True)  # Link to assistant Message for successful queries
-
-    class Meta:
-        table = "connection_logs"
-        ordering = ["-created_at"]
+    request_body: Mapped[str | None] = mapped_column(Text, nullable=True, default="")
+    response_body: Mapped[str | None] = mapped_column(Text, nullable=True, default="")
+    message_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    assistant_message_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)

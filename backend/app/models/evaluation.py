@@ -1,29 +1,40 @@
 """Golden questions and per-run evaluation scores for agency answer quality."""
-from tortoise import fields
-from tortoise.models import Model
 
+import uuid
+from datetime import datetime
+
+from sqlalchemy import Float, ForeignKey, Text, func
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.ext.mutable import MutableList
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.agency import Agency
+from app.models.base import Base
 from app.utils import generate_uuid
 
 
-class GoldenQuestion(Model):
-    id = fields.UUIDField(primary_key=True, default=generate_uuid)
-    agency = fields.ForeignKeyField("models.Agency", related_name="golden_questions", on_delete=fields.CASCADE)
-    question = fields.TextField()
-    expected_topics = fields.JSONField(default=list)  # list[str]
-    created_at = fields.DatetimeField(auto_now_add=True)
+class GoldenQuestion(Base):
+    __tablename__ = "golden_questions"
 
-    class Meta:
-        table = "golden_questions"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=generate_uuid)
+    agency_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agencies.id", ondelete="CASCADE"), nullable=False,
+    )
+    agency: Mapped["Agency"] = relationship(lazy="raise")
+    question: Mapped[str] = mapped_column(Text)
+    expected_topics: Mapped[list] = mapped_column(MutableList.as_mutable(JSONB), default=list)  # list[str]
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
-class EvalResult(Model):
-    id = fields.UUIDField(primary_key=True, default=generate_uuid)
-    golden_question = fields.ForeignKeyField("models.GoldenQuestion", related_name="results", on_delete=fields.CASCADE)
-    score = fields.FloatField()
-    answer = fields.TextField(default="")
-    judge_reason = fields.TextField(default="")
-    created_at = fields.DatetimeField(auto_now_add=True)
+class EvalResult(Base):
+    __tablename__ = "eval_results"
 
-    class Meta:
-        table = "eval_results"
-        ordering = ["-created_at"]
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=generate_uuid)
+    golden_question_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("golden_questions.id", ondelete="CASCADE"), nullable=False,
+    )
+    golden_question: Mapped["GoldenQuestion"] = relationship(lazy="raise")
+    score: Mapped[float] = mapped_column(Float)
+    answer: Mapped[str] = mapped_column(Text, default="")
+    judge_reason: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())

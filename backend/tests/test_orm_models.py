@@ -3,10 +3,15 @@ from sqlalchemy import Enum as SAEnum, UniqueConstraint
 from app.models.agency import Agency, AgencyStatus, ConnectionType
 from app.models.audit import AuditLog
 from app.models.base import Base
+from app.models.connection_log import ConnectionLog
+from app.models.conversation import Conversation, Message
+from app.models.evaluation import EvalResult, GoldenQuestion
 from app.models.event import DomainEvent
 from app.models.executive_brief import ExecutiveBrief
 from app.models.llm_provider import LlmProvider
+from app.models.llm_route import LlmRoute
 from app.models.llm_usage import LlmUsage
+from app.models.popular_question import PopularQuestion, PopularQuestionSource
 from app.models.rate_limit_counter import RateLimitCounter
 from app.models.setting import Setting
 
@@ -79,3 +84,68 @@ def test_rate_limit_counter_table_and_columns():
     assert t.c.id.autoincrement is True
     unique = [c for c in t.constraints if isinstance(c, UniqueConstraint)]
     assert any({col.name for col in c.columns} == {"key", "window_start"} for c in unique)
+
+
+def test_connection_log_fk_cascade():
+    t = ConnectionLog.__table__
+    assert t.name == "connection_logs"
+    assert t.c.action.default.arg == "test"
+    fk = list(t.c.agency_id.foreign_keys)[0]
+    assert fk.column.table.name == "agencies"
+    assert fk.ondelete == "CASCADE"
+    assert t.c.agency_id.nullable
+
+
+def test_conversation_metadata_renamed_to_meta():
+    t = Conversation.__table__
+    assert t.name == "conversations"
+    assert t.c.title.default.arg == "สนทนาใหม่"
+    assert t.c.title.type.length == 500
+    assert "metadata" in t.c
+    assert Conversation.meta.property.columns[0].name == "metadata"
+
+
+def test_message_fk_cascade():
+    t = Message.__table__
+    assert t.name == "messages"
+    fk = list(t.c.conversation_id.foreign_keys)[0]
+    assert fk.column.table.name == "conversations"
+    assert fk.ondelete == "CASCADE"
+    assert not t.c.conversation_id.nullable
+
+
+def test_golden_question_fk_cascade():
+    t = GoldenQuestion.__table__
+    assert t.name == "golden_questions"
+    fk = list(t.c.agency_id.foreign_keys)[0]
+    assert fk.column.table.name == "agencies"
+    assert fk.ondelete == "CASCADE"
+
+
+def test_eval_result_fk_cascade():
+    t = EvalResult.__table__
+    assert t.name == "eval_results"
+    fk = list(t.c.golden_question_id.foreign_keys)[0]
+    assert fk.column.table.name == "golden_questions"
+    assert fk.ondelete == "CASCADE"
+
+
+def test_llm_route_fk_restrict():
+    t = LlmRoute.__table__
+    assert t.name == "llm_routes"
+    assert t.c.purpose.unique
+    assert t.c.purpose.type.length == 50
+    fk = list(t.c.provider_id.foreign_keys)[0]
+    assert fk.column.table.name == "llm_providers"
+    assert fk.ondelete == "RESTRICT"
+
+
+def test_popular_question_fk_set_null():
+    t = PopularQuestion.__table__
+    assert t.name == "popular_questions"
+    assert t.c.text_key.unique
+    assert t.c.source.default.arg == PopularQuestionSource.manual
+    fk = list(t.c.agency_id.foreign_keys)[0]
+    assert fk.column.table.name == "agencies"
+    assert fk.ondelete == "SET NULL"
+    assert t.c.agency_id.nullable
