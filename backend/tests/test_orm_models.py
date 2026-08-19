@@ -149,3 +149,15 @@ def test_popular_question_fk_set_null():
     assert fk.column.table.name == "agencies"
     assert fk.ondelete == "SET NULL"
     assert t.c.agency_id.nullable
+
+
+def test_all_15_tables_registered():
+    from app import models  # noqa: F401
+
+    expected = {
+        "agencies", "audit_logs", "connection_logs", "conversations", "messages",
+        "golden_questions", "eval_results", "domain_events", "executive_briefs",
+        "llm_providers", "llm_routes", "llm_usage", "popular_questions",
+        "rate_limit_counters", "settings",
+    }
+    assert expected <= set(Base.metadata.tables)
