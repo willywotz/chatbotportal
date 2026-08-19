@@ -25,7 +25,7 @@ function renderAt(initial: string, ui: React.ReactNode) {
 
 describe("ProtectedRoute allowedRoles", () => {
   beforeEach(() => {
-    auth.user = { id: "1", email: "u@test.com", displayName: "User", role: "user", avatarUrl: null, isEphemeral: false };
+    auth.user = { id: "1", email: "u@test.com", displayName: "User", role: "user", avatarUrl: null };
     auth.isAdmin = false;
     auth.isLoading = false;
   });

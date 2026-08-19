@@ -42,7 +42,9 @@ axiosInstance.interceptors.request.use(async (config) => {
     }
   }
   if (keycloak.token) {
-    config.headers = config.headers ?? {};
+    // config.headers is always defined here (axios sets it before running
+    // interceptors); a direct property assignment works whether it's a
+    // plain object (as in apiClient.test.ts) or a real AxiosHeaders instance.
     (config.headers as Record<string, string>).Authorization = `Bearer ${keycloak.token}`;
   }
   return config;

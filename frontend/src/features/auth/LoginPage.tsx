@@ -12,14 +12,17 @@ import { ArrowLeft, LogIn } from "lucide-react";
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { user, isLoading, setAuth } = useAuth();
+  // TODO(task-4): this page is being replaced with a single Keycloak-redirect
+  // button; the password form + api.post login call below is temporary so the
+  // build stays green until that rewrite lands.
+  const { user, isLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   // Redirect if already logged in
   useEffect(() => {
-    if (!isLoading && user && !user.isEphemeral) {
+    if (!isLoading && user) {
       navigate("/chat", { replace: true });
     }
   }, [user, isLoading, navigate]);
@@ -28,11 +31,10 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await api.post<{ user: AuthUser }>("/api/v1/authentication/login", {
+      await api.post<{ user: AuthUser }>("/api/v1/authentication/login", {
         email,
         password,
       });
-      setAuth(res.user);
       toast.success("เข้าสู่ระบบสำเร็จ");
       navigate("/chat", { replace: true });
     } catch (err: unknown) {
@@ -42,7 +44,7 @@ export default function LoginPage() {
     }
   };
 
-  if (!isLoading && user && !user.isEphemeral) return null;
+  if (!isLoading && user) return null;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">

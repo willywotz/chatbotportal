@@ -88,8 +88,7 @@ describe('unmount cleanup', () => {
     const { result, unmount } = renderHook(() => useChat());
 
     // Kick off a send so an AbortController is created and stored in abortRef.
-    // handleSend awaits ensureSession() before startStream(), so flush one
-    // microtask turn to let it reach the point where abortRef.current is set.
+    // Flush one microtask turn to let it reach the point where abortRef.current is set.
     await act(async () => {
       result.current.handleSend('test question');
       await Promise.resolve();
