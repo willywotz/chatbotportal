@@ -20,8 +20,9 @@ from opentelemetry.trace import StatusCode
 
 from app.auth.keycloak import Principal
 from app.config import settings
-from app.models.connection_log import ConnectionLog
+from app.db import AsyncSessionLocal
 from app.models.conversation import Message
+from app.repositories import connection_log as connection_log_repo
 from app.repositories import conversation as conversation_repo
 from app.services.chat.llm import classify_message_category
 from app.services.chat.pipeline_snapshot import build_pipeline_snapshot
@@ -90,10 +91,12 @@ async def prepare_turn(
     )
 
     if not is_continuation:
-        plan.cached = await find_similar_question(query=query)
+        async with AsyncSessionLocal() as session, session.begin():
+            plan.cached = await find_similar_question(session, query)
         return plan
 
-    conv = await conversation_repo.by_id(conversation_id)
+    async with AsyncSessionLocal() as session, session.begin():
+        conv = await conversation_repo.by_id(session, conversation_id)
     if conv is None:
         raise ConversationNotFound(conversation_id)
     try:
@@ -228,7 +231,8 @@ async def _persist(
     latency_ms: int, thread_name: str | None, schedule: Scheduler | None,
     pipeline_events: list[tuple[str, dict]] | None = None,
 ) -> Any:
-    """Save the turn via save_turn and write its ConnectionLog."""
+    """Save the turn and its ConnectionLog in one short-lived session, then
+    schedule classification outside it (no transaction pinned for the stream)."""
     answer = answer_data.get("answer", "").strip()
     errors = answer_data.get("errors", [])
     sections = answer_data.get("sections", [])
@@ -245,27 +249,30 @@ async def _persist(
     response_time = total_ms if total_ms else latency_ms
     agent_steps = build_pipeline_snapshot(pipeline_events or [], errors)
 
-    saved = await save_turn(
-        query=plan.query, conversation_id=plan.conversation_id, answer=answer,
-        references=[], category=None, agency_ids=agency_ids,
-        response_time=response_time, user=plan.user, succeeded=bool(answer),
-        external_session_id=session_id, errors=errors, summary=summary,
-        summary_references=summary_references, title=thread_name,
-        assistant_message_id=plan.assistant_message_id, agent_steps=agent_steps,
-    )
-    await ConnectionLog.create(
-        id=str(generate_uuid()),
-        action="query",
-        connection_type=f"external_chat_{plan.stream_version}",
-        status="success" if answer else "error",
-        latency_ms=latency_ms,
-        detail=sanitize_body(f"{plan.stream_version} stream query: {plan.query[:100]}"),
-        request_body=sanitize_body(
-            json.dumps({"query": plan.query, "session_id": plan.conversation_id})
-        ),
-        response_body=sanitize_body(json.dumps(answer_data, ensure_ascii=False)),
-        message_id=saved.user_message_id,
-        assistant_message_id=saved.assistant_message_id,
-    )
+    async with AsyncSessionLocal() as session, session.begin():
+        saved = await save_turn(
+            session=session,
+            query=plan.query, conversation_id=plan.conversation_id, answer=answer,
+            references=[], category=None, agency_ids=agency_ids,
+            response_time=response_time, user=plan.user, succeeded=bool(answer),
+            external_session_id=session_id, errors=errors, summary=summary,
+            summary_references=summary_references, title=thread_name,
+            assistant_message_id=plan.assistant_message_id, agent_steps=agent_steps,
+        )
+        await connection_log_repo.create(
+            session,
+            id=str(generate_uuid()),
+            action="query",
+            connection_type=f"external_chat_{plan.stream_version}",
+            status="success" if answer else "error",
+            latency_ms=latency_ms,
+            detail=sanitize_body(f"{plan.stream_version} stream query: {plan.query[:100]}"),
+            request_body=sanitize_body(
+                json.dumps({"query": plan.query, "session_id": plan.conversation_id})
+            ),
+            response_body=sanitize_body(json.dumps(answer_data, ensure_ascii=False)),
+            message_id=saved.user_message_id,
+            assistant_message_id=saved.assistant_message_id,
+        )
     _schedule_classification(saved.user_message_id, plan.query, answer, schedule)
     return saved.assistant_message_id
