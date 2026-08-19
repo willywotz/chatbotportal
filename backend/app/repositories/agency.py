@@ -50,3 +50,8 @@ async def increment_calls(session: AsyncSession, agency: Agency) -> Agency:
 
 async def count_all(session: AsyncSession) -> int:
     return (await session.execute(select(func.count()).select_from(Agency))).scalar_one()
+
+
+async def list_by_statuses(session: AsyncSession, statuses: list[str]) -> list[Agency]:
+    stmt = select(Agency).where(Agency.status.in_(statuses))
+    return list((await session.execute(stmt)).scalars().all())

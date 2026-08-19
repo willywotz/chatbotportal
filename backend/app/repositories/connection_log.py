@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from sqlalchemy import delete as sa_delete
+from datetime import datetime
+
+from sqlalchemy import delete as sa_delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.connection_log import ConnectionLog
@@ -15,6 +17,17 @@ async def create(session: AsyncSession, **fields) -> ConnectionLog:
 
 async def get(session: AsyncSession, log_id) -> ConnectionLog | None:
     return await session.get(ConnectionLog, log_id)
+
+
+async def rows_since(session: AsyncSession, agency_id, since: datetime) -> list[ConnectionLog]:
+    """Rows for `agency_id` created at or after `since`, oldest first. Backs agency_health's
+    error-window/uptime aggregation."""
+    stmt = (
+        select(ConnectionLog)
+        .where(ConnectionLog.agency_id == agency_id, ConnectionLog.created_at >= since)
+        .order_by(ConnectionLog.created_at)
+    )
+    return list((await session.execute(stmt)).scalars().all())
 
 
 async def delete_older_than(session: AsyncSession, cutoff) -> int:

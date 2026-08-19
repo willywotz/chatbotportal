@@ -42,7 +42,7 @@ async def get_agency_health(session: AsyncSession) -> AgencyHealthData:
         avg_lat = avg_latency.get(ag_id) or 0
         # Uptime/error rate over the trailing 24h, honoring per-agency
         # stats_reset_at — identical window to the /agencies embed.
-        checks, failures = await error_window(ag["id"], ag["stats_reset_at"])
+        checks, failures = await error_window(session, ag["id"], ag["stats_reset_at"])
         error_rate = (failures / checks * 100) if checks else 0
         total_day = day_counts.get(ag_id, 0)
 
