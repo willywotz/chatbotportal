@@ -97,6 +97,12 @@ class FakeKeycloak:
             drop = {r["name"] for r in kwargs["json"]}
             self.role_mappings[uid] = [r for r in self.role_mappings.get(uid, []) if r["name"] not in drop]
             return _resp(204)
+        if m := re.match(r"^/users/([^/]+)$", path):
+            uid = m.group(1)
+            self._require(uid)
+            del self.users[uid]
+            self.role_mappings.pop(uid, None)
+            return _resp(204)
         raise AssertionError(f"unexpected DELETE {path}")
 
     def _require(self, uid: str) -> dict:
@@ -220,3 +226,31 @@ async def test_deactivate_missing_user_404(as_principal, fake_kc):
     async with await _client() as c:
         r = await c.post(f"{_USERS}/missing/deactivate")
     assert r.status_code == 404
+
+
+@pytest.mark.usefixtures("db")
+async def test_delete_user_removes_from_keycloak(as_principal, fake_kc):
+    as_principal(scopes=["user:manage"])
+    uid = fake_kc.seed(email="gone@example.com")
+    async with await _client() as c:
+        r = await c.delete(f"{_USERS}/{uid}")
+    assert r.status_code == 204
+    assert uid not in fake_kc.users
+
+
+@pytest.mark.usefixtures("db")
+async def test_delete_missing_user_404(as_principal, fake_kc):
+    as_principal(scopes=["user:manage"])
+    async with await _client() as c:
+        r = await c.delete(f"{_USERS}/missing")
+    assert r.status_code == 404
+
+
+@pytest.mark.usefixtures("db")
+async def test_delete_own_account_forbidden(as_principal, fake_kc):
+    uid = fake_kc.seed(email="me@example.com", role="admin")
+    as_principal(sub=uid, scopes=["user:manage"])
+    async with await _client() as c:
+        r = await c.delete(f"{_USERS}/{uid}")
+    assert r.status_code == 403
+    assert uid in fake_kc.users

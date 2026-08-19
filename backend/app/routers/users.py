@@ -70,6 +70,17 @@ async def update_user(user_id: str, body: UserUpdate, admin=Security(require_sco
     return user
 
 
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a user")
+async def delete_user(user_id: str, admin=Security(require_scope, scopes=["user:manage"])) -> None:
+    if user_id == admin.id:
+        raise ApiError(ErrorCode.FORBIDDEN, "You cannot delete your own account", status=403)
+    try:
+        await keycloak_admin.delete_user(user_id)
+    except keycloak_admin.KeycloakAdminError as exc:
+        raise _map_error(exc) from exc
+    await record_audit(admin, "user.delete", object_type="user", object_id=user_id)
+
+
 @router.post("/{user_id}/deactivate", response_model=UserResponse, summary="Deactivate a user")
 async def deactivate_user(user_id: str, admin=Security(require_scope, scopes=["user:manage"])) -> UserResponse:
     try:

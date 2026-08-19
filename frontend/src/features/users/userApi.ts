@@ -52,3 +52,7 @@ export async function deactivateUser(id: string): Promise<ManagedUser> {
 export async function activateUser(id: string): Promise<ManagedUser> {
   return api.post<ManagedUser>(`/api/v1/users/${id}/activate`);
 }
+
+export async function deleteUser(id: string): Promise<void> {
+  await api.delete(`/api/v1/users/${id}`);
+}

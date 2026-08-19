@@ -193,3 +193,7 @@ async def update_user(user_id: str, data) -> UserResponse:
 async def set_enabled(user_id: str, enabled: bool) -> UserResponse:
     await _put(f"/users/{user_id}", json={"enabled": enabled})
     return await get_user(user_id)
+
+
+async def delete_user(user_id: str) -> None:
+    await _delete(f"/users/{user_id}")

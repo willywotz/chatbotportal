@@ -281,7 +281,10 @@ Auth is **Keycloak OIDC**. There is **no local password/session/API-key auth** �
   `role == "admin"` literals remain in services.
 - **User management proxies to Keycloak.** `routers/users.py` (guarded by `user:manage`) calls
   `app/services/keycloak_admin.py` — a service-account (client-credentials) client for the Keycloak
-  Admin REST API. The old last-admin/self guardrails now live in the **Keycloak console** (the
+  Admin REST API. CRUD: list, create, update, activate/deactivate, and **hard delete**
+  (`DELETE /api/v1/users/{id}` → `keycloak_admin.delete_user`; the router refuses deleting your own
+  account — 403). The Users page (`/settings/users`) has a per-row "ลบ" action (confirm dialog,
+  disabled on your own row). The old last-admin guardrail lives in the **Keycloak console** (the
   authoritative recovery path with a bootstrap admin).
 - **MCP mount (`/mcp`) is outside** the app (mounted sub-app). Its own `AuthMiddleware`
   (`mcp/server.py`) verifies a Keycloak **bearer** via `verify_token` when present, else anonymous;

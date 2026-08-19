@@ -1,9 +1,10 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 
 import UsersPage from "./UsersPage";
-import { listUsers, type ManagedUser } from "./userApi";
+import { listUsers, deleteUser, type ManagedUser } from "./userApi";
 
 const staffUser: ManagedUser = {
   id: "1",
@@ -21,6 +22,7 @@ vi.mock("./userApi", () => ({
   updateUser: vi.fn(),
   deactivateUser: vi.fn(),
   activateUser: vi.fn(),
+  deleteUser: vi.fn(() => Promise.resolve()),
 }));
 
 function renderPage() {
@@ -47,5 +49,16 @@ describe("UsersPage create control", () => {
     vi.mocked(listUsers).mockResolvedValueOnce([staffUser]);
     renderPage();
     expect(await screen.findByText("เจ้าหน้าที่")).toBeInTheDocument();
+  });
+});
+
+describe("UsersPage delete control", () => {
+  it("deletes a user after confirming", async () => {
+    vi.mocked(listUsers).mockResolvedValueOnce([staffUser]);
+    renderPage();
+    await screen.findByText("staff@test.com");
+    await userEvent.click(screen.getByRole("button", { name: "ลบ" }));
+    await userEvent.click(await screen.findByRole("button", { name: "ลบผู้ใช้" }));
+    expect(deleteUser).toHaveBeenCalledWith("1");
   });
 });
