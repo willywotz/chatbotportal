@@ -1,13 +1,1 @@
-from .audit import *
-from .agency import *
-from .connection_log import *
-from .conversation import *
-from .evaluation import *
-from .event import *
-from .executive_brief import *
-from .llm_provider import *
-from .llm_route import *
-from .llm_usage import *
-from .popular_question import *
-from .rate_limit_counter import *
-from .setting import *
+# models are registered incrementally during the SQLAlchemy migration (see plan Phase 2)
