@@ -194,6 +194,25 @@ async def test_fetch_agencies_stable_ids_across_payload_keys():
     assert "__conversation_id__" not in payload["cid1"]
 
 
+@pytest.mark.asyncio
+async def test_fetch_agencies_resolves_both_placeholders_in_one_value():
+    """A single value with both placeholders must resolve both, not drop one."""
+    ctx = MagicMock()
+    ctx.get_state = AsyncMock(side_effect=lambda key: {"user_id": "U", "conversation_id": "C"}.get(key))
+    agency = {
+        "id": "a1", "name": "A", "status": "active", "description": "d",
+        "connection_type": "API", "data_scope": [], "endpoint_url": "http://e/",
+        "expected_payload": {"both": "u=__user_id__;c=__conversation_id__"}, "api_headers": [],
+    }
+    with patch.object(server.Agency, "all", return_value=MagicMock(
+        values=AsyncMock(return_value=[agency])
+    )), patch.object(server, "get_http_request", return_value=MagicMock(
+        headers={"X-Forwarded-Host": "example.test"}, url=MagicMock(scheme="https"),
+    )):
+        result = await server._fetch_agencies(ctx)
+    assert result[0]["expected_payload"]["both"] == "u=U;c=C"
+
+
 def test_mcp_server_module_has_no_role_check():
     """Structural guard: AuthMiddleware source must not contain role gating.
 

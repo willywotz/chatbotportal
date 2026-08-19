@@ -46,11 +46,7 @@ mcp = FastMCP(
 
 class AuthMiddleware(Middleware):
     async def on_request(self, ctx: MiddlewareContext, call_next):
-
-        user = await ctx.fastmcp_context.get_state("user_id") or None
-        conversation_id = await ctx.fastmcp_context.get_state("conversation_id") or None
-
-        if not user:
+        if not await ctx.fastmcp_context.get_state("user_id"):
             token = get_http_request().headers.get("Authorization", "Bearer anonymous").split(" ")[-1]
             try:
                 principal = verify_token(token)
@@ -60,6 +56,7 @@ class AuthMiddleware(Middleware):
                 await ctx.fastmcp_context.set_state("user_id", principal.id)
                 await ctx.fastmcp_context.set_state("user_is_admin", principal.is_admin)
 
+        conversation_id = await ctx.fastmcp_context.get_state("conversation_id")
         if not conversation_id:
             conversation_id = str(generate_uuid())
             await ctx.fastmcp_context.set_state("conversation_id", conversation_id)
@@ -153,8 +150,10 @@ async def _fetch_agencies(ctx: Context) -> list[dict]:
         "api_headers",
     )
 
-    resolved_user_id = str(await ctx.get_state("user_id") or generate_uuid())
-    resolved_conversation_id = str(await ctx.get_state("conversation_id") or generate_uuid())
+    placeholders = {
+        "__user_id__": str(await ctx.get_state("user_id") or generate_uuid()),
+        "__conversation_id__": str(await ctx.get_state("conversation_id") or generate_uuid()),
+    }
 
     for agency in agencies:
         headers = agency["api_headers"] or []
@@ -166,11 +165,12 @@ async def _fetch_agencies(ctx: Context) -> list[dict]:
         if agency["connection_type"] == "API":
             agency["endpoint_url"] = _agent_proxy_endpoint(request, agency["id"])
 
-        for k, v in agency["expected_payload"].items():
-            if isinstance(v, str) and "__user_id__" in v:
-                agency["expected_payload"][k] = v.replace("__user_id__", resolved_user_id)
-            if isinstance(v, str) and "__conversation_id__" in v:
-                agency["expected_payload"][k] = v.replace("__conversation_id__", resolved_conversation_id)
+        payload = agency["expected_payload"]
+        for key, value in payload.items():
+            if isinstance(value, str):
+                for token, resolved in placeholders.items():
+                    value = value.replace(token, resolved)
+                payload[key] = value
 
     return agencies
 
