@@ -2,8 +2,8 @@
 import json
 import logging
 
-from app.models import Agency, EvalResult
-from app.models.evaluation import GoldenQuestion
+from app.db import AsyncSessionLocal
+from app.repositories import evaluation as evaluation_repo
 from app.services.conformance import _ask
 
 logger = logging.getLogger(__name__)
@@ -19,7 +19,8 @@ _JUDGE_PROMPT = """\
 
 async def run_evaluation() -> int:
     ran = 0
-    questions = await GoldenQuestion.all().prefetch_related("agency")
+    async with AsyncSessionLocal() as session, session.begin():
+        questions = await evaluation_repo.all_golden_with_agency(session)
     for gq in questions:
         if gq.agency.status != "active":
             continue
@@ -27,7 +28,10 @@ async def run_evaluation() -> int:
             res = await _ask(gq.agency, gq.question)
             answer = res["answer"] if res["ok"] else ""
             score, reason = await _judge(gq.question, gq.expected_topics, answer)
-            await EvalResult.create(golden_question=gq, score=score, answer=answer, judge_reason=reason)
+            async with AsyncSessionLocal() as session, session.begin():
+                await evaluation_repo.create_eval_result(
+                    session, golden_question_id=gq.id, score=score, answer=answer, judge_reason=reason,
+                )
             ran += 1
         except Exception:
             logger.exception("eval failed for question %s", gq.id)

@@ -25,7 +25,7 @@ async def find_similar_question(
     if not settings.SIMILARITY_CACHE_ENABLED:
         return None
 
-    cutoff = await effective_cutoff(now() - timedelta(seconds=settings.SIMILARITY_WINDOW_SECONDS))
+    cutoff = await effective_cutoff(session, now() - timedelta(seconds=settings.SIMILARITY_WINDOW_SECONDS))
     # withinlazy: PGroonga score floor needs tuning; tokenizer/normalizer (NormalizerNFKC150) is the knob
     score_floor = settings.SIMILARITY_THRESHOLD if settings.SIMILARITY_THRESHOLD > 0 else None
 

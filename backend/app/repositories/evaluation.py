@@ -39,6 +39,17 @@ async def delete_golden(session: AsyncSession, golden_question: GoldenQuestion) 
     await session.delete(golden_question)
 
 
+async def create_eval_result(
+    session: AsyncSession, *, golden_question_id: uuid.UUID, score: float, answer: str, judge_reason: str,
+) -> EvalResult:
+    obj = EvalResult(
+        golden_question_id=golden_question_id, score=score, answer=answer, judge_reason=judge_reason,
+    )
+    session.add(obj)
+    await session.flush()
+    return obj
+
+
 async def list_eval_results(
     session: AsyncSession, golden_question_ids: list[uuid.UUID], limit: int
 ) -> list[EvalResult]:

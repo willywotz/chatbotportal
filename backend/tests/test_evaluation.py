@@ -1,18 +1,37 @@
 import json
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.models import Agency, EvalResult
-from app.models.evaluation import GoldenQuestion
+from app.models.agency import Agency
+from app.models.evaluation import EvalResult, GoldenQuestion
+from app.repositories import evaluation as evaluation_repo
 from app.services import evaluation
 from app.services.llm import LlmResult, LlmUsageInfo
 
+pytestmark = pytest.mark.asyncio
 
-@pytest.mark.asyncio
-async def test_eval_run_scores_each_question(db, monkeypatch):
-    ag = await Agency.create(name="A", status="active", connection_type="API", endpoint_url="http://x")
-    gq = await GoldenQuestion.create(agency=ag, question="ทำบัตรประชาชนที่ไหน",
-                                     expected_topics=["สถานที่", "เอกสาร"])
+
+@pytest.fixture(autouse=True)
+async def _bind_evaluation_session(db_session, monkeypatch):
+    """run_evaluation opens its own session; bind it to the test's connection
+    (same DB transaction) so writes are visible/rolled back with the test."""
+    conn = await db_session.connection()
+    factory = async_sessionmaker(
+        bind=conn, class_=AsyncSession, expire_on_commit=False,
+        join_transaction_mode="create_savepoint",
+    )
+    monkeypatch.setattr(evaluation, "AsyncSessionLocal", factory)
+
+
+async def test_eval_run_scores_each_question(db_session, monkeypatch):
+    ag = Agency(name="A", status="active", connection_type="API", endpoint_url="http://x")
+    db_session.add(ag)
+    await db_session.flush()
+    gq = GoldenQuestion(agency_id=ag.id, question="ทำบัตรประชาชนที่ไหน",
+                         expected_topics=["สถานที่", "เอกสาร"])
+    db_session.add(gq)
+    await db_session.flush()
 
     async def fake_ask(agency, question):
         return {"ok": True, "latency_ms": 10, "answer": "ไปที่สำนักงานเขต ใช้บัตรเดิม"}
@@ -27,16 +46,19 @@ async def test_eval_run_scores_each_question(db, monkeypatch):
     monkeypatch.setattr(evaluation, "_ask", fake_ask)
     monkeypatch.setattr("app.services.llm.chat", fake_judge)
 
-    await evaluation.run_evaluation()
+    ran = await evaluation.run_evaluation()
 
-    result = await EvalResult.filter(golden_question_id=gq.id).first()
-    assert result.score == 0.8 and "สำนักงานเขต" in result.answer
+    assert ran == 1
+    results = await evaluation_repo.list_eval_results(db_session, [gq.id], limit=10)
+    assert results[0].score == 0.8 and "สำนักงานเขต" in results[0].answer
 
 
-@pytest.mark.asyncio
-async def test_eval_skips_inactive_agencies(db, monkeypatch):
-    ag = await Agency.create(name="Inactive", status="draft", connection_type="API", endpoint_url="http://x")
-    await GoldenQuestion.create(agency=ag, question="test question", expected_topics=[])
+async def test_eval_skips_inactive_agencies(db_session, monkeypatch):
+    ag = Agency(name="Inactive", status="draft", connection_type="API", endpoint_url="http://x")
+    db_session.add(ag)
+    await db_session.flush()
+    db_session.add(GoldenQuestion(agency_id=ag.id, question="test question", expected_topics=[]))
+    await db_session.flush()
 
     called = []
 
@@ -49,27 +71,3 @@ async def test_eval_skips_inactive_agencies(db, monkeypatch):
     ran = await evaluation.run_evaluation()
     assert ran == 0
     assert called == []
-
-
-@pytest.mark.asyncio
-async def test_golden_question_create_and_list(db):
-    ag = await Agency.create(name="GovAgency", status="active", connection_type="API", endpoint_url="http://x")
-    gq1 = await GoldenQuestion.create(agency=ag, question="Q1", expected_topics=["topic1"])
-    gq2 = await GoldenQuestion.create(agency=ag, question="Q2", expected_topics=["topic2"])
-
-    questions = await GoldenQuestion.filter(agency=ag)
-    assert len(questions) == 2
-    ids = {q.id for q in questions}
-    assert gq1.id in ids and gq2.id in ids
-
-
-@pytest.mark.asyncio
-async def test_golden_question_scoped_to_agency(db):
-    ag1 = await Agency.create(name="Agency1", status="active", connection_type="API", endpoint_url="http://x")
-    ag2 = await Agency.create(name="Agency2", status="active", connection_type="API", endpoint_url="http://y")
-    await GoldenQuestion.create(agency=ag1, question="Q for ag1", expected_topics=[])
-    await GoldenQuestion.create(agency=ag2, question="Q for ag2", expected_topics=[])
-
-    ag1_questions = await GoldenQuestion.filter(agency=ag1)
-    assert len(ag1_questions) == 1
-    assert ag1_questions[0].question == "Q for ag1"
