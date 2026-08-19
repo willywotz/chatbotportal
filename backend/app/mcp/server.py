@@ -1,19 +1,6 @@
-"""
-FastMCP Server — AI Chatbot Portal
-Exposes agency data as MCP resources so LLM clients (e.g. Claude) can
-discover which government agencies are available and how to reach them.
-
-Registered resources
---------------------
-  agencies://list → list_agency_resource()   All active agencies (JSON string)
-
-Registered tools
-----------------
-  list_agency → list_agency_tool()   All active agencies (agencies + total)
-"""
+"""FastMCP server exposing Thai government agency data as the `list_agency` tool."""
 
 import json
-from datetime import datetime
 
 from fastmcp import FastMCP
 from fastmcp.dependencies import CurrentContext
@@ -67,20 +54,10 @@ class AuthMiddleware(Middleware):
 
 mcp.add_middleware(AuthMiddleware())
 
-def _serialize(value):
-    """JSON-serialise datetime and UUID objects."""
-    if isinstance(value, datetime):
-        return value.isoformat()
-    return str(value)
-
 def _external_scheme(request) -> str:
-    """Resolve the browser-facing scheme.
-
-    Behind a Cloudflare tunnel the whole chain speaks HTTP, so request.url.scheme
-    and X-Forwarded-Proto are both "http". Cloudflare preserves the real scheme in
-    `cf-visitor` (`{"scheme":"https"}`); prefer it, then X-Forwarded-Proto, then the
-    raw connection scheme.
-    """
+    # Behind a Cloudflare tunnel every hop speaks http; only cf-visitor
+    # (`{"scheme":"https"}`) preserves the browser scheme. Fall back to
+    # X-Forwarded-Proto, then the raw connection scheme.
     cf_visitor = request.headers.get("cf-visitor")
     if cf_visitor:
         try:
@@ -92,50 +69,20 @@ def _external_scheme(request) -> str:
     return request.headers.get("X-Forwarded-Proto") or request.url.scheme
 
 def _agent_proxy_endpoint(request, agency_id: str) -> str:
-    """Build the agent-proxy URL OneChat calls back, optionally tagged with
-    TRACE_URL_PROBE to check whether OneChat preserves query strings, and
-    always tagged with the active W3C trace context so it survives OneChat's
-    header-dropping callback."""
+    # The trace context rides in the query string so it survives OneChat's
+    # header-dropping callback; TRACE_URL_PROBE is an optional debug marker.
     url = f"{_external_scheme(request)}://{request.headers.get('X-Forwarded-Host')}/api/v1/agent-proxy/{agency_id}"
     if settings.TRACE_URL_PROBE:
         url += ("&" if "?" in url else "?") + settings.TRACE_URL_PROBE
     return with_trace_query(url)
 
-@mcp.resource("agencies://list")
-async def list_agency_resource(ctx: Context = CurrentContext()) -> str:
-    """
-    Return a JSON array of all *active* government agencies.
-    """
-    return json.dumps(await _fetch_agencies(ctx), default=_serialize, ensure_ascii=False, indent=2)
-
 @mcp.tool("list_agency", description="Return a JSON array of all active government agencies.")
 async def list_agency_tool(ctx: Context = CurrentContext()) -> dict:
-    """
-    Return active agencies as an object with an `agencies` list and a `total`
-    count. The `agencies://list` resource returns the same data as a JSON string.
-    """
-
     agencies = await _fetch_agencies(ctx)
-
     return {"agencies": agencies, "total": len(agencies)}
 
 async def _fetch_agencies(ctx: Context) -> list[dict]:
-    """
-    Return a list of all *active* government agencies.
-
-    Each item contains:
-    - id
-    - name
-    - status
-    - description
-    - connection_type  (MCP | API | A2A)
-    - data_scope       list of data categories this agency covers
-    - endpoint_url     base URL of the agency's API
-    - expected_payload example JSON payload for API calls
-    """
-
     request = get_http_request()
-
     user_is_admin = await ctx.get_state("user_is_admin")
 
     agencies = await Agency.all().values(

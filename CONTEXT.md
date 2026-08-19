@@ -1592,3 +1592,9 @@ Branch `refactor/mcp-server-cleanup`. Cleaned `app/mcp/server.py`.
   file bottom to the top (sorted); corrected the module and `list_agency_tool` docstrings (the tool does
   not "wrap" the resource); fixed `_fetch_agencies` return annotation `dict` → `list[dict]`.
 - **Behavior preserved** apart from the leak fix. MCP suite 19 → **21 pass**; `test_dispatch` 48 pass.
+- **Lean pass:** simplified `AuthMiddleware` (dropped redundant `or None` / throwaway var, inline state
+  reads) and collapsed the two placeholder-replacement branches into one chained loop over a mapping —
+  which also fixes a value holding both `__user_id__` and `__conversation_id__` losing one substitution.
+- **Surface reduced:** removed the `agencies://list` MCP **resource** (and its now-dead `_serialize` /
+  `datetime` import); the `list_agency` **tool** is the single surface. Nothing referenced the resource.
+  MCP suite now **22 pass**.
