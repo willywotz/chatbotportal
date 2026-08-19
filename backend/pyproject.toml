@@ -1,7 +1,7 @@
 [project]
 name = "ai-chatbot-backend"
 version = "1.0.0"
-description = "AI Chatbot Portal Backend — FastAPI + Tortoise ORM + FastMCP"
+description = "AI Chatbot Portal Backend — FastAPI + SQLAlchemy 2 + Alembic + FastMCP"
 requires-python = ">=3.12"
 dependencies = [
     # Web framework
