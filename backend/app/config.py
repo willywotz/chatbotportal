@@ -184,8 +184,11 @@ settings = Settings()
 
 
 async def load_settings_from_db() -> None:
-    from app.models.setting import Setting as SettingModel
-    rows = await SettingModel.all()
+    from app.db import AsyncSessionLocal
+    from app.repositories import setting as setting_repo
+
+    async with AsyncSessionLocal() as session, session.begin():
+        rows = await setting_repo.all(session)
     overrides = {row.key: row.value for row in rows}
     settings.apply_overrides(overrides)
 

@@ -31,3 +31,23 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 async def close_db() -> None:
     await engine.dispose()
+
+
+async def run_migrations() -> None:
+    import asyncio
+
+    from alembic import command
+    from alembic.config import Config
+
+    cfg = Config("alembic.ini")
+    cfg.set_main_option("sqlalchemy.url", database_url(settings))
+    await asyncio.to_thread(command.upgrade, cfg, "head")
+
+
+async def init_db() -> None:
+    await run_migrations()
+
+    from app.services.llm.seed import seed_llm_defaults
+
+    async with AsyncSessionLocal() as session, session.begin():
+        await seed_llm_defaults(session)
