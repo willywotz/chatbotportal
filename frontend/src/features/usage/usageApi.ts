@@ -5,13 +5,10 @@ export interface UsageRow {
   prompt_tokens: number;
   completion_tokens: number;
   cost_usd: number;
-  name?: string;
-  key_prefix?: string;
-  owner_email?: string | null;
 }
 
 export interface UsageParams {
-  group_by: 'api_key';
+  group_by: 'purpose' | 'model' | 'user';
   from?: string;
   to?: string;
 }
