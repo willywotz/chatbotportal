@@ -1,9 +1,15 @@
 import uuid
+from datetime import datetime
 from enum import Enum
 
-from tortoise import fields
-from tortoise.models import Model
+from sqlalchemy import Boolean, Enum as SAEnum, Integer, String, Text, func
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.ext.mutable import MutableList
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.models.base import Base
 from app.utils import generate_uuid
+
 
 class ConnectionType(str, Enum):
     MCP = "MCP"
@@ -18,67 +24,49 @@ class AgencyStatus(str, Enum):
     disabled = "disabled"
 
 
-class Agency(Model):
-    """
-    Government agency model.
-    Mirrors the `agencies` table from the original Supabase schema.
-    """
+class Agency(Base):
+    """Government agency. Mirrors the `agencies` table from the original Supabase schema."""
 
-    id = fields.UUIDField(primary_key=True, default=generate_uuid)
-    name = fields.CharField(max_length=255)
-    short_name = fields.CharField(max_length=50, null=True)
-    logo = fields.CharField(max_length=255, null=True)           # emoji icon or uploaded image URL
-    description = fields.TextField(null=True)
+    __tablename__ = "agencies"
 
-    connection_type = fields.CharEnumField(
-        ConnectionType, max_length=10, default=ConnectionType.API
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=generate_uuid)
+    name: Mapped[str] = mapped_column(String(255))
+    short_name: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    logo: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    connection_type: Mapped[ConnectionType] = mapped_column(
+        SAEnum(ConnectionType, native_enum=False, create_constraint=False, length=10),
+        default=ConnectionType.API,
     )
-    status = fields.CharEnumField(
-        AgencyStatus, max_length=20, default=AgencyStatus.active
+    status: Mapped[AgencyStatus] = mapped_column(
+        SAEnum(AgencyStatus, native_enum=False, create_constraint=False, length=20),
+        default=AgencyStatus.active,
     )
-    # Set True when the health rule auto-set maintenance; lets only rule-set
-    # maintenance be auto-reactivated. Cleared on every manual status change.
-    auto_maintenance = fields.BooleanField(default=False)
-    # Baseline for health measures: rows older than this are ignored by
-    # error_window / embedded_health / health_history. Set on each connection
-    # test. NULL = count all history.
-    stats_reset_at = fields.DatetimeField(null=True)
-
-    # Scope
-    data_scope = fields.JSONField(default=list)                 # list[str]
-    color = fields.CharField(max_length=50, null=True)
-
-    endpoint_url = fields.CharField(max_length=1000, null=True)
-    auth_method = fields.CharField(max_length=50, null=True)
-    auth_header = fields.CharField(max_length=100, null=True)
-    base_path = fields.CharField(max_length=255, null=True)
-    api_key_name = fields.CharField(max_length=100, null=True)
-    request_format = fields.CharField(max_length=50, null=True)
-
-    api_endpoints = fields.JSONField(default=list)              # list[ApiEndpoint]
-    response_schema = fields.JSONField(default=list)            # list[ResponseField]
-    api_spec_raw = fields.TextField(null=True)
-
-    expected_payload = fields.JSONField(null=True)
-    api_headers = fields.JSONField(null=True, default=list)              # list[ApiHeader]
-
-    priority = fields.IntField(null=True)
-    router_hint = fields.TextField(default="")
-    dispatch_timeout_s = fields.IntField(null=True)
-    mcp_tool_name = fields.CharField(max_length=255, null=True)
-
-    conformance_report = fields.JSONField(null=True)
-
-    total_calls = fields.IntField(default=0)
-    rating_up = fields.IntField(default=0)
-    rating_down = fields.IntField(default=0)
-
-    created_at = fields.DatetimeField(auto_now_add=True)
-    updated_at = fields.DatetimeField(auto_now=True)
-
-    class Meta:
-        table = "agencies"
-        ordering = ["name"]
+    auto_maintenance: Mapped[bool] = mapped_column(Boolean, default=False)
+    stats_reset_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    data_scope: Mapped[list] = mapped_column(MutableList.as_mutable(JSONB), default=list)
+    color: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    endpoint_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    auth_method: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    auth_header: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    base_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    api_key_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    request_format: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    api_endpoints: Mapped[list] = mapped_column(MutableList.as_mutable(JSONB), default=list)
+    response_schema: Mapped[list] = mapped_column(MutableList.as_mutable(JSONB), default=list)
+    api_spec_raw: Mapped[str | None] = mapped_column(Text, nullable=True)
+    expected_payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    api_headers: Mapped[list | None] = mapped_column(MutableList.as_mutable(JSONB), nullable=True, default=list)
+    priority: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    router_hint: Mapped[str] = mapped_column(Text, default="")
+    dispatch_timeout_s: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    mcp_tool_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    conformance_report: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    total_calls: Mapped[int] = mapped_column(Integer, default=0)
+    rating_up: Mapped[int] = mapped_column(Integer, default=0)
+    rating_down: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     def __str__(self) -> str:
         return f"{self.short_name or self.name} ({self.connection_type})"
