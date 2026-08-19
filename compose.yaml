@@ -64,6 +64,12 @@ services:
     build:
       context: ./frontend
       target: production
+      args:
+        # Vite inlines these at build time. Public /auth origin (browser-facing);
+        # must equal KEYCLOAK_URL. Prod: override to https://<domain>/auth.
+        VITE_KEYCLOAK_URL: ${VITE_KEYCLOAK_URL:-http://localhost:8080/auth}
+        VITE_KEYCLOAK_REALM: ${VITE_KEYCLOAK_REALM:-chatbotportal}
+        VITE_KEYCLOAK_CLIENT_ID: ${VITE_KEYCLOAK_CLIENT_ID:-portal-spa}
     restart: unless-stopped
     environment:
       VITE_API_BASE_URL: "${VITE_API_BASE_URL:-}"
