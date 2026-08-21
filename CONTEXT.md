@@ -295,9 +295,13 @@ Auth is **Keycloak OIDC**. There is **no local password/session/API-key auth** �
   disabled on your own row). The old last-admin guardrail lives in the **Keycloak console** (the
   authoritative recovery path with a bootstrap admin). A user's name is a single **display name**
   (stored in Keycloak `firstName`; `_display_name` reads it). The realm's declarative user profile
-  (`realm-export.json` → `attributes["kc.user.profile.config"]`) makes `firstName`/`lastName`
-  **optional** and hides `lastName` from users, so first login does not force a first/last-name
-  screen — without this, Keycloak 26 requires both by default.
+  (`realm-export.json` → `components["org.keycloak.userprofile.UserProfileProvider"]`, provider
+  `declarative-user-profile`, `config.kc.user.profile.config` as a one-element array) makes
+  `firstName`/`lastName` **optional** and hides `lastName` from users (admin-only edit), so first
+  login does not force a first/last-name screen — without this, Keycloak 26 requires both by default.
+  **Must live under `components`, not the realm-level `attributes` map** — `--import-realm` ignores
+  a profile config placed in `attributes` and silently falls back to the default (both names
+  required), which is exactly what caused the forced-lastName screen before this fix.
 - **MCP mount (`/mcp`) is outside** the app (mounted sub-app). Its own `AuthMiddleware`
   (`mcp/server.py`) verifies a Keycloak **bearer** via `verify_token` when present, else anonymous;
   no role check. See `tests/test_mcp_role_access.py`.
