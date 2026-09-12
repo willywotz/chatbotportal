@@ -106,6 +106,7 @@ services:
       - chatbot-network
     command:
       - "--set=extensions.jaeger_query.base_path=/jaeger"
+      - "--set=storage.memory.max_traces=1000"
 
 volumes:
   postgres_data:
