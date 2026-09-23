@@ -35,11 +35,11 @@ async def probe_reachability(connection_type: str, endpoint_url: str | None) -> 
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36"}
     start = time.monotonic()
     response = None
-    method = "HEAD"
+    method = "GET"
     last_exc: Exception | None = None
 
     async with httpx.AsyncClient(timeout=settings.CONNECTION_TEST_TIMEOUT) as client:
-        for probe_method in ("HEAD", "GET"):
+        for probe_method in ("GET", "HEAD"):
             try:
                 response = await getattr(client, probe_method.lower())(url, headers=headers)
                 method = probe_method
