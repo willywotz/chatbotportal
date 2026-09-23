@@ -9,8 +9,6 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-chatbot_secret}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    networks:
-      - chatbot-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-chatbot} -d ${POSTGRES_DB:-chatbot}"]
       interval: 10s
@@ -49,8 +47,6 @@ services:
         condition: service_started
       keycloak:
         condition: service_started
-    networks:
-      - chatbot-network
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
       interval: 15s
@@ -75,8 +71,6 @@ services:
     restart: unless-stopped
     environment:
       VITE_API_BASE_URL: "${VITE_API_BASE_URL:-}"
-    networks:
-      - chatbot-network
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
       interval: 15s
@@ -108,8 +102,6 @@ services:
         restart: true
       jaeger:
         condition: service_started
-    networks:
-      - chatbot-network
     ports:
       - target: 80
         published: "${EXTERNAL_HTTP_PORT:-}"
@@ -119,8 +111,6 @@ services:
   jaeger:
     image: jaegertracing/jaeger:2.18.0
     restart: unless-stopped
-    networks:
-      - chatbot-network
     command:
       - "--set=extensions.jaeger_query.base_path=/jaeger"
       - "--set=storage.memory.max_traces=1000"
@@ -142,8 +132,6 @@ services:
       KC_PROXY_HEADERS: xforwarded
     volumes:
       - ./deploy/keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
-    networks:
-      - chatbot-network
 
 volumes:
   postgres_data:
@@ -152,6 +140,3 @@ volumes:
   frontend-pnpm-store:
   caddy_data:
   caddy_config:
-
-networks:
-  chatbot-network:
