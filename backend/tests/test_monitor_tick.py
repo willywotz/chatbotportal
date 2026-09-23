@@ -68,3 +68,44 @@ async def test_run_tick_records_claimed_agency(db_session):
     assert recorded >= 1
     st = await cs_repo.get(db_session, a.id)
     assert st.last_status == CheckStatus.up and st.last_latency_ms == 88
+
+
+async def test_probe_runs_with_no_db_session_held(db_session, monkeypatch):
+    """The network probe must not run while a monitor DB session is open, or a
+    pool connection sits idle-in-transaction for the whole probe (pool
+    starvation during an outage — the moment the checker exists for)."""
+    a = Agency(name="NoHold", status="active", connection_type="API", endpoint_url="https://x")
+    db_session.add(a)
+    await db_session.flush()
+    db_session.add(AgencyCheckState(agency_id=a.id, interval_seconds=300,
+                                    next_check_at=now() - timedelta(seconds=1)))
+    await db_session.flush()
+
+    base_factory = monitor.AsyncSessionLocal
+    live = {"n": 0}
+
+    class _Tracking:
+        def __init__(self):
+            self._s = base_factory()
+
+        async def __aenter__(self):
+            live["n"] += 1
+            return await self._s.__aenter__()
+
+        async def __aexit__(self, *exc):
+            live["n"] -= 1
+            return await self._s.__aexit__(*exc)
+
+    monkeypatch.setattr(monitor, "AsyncSessionLocal", lambda: _Tracking())
+
+    open_during_probe = {"v": None}
+
+    async def fake(_ct, _ag):
+        open_during_probe["v"] = live["n"]
+        return {"success": True, "latency": "40ms"}
+
+    monkeypatch.setattr(monitor, "test_connection", fake)
+
+    await monitor.run_tick()
+
+    assert open_during_probe["v"] == 0

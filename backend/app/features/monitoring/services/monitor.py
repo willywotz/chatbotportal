@@ -64,17 +64,26 @@ async def probe_agency(agency, *, retry_max: int, base_delay_ms: int) -> dict:
 
 
 async def _record_one(agency_id) -> bool:
+    async with AsyncSessionLocal() as session:
+        agency = await agency_repo.by_id(session, agency_id)
+    if agency is None:
+        return False
+
+    # withinlazy: probe holds no DB session — a slow/timing-out probe must not
+    # pin a pool connection idle-in-transaction (pool starvation during an
+    # outage). The result is recorded in a separate short transaction below.
+    raw = await probe_agency(
+        agency, retry_max=settings.CHECK_RETRY_MAX, base_delay_ms=settings.CHECK_BACKOFF_BASE_MS,
+    )
+    ok = bool(raw.get("success"))
+    latency_ms = int(str(raw.get("latency", "0")).replace("ms", "") or 0)
+    detail = str(raw.get("error") or "ok")
+
     async with AsyncSessionLocal() as session, session.begin():
         state = await cs_repo.get(session, agency_id)
         agency = await agency_repo.by_id(session, agency_id)
         if state is None or agency is None:
             return False
-        raw = await probe_agency(
-            agency, retry_max=settings.CHECK_RETRY_MAX, base_delay_ms=settings.CHECK_BACKOFF_BASE_MS,
-        )
-        ok = bool(raw.get("success"))
-        latency_ms = int(str(raw.get("latency", "0")).replace("ms", "") or 0)
-        detail = str(raw.get("error") or "ok")
         await record_result(session, state, agency, ok=ok, latency_ms=latency_ms, detail=detail, ts=now())
     return True
 
