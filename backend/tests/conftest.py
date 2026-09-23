@@ -166,7 +166,7 @@ def make_token(rsa_keypair):
         now = int(time.time())
         claims = {
             "iss": iss if iss is not None else settings.OIDC_ISSUER,
-            "aud": aud if aud is not None else settings.OIDC_AUDIENCE,
+            "aud": aud if aud is not None else settings.oidc_audience,
             "sub": sub or str(uuid.uuid4()),
             "email": email,
             "name": email,

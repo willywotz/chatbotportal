@@ -47,14 +47,17 @@ class Settings(BaseSettings):
     # https://<domain>). It is the `iss` every token carries and the `authority`
     # the SPA discovers, so the same value drives discovery
     # (`{issuer}/.well-known/openid-configuration`), token signing and token
-    # verification. Flow endpoints live under `{issuer}/oauth2/*`. OIDC_AUDIENCE
-    # is the access-token `aud`; OIDC_CLIENT_ID is the sole first-party SPA
-    # client. Lifetimes are seconds. OIDC_PRIVATE_KEY is an optional PEM
-    # override; when empty the signing key is generated once and persisted in
-    # the database (shared across uvicorn workers).
+    # verification. Flow endpoints live under `{issuer}/oauth2/*`. OIDC_CLIENT_ID
+    # is the sole first-party SPA client. Lifetimes are seconds. OIDC_PRIVATE_KEY
+    # is an optional PEM override; when empty the signing key is generated once
+    # and persisted in the database (shared across uvicorn workers).
+    #
+    # OIDC_AUDIENCE is the access-token `aud` (the resource this API answers to);
+    # empty means "use OIDC_ISSUER" (see `oidc_audience`), the single-issuer
+    # convention. Override only when a second resource server shares this issuer.
     OIDC_ISSUER: str = "http://localhost:8080"
     OIDC_CLIENT_ID: str = "chatbotportal-web"
-    OIDC_AUDIENCE: str = "backend"
+    OIDC_AUDIENCE: str = ""
     OIDC_ALLOWED_REDIRECT_URIS: list[str] = [
         "http://localhost:8080/auth/callback",
         "http://localhost:5173/auth/callback",
@@ -67,6 +70,12 @@ class Settings(BaseSettings):
     # Startup seed for the first administrator (created only if no admin exists).
     SEED_ADMIN_EMAIL: str = "admin@chatbotportal.local"
     SEED_ADMIN_PASSWORD: str = "admin"
+
+    @property
+    def oidc_audience(self) -> str:
+        # Access-token `aud`. Defaults to the issuer so prod overriding
+        # OIDC_ISSUER carries the audience with it; an explicit OIDC_AUDIENCE wins.
+        return self.OIDC_AUDIENCE or self.OIDC_ISSUER
 
     # ── LLM / OpenRouter ────────────────────────────────────────────────────
     OPENROUTER_API_KEY: str = ""

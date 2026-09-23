@@ -82,8 +82,9 @@ Role→scope map in `app/auth/oidc/scopes.py`, replicating realm composites:
   analytics:read, feedback:read:detail, audit:read, connlog:read, llm:read,
   llm:write, settings:read, settings:write, popular:read, popular:write, user:manage
 
-Access-token JWT: `iss`, `aud="backend"`, `sub`, `email`, `name`, `role`,
-`scope` (space-delimited). `principal_from_claims` reads flat `role`/`scope`.
+Access-token JWT: `iss`, `aud` (= `OIDC_ISSUER` by default), `sub`, `email`,
+`name`, `role`, `scope` (space-delimited). `principal_from_claims` reads flat
+`role`/`scope`.
 
 ## User management
 
