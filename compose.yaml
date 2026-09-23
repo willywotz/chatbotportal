@@ -35,9 +35,9 @@ services:
       # flow endpoints under {issuer}/oauth2/*. It must equal the token `iss` and
       # the SPA authority. PROD MUST override OIDC_ISSUER,
       # OIDC_ALLOWED_REDIRECT_URIS and SEED_ADMIN_PASSWORD.
-      OIDC_ISSUER: ${OIDC_ISSUER:-http://localhost:8080}
+      OIDC_ISSUER: ${OIDC_ISSUER:-http://localhost:${HTTP_PORT:-8080}}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-chatbotportal-web}
-      OIDC_ALLOWED_REDIRECT_URIS: ${OIDC_ALLOWED_REDIRECT_URIS:-["http://localhost:8080/auth/callback"]}
+      OIDC_ALLOWED_REDIRECT_URIS: ${OIDC_ALLOWED_REDIRECT_URIS:-["http://localhost:${HTTP_PORT:-8080}/auth/callback"]}
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@chatbotportal.local}
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-admin}
     depends_on:
@@ -65,11 +65,11 @@ services:
         # Vite inlines these at build time. VITE_OIDC_AUTHORITY is the public
         # issuer (browser-facing root origin) and must equal OIDC_ISSUER. Prod:
         # override to https://<domain>.
-        VITE_OIDC_AUTHORITY: ${VITE_OIDC_AUTHORITY:-http://localhost:8080}
+        VITE_OIDC_AUTHORITY: ${VITE_OIDC_AUTHORITY:-http://localhost:${HTTP_PORT:-8080}}
         VITE_OIDC_CLIENT_ID: ${VITE_OIDC_CLIENT_ID:-chatbotportal-web}
     restart: unless-stopped
     environment:
-      VITE_API_BASE_URL: "${VITE_API_BASE_URL:-}"
+      VITE_API_BASE_URL: "${VITE_API_BASE_URL:-http://localhost:${HTTP_PORT:-8080}}"
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
       interval: 15s
@@ -103,9 +103,9 @@ services:
         condition: service_started
     ports:
       - target: 80
-        published: "${EXTERNAL_HTTP_PORT:-}"
+        published: "${EXTERNAL_HTTP_PORT:-${HTTP_PORT:-8080}}"
       - target: 443
-        published: "${EXTERNAL_HTTPS_PORT:-}"
+        published: "${EXTERNAL_HTTPS_PORT:-${HTTPS_PORT:-8443}}"
 
   jaeger:
     image: jaegertracing/jaeger:2.18.0
