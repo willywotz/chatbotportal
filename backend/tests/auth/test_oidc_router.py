@@ -56,6 +56,18 @@ async def test_authorize_get_renders_login(client):
     assert "password" in r.text
 
 
+async def test_authorize_get_escapes_reflected_params(client):
+    _, challenge = _pkce()
+    r = await client.get("/oidc/authorize", params={
+        "client_id": CLIENT, "redirect_uri": REDIRECT, "response_type": "code",
+        "code_challenge": challenge, "code_challenge_method": "S256",
+        "state": '"><script>alert(1)</script>',
+    })
+    assert r.status_code == 200
+    assert "<script>alert(1)</script>" not in r.text
+    assert "&lt;script&gt;" in r.text
+
+
 async def test_authorize_get_rejects_unknown_client(client):
     _, challenge = _pkce()
     r = await client.get("/oidc/authorize", params={

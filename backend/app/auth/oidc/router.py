@@ -5,6 +5,7 @@ discovery, JWKS, the authorization endpoint with its server-rendered login
 page, the token endpoint (authorization_code + refresh_token), and userinfo."""
 from __future__ import annotations
 
+import html
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Form, Request
@@ -61,12 +62,13 @@ async def jwks() -> dict:
 
 def _login_page(params: dict, error: str = "") -> HTMLResponse:
     hidden = "".join(
-        f'<input type="hidden" name="{name}" value="{value}">'
+        f'<input type="hidden" name="{html.escape(str(name), quote=True)}" '
+        f'value="{html.escape(str(value), quote=True)}">'
         for name, value in params.items()
         if value is not None
     )
-    error_html = f'<p class="error">{error}</p>' if error else ""
-    html = f"""<!doctype html>
+    error_html = f'<p class="error">{html.escape(error)}</p>' if error else ""
+    page = f"""<!doctype html>
 <html lang="th">
 <head>
 <meta charset="utf-8">
@@ -98,7 +100,7 @@ def _login_page(params: dict, error: str = "") -> HTMLResponse:
 </form>
 </body>
 </html>"""
-    return HTMLResponse(html)
+    return HTMLResponse(page)
 
 
 def _authorize_params(
