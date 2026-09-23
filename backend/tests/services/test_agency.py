@@ -173,13 +173,3 @@ async def test_run_connection_test_recovers_auto_maintenance(db_session):
         await run_connection_test(db_session, agency)
     assert agency.status == "active"
     assert agency.auto_maintenance is False
-
-
-async def test_update_logo_saves_the_url(db_session):
-    from app.features.agency.repositories import agency as agency_repo
-    from app.features.agency.services.agency import update_logo
-
-    agency = await _agency(db_session)
-    await update_logo(db_session, agency, "/api/v1/agencies/x/logo?v=abc")
-    refreshed = await agency_repo.by_id(db_session, agency.id)
-    assert refreshed.logo == "/api/v1/agencies/x/logo?v=abc"

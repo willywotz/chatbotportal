@@ -15,7 +15,6 @@ from app.core.security.dependencies import require_scope
 from app.core.security.principal import Principal
 from app.core.db import get_db
 from app.features.agency.routers._utils import _with_health
-from app.features.agency.routers.logo import sweep_agency_logo_files
 from app.features.agency.schemas.agency import (
     AgencyCreate,
     AgencyListResponse,
@@ -101,7 +100,6 @@ async def delete_agency(
 ):
     agency = await agency_service.get_agency_or_404(session, agency_id)
     await agency_service.delete_agency(session, agency)
-    sweep_agency_logo_files(agency_id)
     await record_audit(session, user, "agency.delete", object_type="agency", object_id=agency_id)
 
 

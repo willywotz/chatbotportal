@@ -1,18 +1,15 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { resetMockData } from "@/mocks/fixtures";
-
-import { setAccessToken } from "@/shared/lib/authToken";
 
 import {
   useAgencies,
   useDiscoverMcpTools,
   useHealthHistory,
   useUpdateAgencyStatus,
-  useUploadAgencyLogo,
 } from "./useAgencies";
 
 afterEach(() => {
@@ -63,48 +60,6 @@ describe("useUpdateAgencyStatus", () => {
     await expect(
       result.current.mutateAsync({ id: ACTIVE_ID, status: "draft" }),
     ).rejects.toThrow(/transition/i);
-  });
-});
-
-describe("useUploadAgencyLogo", () => {
-  afterEach(() => {
-    setAccessToken(undefined);
-  });
-
-  it("sends the logo upload with no credentials and no Authorization header when unauthenticated", async () => {
-    const agency = { id: ACTIVE_ID, name: "n", logo: "l" };
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify(agency), { status: 200 }),
-    );
-    const { result } = renderHook(() => useUploadAgencyLogo(), { wrapper });
-    const file = new File(["x"], "logo.png", { type: "image/png" });
-
-    await result.current.mutateAsync({ id: ACTIVE_ID, file });
-
-    const [, options] = fetchSpy.mock.calls[0];
-    expect(options?.credentials).toBeUndefined();
-    expect((options?.headers as Record<string, string> | undefined)?.Authorization).toBeUndefined();
-
-    fetchSpy.mockRestore();
-  });
-
-  it("attaches the OIDC bearer token when authenticated", async () => {
-    setAccessToken("tok123");
-    const agency = { id: ACTIVE_ID, name: "n", logo: "l" };
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify(agency), { status: 200 }),
-    );
-    const { result } = renderHook(() => useUploadAgencyLogo(), { wrapper });
-    const file = new File(["x"], "logo.png", { type: "image/png" });
-
-    await result.current.mutateAsync({ id: ACTIVE_ID, file });
-
-    const [, options] = fetchSpy.mock.calls[0];
-    expect((options?.headers as Record<string, string> | undefined)?.Authorization).toBe(
-      "Bearer tok123",
-    );
-
-    fetchSpy.mockRestore();
   });
 });
 

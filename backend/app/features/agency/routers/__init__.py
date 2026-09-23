@@ -11,7 +11,7 @@ rejects sub-routers whose combined prefix+path would be empty.
 
 from fastapi import APIRouter, status
 
-from app.features.agency.routers import crud, golden, lifecycle, logo, spec
+from app.features.agency.routers import crud, golden, lifecycle, spec
 from app.features.agency.schemas.agency import AgencyCreate, AgencyListResponse, AgencyResponse
 
 router = APIRouter(prefix="/agencies", tags=["Agencies"])
@@ -26,7 +26,6 @@ router.include_router(spec.router)
 # Sub-resource routers
 router.include_router(lifecycle.router)
 router.include_router(golden.router)
-router.include_router(logo.router)
 
 # CRUD parametric routes last (/{id} catch-all)
 router.include_router(crud.router)
@@ -38,5 +37,3 @@ get_agency = crud.get_agency
 update_agency_status = lifecycle.update_agency_status
 agency_health_history = lifecycle.agency_health_history
 mcp_discover = spec.mcp_discover
-upload_agency_logo = logo.upload_agency_logo
-get_agency_logo = logo.get_agency_logo

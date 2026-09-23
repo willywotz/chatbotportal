@@ -1,6 +1,13 @@
 # 0003 — Agency logo: emoji **or** uploaded image (backend-served, filesystem volume)
 
-Status: Accepted — 2026-07-11
+Status: Reverted — 2026-09-23
+
+> **Reverted.** The filesystem-backed logo image upload feature and its
+> `{UPLOAD_DIR}` Docker volume were removed. Agency `logo` is again an emoji or an
+> external image URL, set through ordinary agency CRUD only. The upload/serve
+> endpoints (`POST /api/v1/agencies/{id}/logo`, `GET
+> /api/v1/public/agencies/{id}/logo`), `UPLOAD_DIR`, and the `agency-uploads`
+> volume no longer exist. This record is kept for history.
 
 ## Context
 
