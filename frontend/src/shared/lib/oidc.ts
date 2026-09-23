@@ -1,9 +1,9 @@
 import { UserManager, WebStorageStateStore, type User } from 'oidc-client-ts';
 
-const env = import.meta.env;
+const appConfig = (window as any).__APP_CONFIG__;
 
-const authority = (env.VITE_OIDC_AUTHORITY as string) || window.location.origin;
-const clientId = (env.VITE_OIDC_CLIENT_ID as string) || 'chatbotportal-web';
+const authority = appConfig?.OIDC_AUTHORITY || window.location.origin;
+const clientId = appConfig?.OIDC_CLIENT_ID || 'chatbotportal-web';
 
 export const userManager = new UserManager({
   authority,

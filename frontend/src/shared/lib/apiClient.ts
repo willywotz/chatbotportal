@@ -20,11 +20,9 @@ import axios, { type AxiosInstance, type AxiosResponse } from 'axios';
 
 import { ensureToken, isAuthenticated, login } from '@/shared/lib/oidc';
 
-var baseURL = import.meta.env.VITE_API_BASE_URL as string | undefined;
+const appConfig = (window as any).__APP_CONFIG__;
 
-if (!baseURL || baseURL.trim() === '') {
-  baseURL = window.location.origin;
-}
+var baseURL = appConfig?.API_BASE_URL || window.location.origin;
 
 const axiosInstance: AxiosInstance = axios.create({
   baseURL: baseURL,

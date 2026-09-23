@@ -20,14 +20,11 @@ services:
         published: "${EXTERNAL_POSTGRES_PORT:-}"
 
   backend:
-    image: ghcr.io/willywotz/chatbotportal:${IMAGE_TAG:-latest}
-    build:
-      context: ./backend
-      target: production
+    build: {context: ./backend, target: production}
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-chatbot}:${POSTGRES_PASSWORD:-chatbot_secret}@${POSTGRES_HOST:-postgres}:5432/${POSTGRES_DB:-chatbot}
       ENV: ${ENV:-development}
+      DATABASE_URL: postgres://${POSTGRES_USER:-chatbot}:${POSTGRES_PASSWORD:-chatbot_secret}@${POSTGRES_HOST:-postgres}:5432/${POSTGRES_DB:-chatbot}
       CORS_ORIGINS: ${CORS_ORIGINS:-["*"]}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       # Self-hosted OIDC provider. OIDC_ISSUER is the PUBLIC root origin (through
@@ -38,8 +35,8 @@ services:
       OIDC_ISSUER: ${OIDC_ISSUER:-http://localhost:${HTTP_PORT:-8080}}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-chatbotportal-web}
       OIDC_ALLOWED_REDIRECT_URIS: ${OIDC_ALLOWED_REDIRECT_URIS:-["http://localhost:${HTTP_PORT:-8080}/auth/callback"]}
-      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@chatbotportal.local}
-      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-admin}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@example.com}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-admin1234}
     depends_on:
       postgres:
         condition: service_healthy
@@ -57,27 +54,12 @@ services:
       - agency-uploads:/app/uploads
 
   frontend:
-    image: ghcr.io/willywotz/chatbotportal-web:${IMAGE_TAG:-latest}
-    build:
-      context: ./frontend
-      target: production
-      args:
-        # Vite inlines these at build time. VITE_OIDC_AUTHORITY is the public
-        # issuer (browser-facing root origin) and must equal OIDC_ISSUER. Prod:
-        # override to https://<domain>.
-        VITE_OIDC_AUTHORITY: ${VITE_OIDC_AUTHORITY:-http://localhost:${HTTP_PORT:-8080}}
-        VITE_OIDC_CLIENT_ID: ${VITE_OIDC_CLIENT_ID:-chatbotportal-web}
+    build: {context: ./frontend, target: production}
     restart: unless-stopped
     environment:
-      VITE_API_BASE_URL: "${VITE_API_BASE_URL:-http://localhost:${HTTP_PORT:-8080}}"
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
-      interval: 15s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
-    volumes:
-      - frontend-pnpm-store:/pnpm/store
+      API_BASE_URL: ${API_BASE_URL:-http://localhost:${HTTP_PORT:-8080}}
+      OIDC_AUTHORITY: ${OIDC_AUTHORITY:-${OIDC_ISSUER:-http://localhost:${HTTP_PORT:-8080}}}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-chatbotportal-web}
 
   caddy:
     image: caddy:2-alpine
@@ -118,6 +100,5 @@ volumes:
   postgres_data:
   backend-uv-cache:
   agency-uploads:
-  frontend-pnpm-store:
   caddy_data:
   caddy_config:
