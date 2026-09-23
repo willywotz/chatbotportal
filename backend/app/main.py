@@ -66,10 +66,7 @@ from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-resource = Resource.create(attributes={
-    SERVICE_NAME: "backend"
-})
-
+resource = Resource.create(attributes={SERVICE_NAME: "backend"})
 tracerProvider = TracerProvider(resource=resource)
 processor = BatchSpanProcessor(OTLPSpanExporter(endpoint="jaeger:4317", insecure=True))
 tracerProvider.add_span_processor(processor)
@@ -104,18 +101,7 @@ async def lifespan(app: FastAPI):
 # FastAPI app
 # ---------------------------------------------------------------------------
 
-app = FastAPI(
-    title=settings.APP_NAME,
-    version=settings.APP_VERSION,
-    description=(
-        "Central AI Chatbot Portal API.\n\n"
-        "**MCP Streamable-HTTP** (stateless): available at `/mcp`.\n\n"
-        "**REST API** endpoints are under `/api/v1`."
-    ),
-    docs_url="/docs",
-    redoc_url="/redoc",
-    lifespan=lifespan,
-)
+app = FastAPI(lifespan=lifespan)
 register_error_handlers(app)
 
 # ---------------------------------------------------------------------------
@@ -176,19 +162,14 @@ app.mount("/mcp", QueryTraceparentASGI(OpenTelemetryMiddleware(mcp_app)))
 # Health check
 # ---------------------------------------------------------------------------
 
-@app.get("/health", tags=["Health"])
-async def health_check():
-    return "ok\n"
-
-@app.get("/healthz", tags=["Health"])
-async def healthz_check():
-    return "ok\n"
+@app.get("/healthz")
+async def healthz_check(): return "ok\n"
 
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 FastAPIInstrumentor.instrument_app(
     app,
-    excluded_urls="/health,^/health$,/mcp,^/mcp$",
+    excluded_urls="/healthz,^/healthz$,/mcp,^/mcp$",
     http_capture_headers_server_request=[".*"],
     http_capture_headers_server_response=[".*"],
 )

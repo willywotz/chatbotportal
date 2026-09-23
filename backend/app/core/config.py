@@ -17,8 +17,6 @@ class OverrideReport:
 
 class Settings(BaseSettings):
     # ── App ──────────────────────────────────────────────────────────────────
-    APP_NAME: str = "AI Chatbot Portal API"
-    APP_VERSION: str = "1.0.0"
     TIMEZONE: str = "Asia/Bangkok"
     USER_AGENT_PREFIX: str = "AI-Chatbot-Portal/1.0"
     LOG_LEVEL: str = "INFO"   # 15-Factor XI: log level for the stdout event stream
