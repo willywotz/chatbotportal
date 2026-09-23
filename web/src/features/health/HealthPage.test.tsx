@@ -24,6 +24,15 @@ describe("HealthPage error and retry", () => {
     );
   });
 
+  it("renders uptime windows and open incidents from the monitor", async () => {
+    renderPage();
+    await waitFor(() =>
+      expect(screen.getByText("Agency Health Monitoring")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("Service unreachable")).toBeInTheDocument();
+    expect(screen.getByText("98.7%")).toBeInTheDocument();
+  });
+
   it("shows the error card with role=alert when the API fails", async () => {
     server.use(
       http.get("*/api/v1/agency-health", () => HttpResponse.error()),

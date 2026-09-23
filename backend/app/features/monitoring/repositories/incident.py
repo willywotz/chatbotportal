@@ -3,8 +3,19 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.features.agency.models.agency import Agency
 from app.features.monitoring.models.incident import Incident
 from app.core.utils import now
+
+
+async def recent(session: AsyncSession, *, limit: int = 20) -> list[tuple[Incident, str]]:
+    stmt = (
+        select(Incident, Agency.name)
+        .join(Agency, Agency.id == Incident.agency_id)
+        .order_by(Incident.ended_at.is_(None).desc(), Incident.started_at.desc())
+        .limit(limit)
+    )
+    return [(inc, name) for inc, name in (await session.execute(stmt)).all()]
 
 
 async def find_open(session: AsyncSession, agency_id) -> Incident | None:

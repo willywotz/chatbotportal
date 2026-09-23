@@ -52,11 +52,6 @@ async def count_all(session: AsyncSession) -> int:
     return (await session.execute(select(func.count()).select_from(Agency))).scalar_one()
 
 
-async def list_by_statuses(session: AsyncSession, statuses: list[str]) -> list[Agency]:
-    stmt = select(Agency).where(Agency.status.in_(statuses))
-    return list((await session.execute(stmt)).scalars().all())
-
-
 async def by_ids(session: AsyncSession, ids) -> list[Agency]:
     stmt = select(Agency).where(Agency.id.in_(ids))
     return list((await session.execute(stmt)).scalars().all())

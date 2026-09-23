@@ -43,8 +43,16 @@ function HealthContent({ data }: { data: AgencyHealthData }) {
             </CardHeader>
             <CardContent className="space-y-2">
               <div className="flex justify-between items-center">
-                <span className="text-xs text-muted-foreground">Uptime</span>
+                <span className="text-xs text-muted-foreground">Uptime (24 ชม.)</span>
                 <span className="font-mono font-semibold">{a.uptime}%</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-muted-foreground">Uptime (7 วัน)</span>
+                <span className="font-mono">{a.uptime7d}%</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-muted-foreground">Uptime (30 วัน)</span>
+                <span className="font-mono">{a.uptime30d}%</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xs text-muted-foreground flex items-center gap-1"><Zap className="h-3 w-3" /> Latency</span>
@@ -68,6 +76,43 @@ function HealthContent({ data }: { data: AgencyHealthData }) {
           </Card>
         ))}
       </div>
+
+      {/* Incidents */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 text-amber-500" /> เหตุการณ์ล่าสุด (Incidents)
+          </CardTitle>
+          <CardDescription>ช่วงที่ตรวจไม่พบการเชื่อมต่อของหน่วยงาน</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {data.incidents.length === 0 ? (
+            <p className="text-sm text-muted-foreground">ไม่มีเหตุการณ์ในขณะนี้</p>
+          ) : (
+            <ul className="space-y-2">
+              {data.incidents.map((inc, i) => (
+                <li key={i} className="flex items-center justify-between gap-3 border-b pb-2 last:border-0">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate">{inc.message}</div>
+                    <div className="text-xs text-muted-foreground truncate">{inc.agency}</div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge
+                      variant={inc.resolvedAt ? 'outline' : 'destructive'}
+                      className="text-xs"
+                    >
+                      {inc.resolvedAt ? 'แก้ไขแล้ว' : 'กำลังเกิดขึ้น'}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground font-mono">
+                      {new Date(inc.occurredAt).toLocaleString('th-TH')}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Historical Latency Chart */}
       <Card>

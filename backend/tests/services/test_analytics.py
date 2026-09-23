@@ -67,16 +67,19 @@ async def test_get_agency_health_empty_agencies(db_session):
 async def test_get_agency_health_computes_latency_and_error_rate(db_session):
     from app.features.analytics.schemas.insight import AgencyHealthData
     from app.features.analytics.services import health
+    from app.features.monitoring.repositories import uptime_bucket as bucket_repo
 
     ag = await _agency(db_session, short_name="TA", status="active")
     db_session.add_all([
         ConnectionLog(agency_id=ag.id, connection_type="API", status="success", latency_ms=100),
         ConnectionLog(agency_id=ag.id, connection_type="API", status="success", latency_ms=200),
     ])
+    ts = now()
+    for ok in [True] * 9 + [False]:
+        await bucket_repo.record_check(db_session, ag.id, ts, ok)
     await db_session.flush()
 
-    with patch.object(health, "error_window", new=AsyncMock(return_value=(10, 1))):
-        result = await health.get_agency_health(db_session)
+    result = await health.get_agency_health(db_session)
 
     assert isinstance(result, AgencyHealthData)
     assert len(result.agencies) == 1
@@ -85,6 +88,32 @@ async def test_get_agency_health_computes_latency_and_error_rate(db_session):
     assert entry.status == "healthy"
     assert entry.errorRate == 10.0
     assert entry.uptime == 90.0
+    assert entry.avgLatency == 150
+
+
+async def test_get_agency_health_includes_uptime_windows_and_incidents(db_session):
+    from app.features.analytics.services import health
+    from app.features.monitoring.repositories import uptime_bucket as bucket_repo
+    from app.features.monitoring.models.incident import Incident
+
+    ag = await _agency(db_session, short_name="TA", status="active")
+    ts = now()
+    for ok in [True] * 9 + [False]:
+        await bucket_repo.record_check(db_session, ag.id, ts, ok)
+    db_session.add(Incident(agency_id=ag.id, detail="unreachable", started_at=ts, ended_at=None))
+    await db_session.flush()
+
+    result = await health.get_agency_health(db_session)
+
+    entry = next(e for e in result.agencies if e.id == str(ag.id))
+    assert entry.uptime7d == 90.0
+    assert entry.uptime30d == 90.0
+    assert len(result.incidents) == 1
+    inc = result.incidents[0]
+    assert inc.agency == ag.name
+    assert inc.severity == "critical"
+    assert inc.message == "unreachable"
+    assert inc.resolvedAt is None
 
 
 async def test_get_usage_heatmap_shape(db_session):

@@ -34,6 +34,8 @@ class Agency(BaseModel):
     shortName: str
     status: StatusType
     uptime: float
+    uptime7d: float
+    uptime30d: float
     currentLatency: float
     avgLatency: float
     errorRate: float
