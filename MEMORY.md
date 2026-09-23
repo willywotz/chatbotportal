@@ -48,16 +48,6 @@ All traffic via **caddy** (80/443, TLS auto via `CERT_DOMAIN`; `caddy/Caddyfile`
 `agency_chat_test` (15 min: probe non-draft/disabled agencies via `test_connection`, log, `reconcile_statuses`), `regenerate_brief_job` (24h), `purge_old_connection_logs` (24h, retention 90d), `run_evaluation` (weekly golden-question LLM-judge), `regenerate_popular_questions` (24h: LLM-synth คำถามยอดนิยม from successful turns; no-op below `POPULAR_QUESTIONS_MIN_TURNS`=20; replaces only unpinned/unhidden `auto` rows; hidden `text_key`=tombstone).
 - **Connection test** = one reachability probe/type (HEAD→GET), any HTTP response (incl 4xx/5xx) = reachable=success; only transport failure = error. No protocol handshake.
 
-## Testing
-- backend: pytest `asyncio_mode=auto` over a **real Postgres+PGroonga testcontainer**; session-scoped container runs `alembic upgrade head`, `db_session` fixture = rolled-back txn, `client` fixture serves ASGI with `get_db` overridden. Requires Docker (Ryuk disabled in conftest). RBAC access-matrix tests live here.
-- frontend: vitest + jsdom + MSW. `src/mocks` (handlers/server/fixtures) is **test-only** — the SPA ships NO runtime mock and no `VITE_USE_MOCKS` flag. Standalone `blackbox/` + `e2e/` removed; no E2E in CI.
-
-## CI/CD & deploy
-- Branches: `main`=prod (protected, PR-only), `dev`=dev. Branch off `dev`→PR→`dev`→PR→`main`. Never push `main`.
-- `.github/workflows/ci.yaml`: backend pytest ‖ frontend tsc+vitest. `release.yaml`: on `v*` tag → self-hosted runner, `docker compose -f compose.yaml up -d --build` (explicit `-f` disables override merge so `compose.override.yaml` never hits prod). Tag-driven, not merge-driven.
-- Env: `.env.example` holds only environment-level vars; app tuning stays as `config.py` defaults. Every var has a code default. Prod-override: `ENV=production`, `DATABASE_URL`, `OPENROUTER_API_KEY`, `ONECHAT_BASE_URL`, `MCP_ENDPOINT_URL`, `PARSE_SPEC_API_KEY`. **CORS wide-open by design** (`CORS_ORIGINS=["*"]`); no code enforces restriction.
-- Dev: `compose.override.yaml` (watch/dev targets) is currently **commented out** — `docker compose up -d --build` runs the production build for every service (frontend served by nginx, not the Vite dev server). Compose services are build-only (no `image:` keys); `HTTP_PORT` (`.env`) drives the gateway host port + `OIDC_ISSUER`/authority defaults. Re-enable the override for `--watch` HMR.
-
 ## Conventions & Pitfalls
 - Reply in ASD-STE100 Simplified Technical English. Self-documenting code, **no comments** except Swagger/OpenAPI (project rule). KEEP-only comment policy = explain WHY (security/external-quirk/PDPA/async hazard/`withinlazy:` simplification).
 - 15-Factor App mandatory. Full-English API route names (no short forms). TDD mandatory (red→green→refactor). Branch before multi-task work; **never** git worktree.
