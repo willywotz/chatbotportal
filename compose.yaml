@@ -123,6 +123,7 @@ services:
       - chatbot-network
     command:
       - "--set=extensions.jaeger_query.base_path=/jaeger"
+      - "--set=storage.memory.max_traces=1000"
 
   # Behind Caddy (no published host port) — reached by the browser at /auth via
   # the gateway, and by the backend directly on the network (KEYCLOAK_INTERNAL_URL).
