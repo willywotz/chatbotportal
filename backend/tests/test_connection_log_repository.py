@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from app.repositories import connection_log as cl_repo
+from app.core.repositories import connection_log as cl_repo
 
 pytestmark = pytest.mark.asyncio
 

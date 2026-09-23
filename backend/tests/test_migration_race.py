@@ -44,8 +44,8 @@ async def fresh_database_url(pg_container):
 
 
 async def test_run_migrations_concurrent_is_race_safe(fresh_database_url):
-    import app.db as db_module
-    from app.config import database_url, settings
+    import app.core.db as db_module
+    from app.core.config import database_url, settings
 
     original_url, original_engine = settings.DATABASE_URL, db_module.engine
     settings.DATABASE_URL = fresh_database_url

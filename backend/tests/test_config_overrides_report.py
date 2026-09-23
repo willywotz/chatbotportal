@@ -1,11 +1,11 @@
 import logging
 
-from app.config import Settings
+from app.core.config import Settings
 
 
 def test_apply_overrides_reports_unknown_and_invalid(caplog):
     s = Settings()
-    with caplog.at_level(logging.WARNING, logger="app.config"):
+    with caplog.at_level(logging.WARNING, logger="app.core.config"):
         report = s.apply_overrides({
             "A2A_DISPATCH_TIMEOUT": "42",
             "NOPE_KEY": "x",

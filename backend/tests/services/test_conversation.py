@@ -5,12 +5,12 @@ import uuid
 import pytest
 from sqlalchemy import select
 
-from app.auth.principal import Principal
-from app.errors import ApiError
-from app.models.conversation import Conversation, Message
-from app.repositories import conversation as conversation_repo
-from app.schemas.conversation import MessageIn, SaveConversationRequest
-from app.services import conversation as conversation_service
+from app.core.security.principal import Principal
+from app.core.errors import ApiError
+from app.features.chat.models.conversation import Conversation, Message
+from app.features.chat.repositories import conversation as conversation_repo
+from app.features.chat.schemas.conversation import MessageIn, SaveConversationRequest
+from app.features.chat.services import conversation as conversation_service
 
 pytestmark = pytest.mark.asyncio
 

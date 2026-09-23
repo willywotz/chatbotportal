@@ -1,7 +1,7 @@
 """Characterization + new-filter tests for GET /connection-logs."""
-from app.models import AgencyStatus
-from app.repositories import agency as agency_repo
-from app.repositories import connection_log as connection_log_repo
+from app.features.agency.models.agency import AgencyStatus
+from app.features.agency.repositories import agency as agency_repo
+from app.core.repositories import connection_log as connection_log_repo
 
 
 async def test_connection_logs_paginate_unchanged(client, as_principal, db_session):

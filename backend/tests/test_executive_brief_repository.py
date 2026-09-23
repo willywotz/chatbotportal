@@ -1,6 +1,6 @@
 import pytest
 
-from app.repositories import executive_brief as brief_repo
+from app.features.analytics.repositories import executive_brief as brief_repo
 
 pytestmark = pytest.mark.asyncio
 

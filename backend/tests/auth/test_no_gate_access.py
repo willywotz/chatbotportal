@@ -18,7 +18,7 @@ async def _client():
 
 async def test_scoped_route_reachable_with_matching_scope(as_principal):
     as_principal(role="staff", scopes=["dashboard:read"])
-    from app.routers import dashboard as router_module
+    from app.features.analytics.routers import dashboard as router_module
     with patch.object(router_module, "get_dashboard_stats", new=AsyncMock(return_value={})):
         async with await _client() as c:
             r = await c.get("/api/v1/dashboard/statistics")

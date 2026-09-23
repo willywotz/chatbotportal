@@ -1,8 +1,8 @@
 import pytest
 
-from app.models import Agency
-from app.repositories import agency as agency_repo
-from app.utils import now
+from app.features.agency.models.agency import Agency
+from app.features.agency.repositories import agency as agency_repo
+from app.core.utils import now
 
 
 @pytest.mark.asyncio

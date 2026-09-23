@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.auth.security import hash_api_key
-from app.models.user import UserAPIKey
+from app.features.identity.models.user import UserAPIKey
 
 
 async def main() -> None:

@@ -1,5 +1,5 @@
-"""ensure_session_warmed opens its own short-lived sessions (app.db.AsyncSessionLocal)
-for the first-message lookup and the save, matching app.services.chat.stream's
+"""ensure_session_warmed opens its own short-lived sessions (app.core.db.AsyncSessionLocal)
+for the first-message lookup and the save, matching app.features.chat.services.stream's
 short-session-per-DB-touch pattern. Bind that session factory to the test's own
 connection (same pattern as test_agent_proxy_own_session.py) so writes are
 visible/rolled back with `db_session`.
@@ -10,11 +10,11 @@ import httpx
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.models.conversation import Conversation, Message
-from app.repositories import conversation as conversation_repo
-from app.repositories import message as message_repo
-from app.services import session as session_service
-from app.services.onechat import OneChatClient
+from app.features.chat.models.conversation import Conversation, Message
+from app.features.chat.repositories import conversation as conversation_repo
+from app.features.chat.repositories import message as message_repo
+from app.features.onechat.services import session as session_service
+from app.features.onechat.services import OneChatClient
 
 pytestmark = pytest.mark.asyncio
 

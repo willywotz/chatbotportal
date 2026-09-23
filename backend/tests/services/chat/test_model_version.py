@@ -1,6 +1,6 @@
 import pytest
 
-from app.services.chat.model import resolve_model_version
+from app.features.chat.services.model import resolve_model_version
 
 
 @pytest.mark.parametrize("model,expected", [

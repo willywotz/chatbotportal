@@ -5,7 +5,7 @@ message is rated — and in that state SQL AVG(...) is NULL, so `rate` (and the
 up/down sums) come back as None. Assembling the response must coalesce those to
 0 rather than crash on `None // 1`.
 """
-from app.routers.feedback import _scalar_stats
+from app.features.analytics.routers.feedback import _scalar_stats
 
 
 def test_scalar_stats_coalesces_null_metrics():

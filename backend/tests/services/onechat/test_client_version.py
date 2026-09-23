@@ -1,7 +1,7 @@
 import httpx
 import pytest
 
-from app.services.onechat.client import (
+from app.features.onechat.services.client import (
     NEWEST_VERSION, OneChatClient, get_client, resolve_version,
 )
 

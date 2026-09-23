@@ -2,7 +2,7 @@
 understands hex."""
 import re
 
-from app.services.seed import DEFAULT_AGENCIES
+from app.features.agency.services.seed import DEFAULT_AGENCIES
 
 _HEX_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 

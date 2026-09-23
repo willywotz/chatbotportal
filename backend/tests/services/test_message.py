@@ -4,12 +4,12 @@ import uuid
 
 import pytest
 
-from app.errors import ApiError
-from app.repositories import agency as agency_repo
-from app.repositories import conversation as conversation_repo
-from app.repositories import message as message_repo
-from app.schemas.conversation import RatingUpdate
-from app.services import message as message_service
+from app.core.errors import ApiError
+from app.features.agency.repositories import agency as agency_repo
+from app.features.chat.repositories import conversation as conversation_repo
+from app.features.chat.repositories import message as message_repo
+from app.features.chat.schemas.conversation import RatingUpdate
+from app.features.chat.services import message as message_service
 
 pytestmark = pytest.mark.asyncio
 

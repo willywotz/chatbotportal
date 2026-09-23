@@ -4,9 +4,9 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import HTTPException
 
-from app.auth.principal import Principal
-from app.routers.agencies import spec as spec_router
-from app.schemas.agency import McpDiscoverRequest
+from app.core.security.principal import Principal
+from app.features.agency.routers import spec as spec_router
+from app.features.agency.schemas.agency import McpDiscoverRequest
 
 pytestmark = pytest.mark.asyncio
 

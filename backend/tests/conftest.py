@@ -25,9 +25,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.pool import NullPool
 from testcontainers.postgres import PostgresContainer
 
-from app.auth.dependencies import get_current_user
-from app.auth.principal import Principal
-from app.config import settings
+from app.core.security.dependencies import get_current_user
+from app.core.security.principal import Principal
+from app.core.config import settings
 
 _KID = "test-key"
 
@@ -90,7 +90,7 @@ async def _engine(pg_container):
 async def _bind_app_engine(_engine):
     """Point the app's own-session factory at the test container so services
     that open their OWN `AsyncSessionLocal()` hit the same test DB."""
-    import app.db as _db
+    import app.core.db as _db
 
     _db.engine = _engine
     _db.AsyncSessionLocal = async_sessionmaker(_engine, class_=AsyncSession, expire_on_commit=False)
@@ -102,7 +102,7 @@ async def client(db_session):
     """ASGI test client with `get_db` overridden to the test's `db_session`."""
     from httpx import ASGITransport, AsyncClient
 
-    from app.db import get_db
+    from app.core.db import get_db
     from app.main import app
 
     async def _override():
@@ -136,7 +136,7 @@ async def db_session(_engine):
 
 @pytest_asyncio.fixture(autouse=True)
 async def _reset_usage_context():
-    from app.services.usage_context import current_user_id
+    from app.core.usage_context import current_user_id
     ut = current_user_id.set(None)
     try:
         yield
@@ -184,7 +184,7 @@ def make_token(rsa_keypair):
 def oidc_signing_key(rsa_keypair):
     """Register a deterministic RS256 key in the OIDC key cache so token
     mint/verify work without hitting the database."""
-    from app.auth.oidc import keys
+    from app.features.identity.oidc import keys
 
     private_pem, public_jwk = rsa_keypair
     keys.reset_cache()

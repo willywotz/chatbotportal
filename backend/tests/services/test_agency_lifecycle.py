@@ -1,9 +1,9 @@
 import pytest
 
-from app.errors import ApiError
-from app.models.agency import AgencyStatus
-from app.repositories import agency as agency_repo
-from app.services.agency_lifecycle import LEGAL_TRANSITIONS, is_legal_transition, transition_status
+from app.core.errors import ApiError
+from app.features.agency.models.agency import AgencyStatus
+from app.features.agency.repositories import agency as agency_repo
+from app.features.agency.services.agency_lifecycle import LEGAL_TRANSITIONS, is_legal_transition, transition_status
 
 
 def test_legal_transition_matrix():

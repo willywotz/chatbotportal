@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
-from app.repositories import llm_usage as llm_usage_repo
-from app.routers.insight import usage_summary
+from app.features.llm.repositories import llm_usage as llm_usage_repo
+from app.features.analytics.routers.insight import usage_summary
 
 
 async def test_usage_groups_by_purpose(db_session):

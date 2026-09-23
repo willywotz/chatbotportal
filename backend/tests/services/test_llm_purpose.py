@@ -1,4 +1,4 @@
-from app.services.llm.purpose import KNOWN_PURPOSES, Purpose
+from app.features.llm.services.purpose import KNOWN_PURPOSES, Purpose
 
 
 def test_purpose_enum_has_exactly_five_members():

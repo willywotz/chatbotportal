@@ -1,9 +1,9 @@
-"""Tests for app.services.settings — data access moved out of the router."""
+"""Tests for app.features.settings.services.settings — data access moved out of the router."""
 import pytest
 from sqlalchemy import select
 
-from app.models.setting import Setting
-from app.services import settings as settings_service
+from app.features.settings.models.setting import Setting
+from app.features.settings.services import settings as settings_service
 
 pytestmark = pytest.mark.asyncio
 

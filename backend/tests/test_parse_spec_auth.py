@@ -7,9 +7,9 @@ anonymous request already reached and paid for the LLM call).
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-import app.routers.agencies.spec as spec_mod
-from app.auth.dependencies import get_current_user
-from app.routers.agencies import router
+import app.features.agency.routers.spec as spec_mod
+from app.core.security.dependencies import get_current_user
+from app.features.agency.routers import router
 
 _PATH = "/api/v1/agencies/parse-specification"
 

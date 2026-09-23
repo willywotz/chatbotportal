@@ -2,10 +2,10 @@ from datetime import timedelta
 
 import pytest
 
-from app.repositories import agency as agency_repo
-from app.repositories import connection_log as connection_log_repo
-from app.routers.agencies import lifecycle
-from app.utils import now
+from app.features.agency.repositories import agency as agency_repo
+from app.core.repositories import connection_log as connection_log_repo
+from app.features.agency.routers import lifecycle
+from app.core.utils import now
 
 
 async def _backdated_log(session, ag, status, ago_minutes):

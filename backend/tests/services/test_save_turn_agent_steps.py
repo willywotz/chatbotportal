@@ -2,8 +2,8 @@ import uuid
 
 import pytest
 
-from app.models.conversation import Message
-from app.services.chat.turn import save_turn
+from app.features.chat.models.conversation import Message
+from app.features.chat.services.turn import save_turn
 
 pytestmark = pytest.mark.asyncio
 

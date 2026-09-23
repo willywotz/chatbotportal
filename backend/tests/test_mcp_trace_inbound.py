@@ -1,7 +1,7 @@
 from opentelemetry.instrumentation.asgi import OpenTelemetryMiddleware
 
 import app.main as main
-from app.trace_util import QueryTraceparentASGI
+from app.core.trace_util import QueryTraceparentASGI
 
 
 def _mcp_mount(fastapi_app):

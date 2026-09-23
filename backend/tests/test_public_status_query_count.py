@@ -1,10 +1,10 @@
 """Query-count characterization for public_status N+1 fix."""
 from sqlalchemy import event
 
-from app.models import AgencyStatus
-from app.repositories import agency as agency_repo
-from app.repositories import connection_log as connection_log_repo
-from app.routers.public_status import public_status
+from app.features.agency.models.agency import AgencyStatus
+from app.features.agency.repositories import agency as agency_repo
+from app.core.repositories import connection_log as connection_log_repo
+from app.features.analytics.routers.public_status import public_status
 
 
 async def test_uptime_values_preserved(db_session):

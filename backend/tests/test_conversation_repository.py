@@ -3,7 +3,7 @@ from datetime import datetime
 
 import pytest
 
-from app.repositories import conversation as repo
+from app.features.chat.repositories import conversation as repo
 
 pytestmark = pytest.mark.asyncio
 

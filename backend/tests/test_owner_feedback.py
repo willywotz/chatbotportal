@@ -1,9 +1,9 @@
 import uuid
 
-from app.repositories import agency as agency_repo
-from app.repositories import conversation as conversation_repo
-from app.repositories import message as message_repo
-from app.routers.feedback import agency_low_rated
+from app.features.agency.repositories import agency as agency_repo
+from app.features.chat.repositories import conversation as conversation_repo
+from app.features.chat.repositories import message as message_repo
+from app.features.analytics.routers.feedback import agency_low_rated
 
 
 async def test_returns_only_down_rated_for_agency(db_session):

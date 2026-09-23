@@ -7,8 +7,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app import scheduler
-from app.models import Agency, ConnectionLog
-from app.repositories import agency as agency_repo
+from app.features.agency.models.agency import Agency
+from app.core.models.connection_log import ConnectionLog
+from app.features.agency.repositories import agency as agency_repo
 
 pytestmark = pytest.mark.asyncio
 
@@ -109,8 +110,8 @@ async def test_health_check_job_reconciles_statuses(db_session):
 async def test_purge_old_connection_logs_deletes_only_stale_rows(db_session, monkeypatch):
     from datetime import timedelta
 
-    from app.repositories import connection_log as connection_log_repo
-    from app.utils import now
+    from app.core.repositories import connection_log as connection_log_repo
+    from app.core.utils import now
 
     ag = await _mk_agency(db_session)
     old = await connection_log_repo.create(

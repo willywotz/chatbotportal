@@ -6,7 +6,7 @@ from urllib.parse import parse_qs, urlsplit
 from opentelemetry import trace
 
 import app.main as main  # ensures the SDK tracer provider is configured
-from app.trace_util import QueryTraceparentASGI, with_trace_query
+from app.core.trace_util import QueryTraceparentASGI, with_trace_query
 
 tracer = trace.get_tracer(__name__)
 

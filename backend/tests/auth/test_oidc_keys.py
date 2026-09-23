@@ -1,8 +1,8 @@
 """Signing-key lifecycle: thumbprint kid, cache, env override, DB generation."""
 import pytest
 
-from app.auth.oidc import keys
-from app.config import settings
+from app.features.identity.oidc import keys
+from app.core.config import settings
 
 
 @pytest.fixture(autouse=True)

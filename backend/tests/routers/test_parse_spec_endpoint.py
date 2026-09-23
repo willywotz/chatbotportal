@@ -7,10 +7,10 @@ exception escape as an unhandled 500.
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-import app.routers.agencies.spec as spec_mod
-from app.auth.dependencies import get_current_user
-from app.routers.agencies import router
-from app.services.llm import LlmError
+import app.features.agency.routers.spec as spec_mod
+from app.core.security.dependencies import get_current_user
+from app.features.agency.routers import router
+from app.features.llm.services import LlmError
 
 _PATH = "/api/v1/agencies/parse-specification"
 

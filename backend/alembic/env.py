@@ -7,9 +7,9 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from alembic import context
 
-import app.models  # noqa: F401  register all tables
-from app.config import connect_args, database_url, settings
-from app.models.base import Base
+import app.core.registry  # noqa: F401  register all tables
+from app.core.config import connect_args, database_url, settings
+from app.core.base import Base
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

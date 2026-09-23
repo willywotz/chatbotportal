@@ -1,4 +1,4 @@
-"""Tests for app.services.chat.dispatch — agency dispatch module."""
+"""Tests for app.features.chat.services.dispatch — agency dispatch module."""
 from dataclasses import dataclass, field
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -8,13 +8,13 @@ import pytest
 
 class TestBuildApiHeaders:
     def test_default_content_type(self):
-        from app.services.chat.dispatch import build_api_headers
+        from app.features.chat.services.dispatch import build_api_headers
 
         result = build_api_headers(None)
         assert result == {"content-type": "application/json"}
 
     def test_merges_and_lowercases_custom_headers(self):
-        from app.services.chat.dispatch import build_api_headers
+        from app.features.chat.services.dispatch import build_api_headers
 
         result = build_api_headers([
             {"name": "Authorization", "value": "Bearer token"},
@@ -25,7 +25,7 @@ class TestBuildApiHeaders:
         assert result["x-custom"] == "val"
 
     def test_empty_list(self):
-        from app.services.chat.dispatch import build_api_headers
+        from app.features.chat.services.dispatch import build_api_headers
 
         result = build_api_headers([])
         assert result == {"content-type": "application/json"}
@@ -33,32 +33,32 @@ class TestBuildApiHeaders:
 
 class TestBuildApiPayload:
     def test_sentinel_query(self):
-        from app.services.chat.dispatch import build_api_payload
+        from app.features.chat.services.dispatch import build_api_payload
 
         result = build_api_payload({"q": "__query__"}, "ภาษี", "conv-1")
         assert result["q"] == "ภาษี"
 
     def test_sentinel_session_id(self):
-        from app.services.chat.dispatch import build_api_payload
+        from app.features.chat.services.dispatch import build_api_payload
 
         result = build_api_payload({"sid": "__session_id__"}, "q", "conv-1")
         assert result["sid"] == "conv-1"
 
     def test_sentinel_conversation_id(self):
-        from app.services.chat.dispatch import build_api_payload
+        from app.features.chat.services.dispatch import build_api_payload
 
         result = build_api_payload({"cid": "__conversation_id__"}, "q", "conv-99")
         assert result["cid"] == "conv-99"
 
     def test_sentinel_user_id_generates_uuid(self):
-        from app.services.chat.dispatch import build_api_payload
+        from app.features.chat.services.dispatch import build_api_payload
 
         result = build_api_payload({"uid": "__user_id__"}, "q", "conv-1")
         assert result["uid"] != "__user_id__"
         assert len(result["uid"]) > 0
 
     def test_empty_conversation_id_generates_uuid_for_session_sentinel(self):
-        from app.services.chat.dispatch import build_api_payload
+        from app.features.chat.services.dispatch import build_api_payload
         import re
 
         result = build_api_payload({"sid": "__session_id__"}, "q", "")
@@ -66,39 +66,39 @@ class TestBuildApiPayload:
         assert re.match(r"[0-9a-f-]{36}", result["sid"])
 
     def test_key_name_query_convention(self):
-        from app.services.chat.dispatch import build_api_payload
+        from app.features.chat.services.dispatch import build_api_payload
 
         result = build_api_payload({"query": "placeholder"}, "actual question", "c1")
         assert result["query"] == "actual question"
 
     def test_key_name_session_id_convention(self):
-        from app.services.chat.dispatch import build_api_payload
+        from app.features.chat.services.dispatch import build_api_payload
 
         result = build_api_payload({"session_id": ""}, "q", "sess-42")
         assert result["session_id"] == "sess-42"
 
     def test_key_name_conversation_id_convention(self):
-        from app.services.chat.dispatch import build_api_payload
+        from app.features.chat.services.dispatch import build_api_payload
 
         result = build_api_payload({"conversation_id": ""}, "q", "conv-42")
         assert result["conversation_id"] == "conv-42"
 
     def test_key_name_user_id_convention_generates_uuid(self):
-        from app.services.chat.dispatch import build_api_payload
+        from app.features.chat.services.dispatch import build_api_payload
 
         result = build_api_payload({"user_id": ""}, "q", "c1")
         assert len(result["user_id"]) > 0
         assert result["user_id"] != ""
 
     def test_passthrough_of_unrelated_keys(self):
-        from app.services.chat.dispatch import build_api_payload
+        from app.features.chat.services.dispatch import build_api_payload
 
         result = build_api_payload({"language": "th", "version": "2"}, "q", "c1")
         assert result["language"] == "th"
         assert result["version"] == "2"
 
     def test_empty_payload(self):
-        from app.services.chat.dispatch import build_api_payload
+        from app.features.chat.services.dispatch import build_api_payload
 
         result = build_api_payload({}, "q", "c1")
         assert result == {}
@@ -111,43 +111,43 @@ class TestSelectMcpTool:
         return t
 
     def test_picks_chat_like_tool_by_name(self):
-        from app.services.chat.dispatch import select_mcp_tool
+        from app.features.chat.services.dispatch import select_mcp_tool
 
         tools = [self._make_tool("list_items"), self._make_tool("chat_query")]
         assert select_mcp_tool(tools) == "chat_query"
 
     def test_picks_ask_tool(self):
-        from app.services.chat.dispatch import select_mcp_tool
+        from app.features.chat.services.dispatch import select_mcp_tool
 
         tools = [self._make_tool("other"), self._make_tool("ask_agency")]
         assert select_mcp_tool(tools) == "ask_agency"
 
     def test_picks_query_tool(self):
-        from app.services.chat.dispatch import select_mcp_tool
+        from app.features.chat.services.dispatch import select_mcp_tool
 
         tools = [self._make_tool("something"), self._make_tool("query_data")]
         assert select_mcp_tool(tools) == "query_data"
 
     def test_falls_back_to_first_if_no_preferred(self):
-        from app.services.chat.dispatch import select_mcp_tool
+        from app.features.chat.services.dispatch import select_mcp_tool
 
         tools = [self._make_tool("list_agency"), self._make_tool("get_data")]
         assert select_mcp_tool(tools) == "list_agency"
 
     def test_empty_list_raises(self):
-        from app.services.chat.dispatch import select_mcp_tool
+        from app.features.chat.services.dispatch import select_mcp_tool
 
         with pytest.raises(ValueError, match="no MCP tools available"):
             select_mcp_tool([])
 
     def test_dict_shaped_tool(self):
-        from app.services.chat.dispatch import select_mcp_tool
+        from app.features.chat.services.dispatch import select_mcp_tool
 
         tools = [{"name": "list_items"}, {"name": "ask_me"}]
         assert select_mcp_tool(tools) == "ask_me"
 
     def test_mixed_tool_types(self):
-        from app.services.chat.dispatch import select_mcp_tool
+        from app.features.chat.services.dispatch import select_mcp_tool
 
         obj_tool = self._make_tool("list_items")
         dict_tool = {"name": "query_stuff"}
@@ -165,21 +165,21 @@ class TestBuildMcpArgs:
         return {"name": "t", "inputSchema": {"type": "object", "properties": properties}}
 
     def test_maps_to_query_property(self):
-        from app.services.chat.dispatch import build_mcp_args
+        from app.features.chat.services.dispatch import build_mcp_args
 
         tool = self._make_tool_with_schema({"query": {"type": "string"}, "other": {"type": "int"}})
         result = build_mcp_args(tool, "test question")
         assert result == {"query": "test question"}
 
     def test_maps_to_question_property_when_no_query(self):
-        from app.services.chat.dispatch import build_mcp_args
+        from app.features.chat.services.dispatch import build_mcp_args
 
         tool = self._make_tool_with_schema({"question": {"type": "string"}})
         result = build_mcp_args(tool, "test question")
         assert result == {"question": "test question"}
 
     def test_priority_query_over_message(self):
-        from app.services.chat.dispatch import build_mcp_args
+        from app.features.chat.services.dispatch import build_mcp_args
 
         tool = self._make_tool_with_schema({
             "message": {"type": "string"},
@@ -189,42 +189,42 @@ class TestBuildMcpArgs:
         assert result == {"query": "hi"}
 
     def test_single_string_property_fallback(self):
-        from app.services.chat.dispatch import build_mcp_args
+        from app.features.chat.services.dispatch import build_mcp_args
 
         tool = self._make_tool_with_schema({"payload": {"type": "string"}})
         result = build_mcp_args(tool, "hi")
         assert result == {"payload": "hi"}
 
     def test_no_arg_when_no_string_properties(self):
-        from app.services.chat.dispatch import build_mcp_args
+        from app.features.chat.services.dispatch import build_mcp_args
 
         tool = self._make_tool_with_schema({"count": {"type": "integer"}})
         result = build_mcp_args(tool, "hi")
         assert result == {}
 
     def test_no_arg_with_empty_schema(self):
-        from app.services.chat.dispatch import build_mcp_args
+        from app.features.chat.services.dispatch import build_mcp_args
 
         tool = self._make_tool_with_schema({})
         result = build_mcp_args(tool, "hi")
         assert result == {}
 
     def test_dict_tool_with_input_schema_key(self):
-        from app.services.chat.dispatch import build_mcp_args
+        from app.features.chat.services.dispatch import build_mcp_args
 
         tool = self._make_dict_tool({"query": {"type": "string"}})
         result = build_mcp_args(tool, "hello")
         assert result == {"query": "hello"}
 
     def test_dict_tool_with_input_schema_snake_key(self):
-        from app.services.chat.dispatch import build_mcp_args
+        from app.features.chat.services.dispatch import build_mcp_args
 
         tool = {"name": "t", "input_schema": {"type": "object", "properties": {"query": {"type": "string"}}}}
         result = build_mcp_args(tool, "hello")
         assert result == {"query": "hello"}
 
     def test_no_schema_returns_empty(self):
-        from app.services.chat.dispatch import build_mcp_args
+        from app.features.chat.services.dispatch import build_mcp_args
 
         tool = MagicMock(spec=[])  # no inputSchema attr
         result = build_mcp_args(tool, "hi")
@@ -250,27 +250,27 @@ class TestExtractMcpText:
         return r
 
     def test_data_str_returned_directly(self):
-        from app.services.chat.dispatch import extract_mcp_text
+        from app.features.chat.services.dispatch import extract_mcp_text
 
         result = self._make_result(data="hello world")
         assert extract_mcp_text(result) == "hello world"
 
     def test_data_dict_json_serialized(self):
-        from app.services.chat.dispatch import extract_mcp_text
+        from app.features.chat.services.dispatch import extract_mcp_text
 
         result = self._make_result(data={"key": "value"})
         assert '"key"' in extract_mcp_text(result)
         assert '"value"' in extract_mcp_text(result)
 
     def test_structured_content_when_no_data(self):
-        from app.services.chat.dispatch import extract_mcp_text
+        from app.features.chat.services.dispatch import extract_mcp_text
 
         result = self._make_result(data=None, structured_content={"agency": "test"})
         text = extract_mcp_text(result)
         assert "agency" in text
 
     def test_content_text_joined(self):
-        from app.services.chat.dispatch import extract_mcp_text
+        from app.features.chat.services.dispatch import extract_mcp_text
 
         item1 = MagicMock()
         item1.text = "Hello"
@@ -282,7 +282,7 @@ class TestExtractMcpText:
         assert "World" in text
 
     def test_content_items_without_text_skipped(self):
-        from app.services.chat.dispatch import extract_mcp_text
+        from app.features.chat.services.dispatch import extract_mcp_text
 
         item_with = MagicMock(spec=["text"])
         item_with.text = "present"
@@ -293,7 +293,7 @@ class TestExtractMcpText:
         assert "present" in text
 
     def test_str_fallback(self):
-        from app.services.chat.dispatch import extract_mcp_text
+        from app.features.chat.services.dispatch import extract_mcp_text
 
         # An object with no data, structured_content, or content
         result = MagicMock(spec=[])
@@ -303,7 +303,7 @@ class TestExtractMcpText:
 
 @pytest.mark.asyncio
 async def test_dispatch_api_200_returns_ok():
-    from app.services.chat.dispatch import dispatch_api
+    from app.features.chat.services.dispatch import dispatch_api
 
     route = {
         "agency_name": "TestAgency",
@@ -316,7 +316,7 @@ async def test_dispatch_api_200_returns_ok():
     mock_resp.status_code = 200
     mock_resp.json.return_value = {"answer": "yes"}
 
-    with patch("app.services.chat.dispatch.httpx.AsyncClient") as MockClient:
+    with patch("app.features.chat.services.dispatch.httpx.AsyncClient") as MockClient:
         mock_client = AsyncMock()
         mock_client.post = AsyncMock(return_value=mock_resp)
         MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client)
@@ -331,7 +331,7 @@ async def test_dispatch_api_200_returns_ok():
 
 @pytest.mark.asyncio
 async def test_dispatch_api_non_200_returns_error():
-    from app.services.chat.dispatch import dispatch_api
+    from app.features.chat.services.dispatch import dispatch_api
 
     route = {
         "agency_name": "TestAgency",
@@ -344,7 +344,7 @@ async def test_dispatch_api_non_200_returns_error():
     mock_resp.status_code = 500
     mock_resp.text = "Internal Server Error"
 
-    with patch("app.services.chat.dispatch.httpx.AsyncClient") as MockClient:
+    with patch("app.features.chat.services.dispatch.httpx.AsyncClient") as MockClient:
         mock_client = AsyncMock()
         mock_client.post = AsyncMock(return_value=mock_resp)
         MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client)
@@ -359,7 +359,7 @@ async def test_dispatch_api_non_200_returns_error():
 
 @pytest.mark.asyncio
 async def test_dispatch_api_builds_correct_payload_and_headers():
-    from app.services.chat.dispatch import dispatch_api
+    from app.features.chat.services.dispatch import dispatch_api
 
     route = {
         "agency_name": "Agency",
@@ -372,7 +372,7 @@ async def test_dispatch_api_builds_correct_payload_and_headers():
     mock_resp.status_code = 200
     mock_resp.json.return_value = {}
 
-    with patch("app.services.chat.dispatch.httpx.AsyncClient") as MockClient:
+    with patch("app.features.chat.services.dispatch.httpx.AsyncClient") as MockClient:
         mock_client = AsyncMock()
         mock_client.post = AsyncMock(return_value=mock_resp)
         MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client)
@@ -392,7 +392,7 @@ async def test_dispatch_api_builds_correct_payload_and_headers():
 
 @pytest.mark.asyncio
 async def test_dispatch_mcp_happy_path():
-    from app.services.chat.dispatch import dispatch_mcp
+    from app.features.chat.services.dispatch import dispatch_mcp
 
     route = {
         "agency_name": "MCPAgency",
@@ -418,7 +418,7 @@ async def test_dispatch_mcp_happy_path():
     fake_client.__aenter__ = AsyncMock(return_value=fake_client)
     fake_client.__aexit__ = AsyncMock(return_value=False)
 
-    with patch("app.services.chat.dispatch.Client", return_value=fake_client):
+    with patch("app.features.chat.services.dispatch.Client", return_value=fake_client):
         result = await dispatch_mcp(route, "ข้อมูลที่ดิน")
 
     assert result["status"] == "ok"
@@ -429,7 +429,7 @@ async def test_dispatch_mcp_happy_path():
 
 @pytest.mark.asyncio
 async def test_dispatch_mcp_dict_shaped_tool():
-    from app.services.chat.dispatch import dispatch_mcp
+    from app.features.chat.services.dispatch import dispatch_mcp
 
     route = {
         "agency_name": "DictMCPAgency",
@@ -455,7 +455,7 @@ async def test_dispatch_mcp_dict_shaped_tool():
     fake_client.__aenter__ = AsyncMock(return_value=fake_client)
     fake_client.__aexit__ = AsyncMock(return_value=False)
 
-    with patch("app.services.chat.dispatch.Client", return_value=fake_client):
+    with patch("app.features.chat.services.dispatch.Client", return_value=fake_client):
         result = await dispatch_mcp(route, "question here")
 
     assert result["status"] == "ok"
@@ -465,7 +465,7 @@ async def test_dispatch_mcp_dict_shaped_tool():
 
 @pytest.mark.asyncio
 async def test_dispatch_one_a2a_path():
-    from app.services.chat.dispatch import dispatch_one
+    from app.features.chat.services.dispatch import dispatch_one
 
     route = {
         "connection_type": "A2A",
@@ -474,7 +474,7 @@ async def test_dispatch_one_a2a_path():
         "sub_question": "ทะเบียนรถ",
     }
 
-    with patch("app.services.chat.dispatch.dispatch_a2a", new=AsyncMock(return_value={"agency": "A2AAgency", "status": "ok", "response": {}})) as mock_a2a:
+    with patch("app.features.chat.services.dispatch.dispatch_a2a", new=AsyncMock(return_value={"agency": "A2AAgency", "status": "ok", "response": {}})) as mock_a2a:
         result = await dispatch_one(route, "conv-1")
 
     mock_a2a.assert_called_once_with(route, "conv-1")
@@ -483,7 +483,7 @@ async def test_dispatch_one_a2a_path():
 
 @pytest.mark.asyncio
 async def test_dispatch_one_api_path():
-    from app.services.chat.dispatch import dispatch_one
+    from app.features.chat.services.dispatch import dispatch_one
 
     route = {
         "connection_type": "API",
@@ -494,7 +494,7 @@ async def test_dispatch_one_api_path():
         "expected_payload": {},
     }
 
-    with patch("app.services.chat.dispatch.dispatch_api", new=AsyncMock(return_value={"agency": "APIAgency", "status": "ok", "response": {}})) as mock_api:
+    with patch("app.features.chat.services.dispatch.dispatch_api", new=AsyncMock(return_value={"agency": "APIAgency", "status": "ok", "response": {}})) as mock_api:
         result = await dispatch_one(route, "conv-2")
 
     mock_api.assert_called_once_with(route, "conv-2")
@@ -503,7 +503,7 @@ async def test_dispatch_one_api_path():
 
 @pytest.mark.asyncio
 async def test_dispatch_one_mcp_path():
-    from app.services.chat.dispatch import dispatch_one
+    from app.features.chat.services.dispatch import dispatch_one
 
     route = {
         "connection_type": "MCP",
@@ -512,7 +512,7 @@ async def test_dispatch_one_mcp_path():
         "sub_question": "test",
     }
 
-    with patch("app.services.chat.dispatch.dispatch_mcp", new=AsyncMock(return_value={"agency": "MCPAgency", "status": "ok", "response": "text"})) as mock_mcp:
+    with patch("app.features.chat.services.dispatch.dispatch_mcp", new=AsyncMock(return_value={"agency": "MCPAgency", "status": "ok", "response": "text"})) as mock_mcp:
         result = await dispatch_one(route, "conv-3")
 
     mock_mcp.assert_called_once_with(route, "test")
@@ -521,7 +521,7 @@ async def test_dispatch_one_mcp_path():
 
 @pytest.mark.asyncio
 async def test_dispatch_one_unknown_type():
-    from app.services.chat.dispatch import dispatch_one
+    from app.features.chat.services.dispatch import dispatch_one
 
     route = {
         "connection_type": "UNKNOWN",
@@ -538,7 +538,7 @@ async def test_dispatch_one_unknown_type():
 
 @pytest.mark.asyncio
 async def test_dispatch_one_exception_becomes_error():
-    from app.services.chat.dispatch import dispatch_one
+    from app.features.chat.services.dispatch import dispatch_one
 
     route = {
         "connection_type": "MCP",
@@ -547,7 +547,7 @@ async def test_dispatch_one_exception_becomes_error():
         "sub_question": "q",
     }
 
-    with patch("app.services.chat.dispatch.dispatch_mcp", new=AsyncMock(side_effect=ConnectionError("refused"))):
+    with patch("app.features.chat.services.dispatch.dispatch_mcp", new=AsyncMock(side_effect=ConnectionError("refused"))):
         result = await dispatch_one(route, "conv-1")
 
     assert result["status"] == "error"
@@ -557,12 +557,12 @@ async def test_dispatch_one_exception_becomes_error():
 
 @pytest.mark.asyncio
 async def test_dispatch_a2a_posts_and_returns_ok():
-    from app.services.chat.dispatch import dispatch_a2a
+    from app.features.chat.services.dispatch import dispatch_a2a
 
     route = {"connection_type": "A2A", "sub_question": "q", "agency_name": "A", "endpoint_url": "http://x"}
     mock_response = MagicMock()
     mock_response.json.return_value = {"answer": "ok"}
-    with patch("app.services.chat.dispatch.httpx.AsyncClient") as MockClient:
+    with patch("app.features.chat.services.dispatch.httpx.AsyncClient") as MockClient:
         mock_client = AsyncMock()
         mock_client.post = AsyncMock(return_value=mock_response)
         MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client)
@@ -579,7 +579,7 @@ async def test_dispatch_a2a_posts_and_returns_ok():
 
 
 def test_extract_mcp_text_falsy_data_returned_via_coerce():
-    from app.services.chat.dispatch import extract_mcp_text
+    from app.features.chat.services.dispatch import extract_mcp_text
 
     @dataclass
     class FakeResult:

@@ -4,9 +4,9 @@ import httpx
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.models.agency import Agency
-from app.repositories import agency as agency_repo
-from app.services import agent_proxy
+from app.features.agency.models.agency import Agency
+from app.features.agency.repositories import agency as agency_repo
+from app.features.mcp.services import agent_proxy
 
 pytestmark = pytest.mark.asyncio
 

@@ -11,10 +11,10 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
-from app.schemas.conversation import FeedbackStats
-from app.schemas.executive_summary import ExecutiveData, ExecutiveKPIs
-from app.schemas.insight import AgencyHealthData, BusiestInsight, HeatmapInsights, UsageHeatmapData
-from app.utils import now
+from app.features.chat.schemas.conversation import FeedbackStats
+from app.features.analytics.schemas.executive_summary import ExecutiveData, ExecutiveKPIs
+from app.features.analytics.schemas.insight import AgencyHealthData, BusiestInsight, HeatmapInsights, UsageHeatmapData
+from app.core.utils import now
 
 _STAFF_SCOPES = ["dashboard:read", "executive:read", "health:read", "usage:read", "feedback:read"]
 
@@ -61,7 +61,7 @@ def _feedback_stats() -> FeedbackStats:
 
 async def test_staff_reaches_dashboard_statistics(as_principal):
     as_principal(role="staff", scopes=_STAFF_SCOPES)
-    from app.routers import dashboard as router_module
+    from app.features.analytics.routers import dashboard as router_module
     with patch.object(router_module, "get_dashboard_stats", new=AsyncMock(return_value={})):
         async with await _client() as c:
             r = await c.get("/api/v1/dashboard/statistics")
@@ -70,7 +70,7 @@ async def test_staff_reaches_dashboard_statistics(as_principal):
 
 async def test_staff_reaches_executive_summary(as_principal):
     as_principal(role="staff", scopes=_STAFF_SCOPES)
-    from app.routers import executive_summary as router_module
+    from app.features.analytics.routers import executive_summary as router_module
     with patch.object(router_module, "get_executive_summary", new=AsyncMock(return_value=_executive_data())):
         async with await _client() as c:
             r = await c.get("/api/v1/executive-summary")
@@ -79,7 +79,7 @@ async def test_staff_reaches_executive_summary(as_principal):
 
 async def test_staff_reaches_agency_health(as_principal):
     as_principal(role="staff", scopes=_STAFF_SCOPES)
-    from app.routers import insight as router_module
+    from app.features.analytics.routers import insight as router_module
     with patch.object(router_module, "get_agency_health", new=AsyncMock(return_value=_agency_health())):
         async with await _client() as c:
             r = await c.get("/api/v1/agency-health")
@@ -88,7 +88,7 @@ async def test_staff_reaches_agency_health(as_principal):
 
 async def test_staff_reaches_usage_heatmap(as_principal):
     as_principal(role="staff", scopes=_STAFF_SCOPES)
-    from app.routers import insight as router_module
+    from app.features.analytics.routers import insight as router_module
     with patch.object(router_module, "get_usage_heatmap", new=AsyncMock(return_value=_usage_heatmap())):
         async with await _client() as c:
             r = await c.get("/api/v1/usage-heatmap", params={"range": "7d"})
@@ -97,7 +97,7 @@ async def test_staff_reaches_usage_heatmap(as_principal):
 
 async def test_staff_reaches_insight_usage(as_principal):
     as_principal(role="staff", scopes=_STAFF_SCOPES)
-    from app.routers import insight as router_module
+    from app.features.analytics.routers import insight as router_module
     with patch.object(router_module, "usage_summary", new=AsyncMock(return_value=[])):
         async with await _client() as c:
             r = await c.get("/api/v1/insight/usage")
@@ -106,7 +106,7 @@ async def test_staff_reaches_insight_usage(as_principal):
 
 async def test_staff_reaches_feedback_statistics(as_principal):
     as_principal(role="staff", scopes=_STAFF_SCOPES)
-    from app.routers import feedback as router_module
+    from app.features.analytics.routers import feedback as router_module
     with patch.object(router_module, "get_feedback_stats", new=AsyncMock(return_value=_feedback_stats())):
         async with await _client() as c:
             r = await c.get("/api/v1/feedback/statistics")

@@ -4,10 +4,10 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import BackgroundTasks
 
-from app.routers import chat as chat_router
-from app.schemas.chat import ChatRequest
-from app.services.chat import stream as turn_stream
-from app.services.chat.stream import ChatEvent
+from app.features.chat.routers import chat as chat_router
+from app.features.chat.schemas.chat import ChatRequest
+from app.features.chat.services import stream as turn_stream
+from app.features.chat.services.stream import ChatEvent
 
 pytestmark = pytest.mark.asyncio
 
@@ -31,7 +31,7 @@ def _fake_run_turn(*events):
 async def test_json_response_default(db_session):
     with patch.object(turn_stream, "find_similar_question", new=AsyncMock(return_value=None)), \
          patch.object(chat_router, "run_turn", _fake_run_turn(*_events())), \
-         patch("app.services.chat.aggregate.run_turn", _fake_run_turn(*_events())):
+         patch("app.features.chat.services.aggregate.run_turn", _fake_run_turn(*_events())):
         result = await chat_router.chat(ChatRequest(query="q"), BackgroundTasks(), None)
     assert result["success"] is True
     assert result["data"]["answer"] == "คำตอบ"
@@ -64,13 +64,13 @@ async def test_model_selects_version_v3(db_session):
 
     async def fake_prepare(*, query, conversation_id, user, is_continuation, requested_version=None):
         captured["version"] = requested_version
-        from app.services.chat.stream import TurnPlan
-        from app.utils import generate_uuid
+        from app.features.chat.services.stream import TurnPlan
+        from app.core.utils import generate_uuid
         return TurnPlan(query=query, conversation_id=conversation_id, user=user,
                         stream_version=requested_version, assistant_message_id=generate_uuid())
 
     with patch.object(chat_router, "prepare_turn", fake_prepare), \
          patch.object(chat_router, "run_turn", _fake_run_turn(*_events())), \
-         patch("app.services.chat.aggregate.run_turn", _fake_run_turn(*_events())):
+         patch("app.features.chat.services.aggregate.run_turn", _fake_run_turn(*_events())):
         await chat_router.chat(ChatRequest(query="q", model="onechat-v3"), BackgroundTasks(), None)
     assert captured["version"] == "v3"

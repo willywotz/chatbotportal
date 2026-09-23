@@ -5,7 +5,7 @@ headers from every response except an admin's.
 The MCP transport (/mcp) is mounted outside FastAPI's dependency injection, so
 the REST routers' `require_scope` never runs for it. The only auth gate is
 AuthMiddleware in app/mcp/server.py, which verifies the bearer via
-`app.auth.oidc.tokens.verify_token` — no DB lookup, no role check beyond
+`app.core.security.tokens.verify_token` — no DB lookup, no role check beyond
 admin/non-admin for the header-stripping trust boundary in `_fetch_agencies`.
 """
 
@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.mcp import server
+from app.features.mcp import server
 
 
 class _FakeSession:
@@ -258,7 +258,7 @@ def test_mcp_server_module_has_no_role_check():
     """
     import inspect
 
-    from app.mcp.server import AuthMiddleware
+    from app.features.mcp.server import AuthMiddleware
 
     src = inspect.getsource(AuthMiddleware.on_request)
     role_gate_indicators = [".role", "enforce_role", "require_role", "viewer", "auditor"]

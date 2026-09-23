@@ -3,12 +3,13 @@ import uuid
 import pytest
 from sqlalchemy import select
 
-from app.auth.principal import Principal
-from app.models import Agency, ConnectionLog
-from app.repositories import agency as agency_repo
-from app.routers.agencies import lifecycle
-from app.services import agency as agency_service
-from app.utils import now
+from app.core.security.principal import Principal
+from app.features.agency.models.agency import Agency
+from app.core.models.connection_log import ConnectionLog
+from app.features.agency.repositories import agency as agency_repo
+from app.features.agency.routers import lifecycle
+from app.features.agency.services import agency as agency_service
+from app.core.utils import now
 
 
 async def _admin():

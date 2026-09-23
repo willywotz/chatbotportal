@@ -2,9 +2,9 @@
 
 Auth is mocked via the as_principal fixture; accounts are seeded directly
 through the user repository against the test's rolled-back session."""
-from app.auth.oidc.passwords import hash_password
-from app.models.user import UserRole
-from app.repositories import user as user_repo
+from app.features.identity.oidc.passwords import hash_password
+from app.features.identity.models.user import UserRole
+from app.features.identity.repositories import user as user_repo
 
 _USERS = "/api/v1/users"
 _NO_MANAGE_SCOPES = ["agency:list", "conversation:read:own", "conversation:write:own", "message:rate"]

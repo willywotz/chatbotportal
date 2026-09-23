@@ -9,7 +9,7 @@ from opentelemetry import trace
 from starlette.requests import Request
 
 import app.main as main  # ensures the SDK tracer provider is configured
-from app.mcp.server import _agent_proxy_endpoint
+from app.features.mcp.server import _agent_proxy_endpoint
 
 tracer = trace.get_tracer(__name__)
 
@@ -22,7 +22,7 @@ def _request(headers: dict) -> Request:
 
 
 def test_no_query_when_probe_disabled(monkeypatch):
-    import app.mcp.server as server
+    import app.features.mcp.server as server
 
     monkeypatch.setattr(server.settings, "TRACE_URL_PROBE", "")
     request = _request({"x-forwarded-host": "example.com", "x-forwarded-proto": "https"})
@@ -33,7 +33,7 @@ def test_no_query_when_probe_disabled(monkeypatch):
 
 
 def test_appends_probe_query_when_enabled(monkeypatch):
-    import app.mcp.server as server
+    import app.features.mcp.server as server
 
     monkeypatch.setattr(server.settings, "TRACE_URL_PROBE", "tp_probe=AP1")
     request = _request({"x-forwarded-host": "example.com", "x-forwarded-proto": "https"})
@@ -44,7 +44,7 @@ def test_appends_probe_query_when_enabled(monkeypatch):
 
 
 def test_carries_traceparent_when_span_active(monkeypatch):
-    import app.mcp.server as server
+    import app.features.mcp.server as server
 
     monkeypatch.setattr(server.settings, "TRACE_URL_PROBE", "")
     request = _request({"x-forwarded-host": "example.com", "x-forwarded-proto": "https"})

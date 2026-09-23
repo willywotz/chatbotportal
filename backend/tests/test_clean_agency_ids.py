@@ -1,5 +1,5 @@
-"""Tests for app.utils.clean_agency_ids."""
-from app.utils import clean_agency_ids
+"""Tests for app.core.utils.clean_agency_ids."""
+from app.core.utils import clean_agency_ids
 
 
 def test_passes_clean_list_through():

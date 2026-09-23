@@ -3,10 +3,10 @@ import uuid
 
 import pytest
 
-from app.errors import ApiError
-from app.models.agency import Agency
-from app.models.connection_log import ConnectionLog
-from app.services import connection_log as connection_log_service
+from app.core.errors import ApiError
+from app.features.agency.models.agency import Agency
+from app.core.models.connection_log import ConnectionLog
+from app.core import connection_log as connection_log_service
 
 pytestmark = pytest.mark.asyncio
 

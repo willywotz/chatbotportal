@@ -1,6 +1,6 @@
 import pytest
 
-from app.repositories import event as event_repo
+from app.core.repositories import event as event_repo
 
 pytestmark = pytest.mark.asyncio
 

@@ -1,9 +1,9 @@
 """Service-layer tests for public status/directory queries (moved out of the router)."""
 import pytest
 
-from app.models.agency import Agency, AgencyStatus, ConnectionType
-from app.models.connection_log import ConnectionLog
-from app.services import public_status as public_status_service
+from app.features.agency.models.agency import Agency, AgencyStatus, ConnectionType
+from app.core.models.connection_log import ConnectionLog
+from app.features.analytics.services import public_status as public_status_service
 
 pytestmark = pytest.mark.asyncio
 

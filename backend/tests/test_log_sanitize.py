@@ -1,4 +1,4 @@
-from app.services.log_sanitize import sanitize_body, sanitize_headers
+from app.core.log_sanitize import sanitize_body, sanitize_headers
 
 
 def test_truncates_long_bodies():

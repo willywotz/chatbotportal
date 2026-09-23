@@ -29,8 +29,8 @@ from starlette.applications import Starlette
 from starlette.routing import Mount
 
 import app.main as main
-from app.mcp import server as mcp_server
-from app.repositories import agency as agency_repo
+from app.features.mcp import server as mcp_server
+from app.features.agency.repositories import agency as agency_repo
 
 pytestmark = pytest.mark.asyncio
 

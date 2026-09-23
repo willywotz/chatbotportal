@@ -2,10 +2,10 @@ from datetime import timedelta
 
 import pytest
 
-from app.models.agency import Agency
-from app.models.connection_log import ConnectionLog
-from app.repositories import public_status_read as repo
-from app.utils import now
+from app.features.agency.models.agency import Agency
+from app.core.models.connection_log import ConnectionLog
+from app.features.analytics.repositories import public_status_read as repo
+from app.core.utils import now
 
 pytestmark = pytest.mark.asyncio
 

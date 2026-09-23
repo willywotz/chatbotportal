@@ -5,10 +5,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 import app.scheduler as scheduler
-from app.models.connection_log import ConnectionLog
-from app.repositories import connection_log as connection_log_repo
+from app.core.models.connection_log import ConnectionLog
+from app.core.repositories import connection_log as connection_log_repo
 from app.scheduler import purge_old_connection_logs
-from app.utils import now
+from app.core.utils import now
 
 pytestmark = pytest.mark.asyncio
 

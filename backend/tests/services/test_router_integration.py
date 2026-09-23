@@ -1,5 +1,5 @@
-from app.config import settings
-from app.services.chat.dispatch import _dispatch_timeout
+from app.core.config import settings
+from app.features.chat.services.dispatch import _dispatch_timeout
 
 
 def test_dispatch_timeout_prefers_per_agency():

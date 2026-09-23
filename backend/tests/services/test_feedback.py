@@ -1,12 +1,12 @@
-"""Tests for app.services.feedback."""
+"""Tests for app.features.analytics.services.feedback."""
 import uuid
 
 import pytest
 
-from app.errors import ApiError
-from app.models.agency import Agency
-from app.models.conversation import Conversation, Message
-from app.services.feedback import agency_low_rated, agency_low_rated_or_404, get_feedback_stats
+from app.core.errors import ApiError
+from app.features.agency.models.agency import Agency
+from app.features.chat.models.conversation import Conversation, Message
+from app.features.analytics.services.feedback import agency_low_rated, agency_low_rated_or_404, get_feedback_stats
 
 pytestmark = pytest.mark.asyncio
 

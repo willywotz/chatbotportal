@@ -2,10 +2,10 @@ from unittest.mock import patch
 
 import pytest
 
-from app.services.chat import aggregate as agg
-from app.services.chat.aggregate import collect_turn
-from app.services.chat.stream import ChatEvent, TurnPlan
-from app.utils import generate_uuid
+from app.features.chat.services import aggregate as agg
+from app.features.chat.services.aggregate import collect_turn
+from app.features.chat.services.stream import ChatEvent, TurnPlan
+from app.core.utils import generate_uuid
 
 
 def _plan() -> TurnPlan:

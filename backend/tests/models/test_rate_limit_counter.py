@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from app.models.rate_limit_counter import RateLimitCounter
+from app.features.llm.models.rate_limit_counter import RateLimitCounter
 
 
 async def test_counter_create_and_unique_constraint(db_session):

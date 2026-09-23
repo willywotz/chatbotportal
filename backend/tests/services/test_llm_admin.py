@@ -8,9 +8,9 @@ import uuid
 
 import pytest
 
-from app.errors import ApiError
-from app.repositories import llm as llm_repo
-from app.services.llm import admin as llm_admin
+from app.core.errors import ApiError
+from app.features.llm.repositories import llm as llm_repo
+from app.features.llm.services import admin as llm_admin
 
 pytestmark = pytest.mark.asyncio
 

@@ -14,15 +14,15 @@ from fastapi import BackgroundTasks
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.models.connection_log import ConnectionLog
-from app.models.conversation import Message
-from app.repositories import conversation as conversation_repo
-from app.repositories import message as message_repo
-from app.routers import chat as chat_router
-from app.schemas.chat import ChatRequest
-from app.schemas.conversation import RatingUpdate
-from app.services import message as message_service
-from app.services.chat import stream as turn_stream
+from app.core.models.connection_log import ConnectionLog
+from app.features.chat.models.conversation import Message
+from app.features.chat.repositories import conversation as conversation_repo
+from app.features.chat.repositories import message as message_repo
+from app.features.chat.routers import chat as chat_router
+from app.features.chat.schemas.chat import ChatRequest
+from app.features.chat.schemas.conversation import RatingUpdate
+from app.features.chat.services import message as message_service
+from app.features.chat.services import stream as turn_stream
 
 pytestmark = pytest.mark.asyncio
 

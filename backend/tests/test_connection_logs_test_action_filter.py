@@ -1,7 +1,7 @@
 """Test-action visibility on GET /connection-logs and /information."""
-from app.models import AgencyStatus
-from app.repositories import agency as agency_repo
-from app.repositories import connection_log as connection_log_repo
+from app.features.agency.models.agency import AgencyStatus
+from app.features.agency.repositories import agency as agency_repo
+from app.core.repositories import connection_log as connection_log_repo
 
 
 async def _seed_one_each(session, ag):

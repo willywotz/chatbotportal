@@ -9,9 +9,9 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 import app.main as main  # ensures tracer provider is configured
-import app.services.chat.stream as stream_mod
-from app.services.chat.stream import TurnPlan, _stream_live
-from app.utils import generate_uuid
+import app.features.chat.services.stream as stream_mod
+from app.features.chat.services.stream import TurnPlan, _stream_live
+from app.core.utils import generate_uuid
 
 
 def _make_plan(conversation_id: str) -> TurnPlan:

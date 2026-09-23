@@ -1,7 +1,7 @@
 import httpx
 import pytest
 
-from app.services.onechat import OneChatClient, OneChatError
+from app.features.onechat.services import OneChatClient, OneChatError
 
 
 def _transport(recorder: dict):
@@ -77,5 +77,5 @@ async def test_health_timeout_maps_to_504():
 
 
 def test_default_base_url_from_settings():
-    from app.config import settings
+    from app.core.config import settings
     assert OneChatClient()._base_url == settings.ONECHAT_BASE_URL.rstrip("/")

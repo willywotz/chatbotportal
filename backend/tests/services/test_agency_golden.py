@@ -3,10 +3,10 @@ from datetime import timedelta
 
 import pytest
 
-from app.errors import ApiError, ErrorCode
-from app.models.agency import Agency
-from app.models.evaluation import EvalResult
-from app.utils import now
+from app.core.errors import ApiError, ErrorCode
+from app.features.agency.models.agency import Agency
+from app.features.agency.models.evaluation import EvalResult
+from app.core.utils import now
 
 pytestmark = pytest.mark.asyncio
 
@@ -19,7 +19,7 @@ async def _agency(session, name="A"):
 
 
 async def test_create_golden_question(db_session):
-    from app.services.agency_golden import create_golden_question
+    from app.features.agency.services.agency_golden import create_golden_question
 
     agency = await _agency(db_session)
     gq = await create_golden_question(db_session, agency, "what is x?", ["topic"])
@@ -29,7 +29,7 @@ async def test_create_golden_question(db_session):
 
 
 async def test_list_golden_questions_scoped_to_agency(db_session):
-    from app.services.agency_golden import create_golden_question, list_golden_questions
+    from app.features.agency.services.agency_golden import create_golden_question, list_golden_questions
 
     agency_a = await _agency(db_session, "A")
     agency_b = await _agency(db_session, "B")
@@ -41,7 +41,7 @@ async def test_list_golden_questions_scoped_to_agency(db_session):
 
 
 async def test_delete_golden_question_raises_404_when_missing(db_session):
-    from app.services.agency_golden import delete_golden_question
+    from app.features.agency.services.agency_golden import delete_golden_question
 
     agency = await _agency(db_session)
     with pytest.raises(ApiError) as exc:
@@ -52,8 +52,8 @@ async def test_delete_golden_question_raises_404_when_missing(db_session):
 
 
 async def test_delete_golden_question_removes_the_row(db_session):
-    from app.repositories import evaluation as evaluation_repo
-    from app.services.agency_golden import create_golden_question, delete_golden_question
+    from app.features.agency.repositories import evaluation as evaluation_repo
+    from app.features.agency.services.agency_golden import create_golden_question, delete_golden_question
 
     agency = await _agency(db_session)
     gq = await create_golden_question(db_session, agency, "q1", [])
@@ -62,7 +62,7 @@ async def test_delete_golden_question_removes_the_row(db_session):
 
 
 async def test_list_eval_results_scoped_and_ordered(db_session):
-    from app.services.agency_golden import create_golden_question, list_eval_results
+    from app.features.agency.services.agency_golden import create_golden_question, list_eval_results
 
     agency = await _agency(db_session)
     gq = await create_golden_question(db_session, agency, "q1", [])

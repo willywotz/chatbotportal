@@ -1,4 +1,4 @@
-from app.repositories import llm_usage as llm_usage_repo
+from app.features.llm.repositories import llm_usage as llm_usage_repo
 
 
 async def test_create_usage_row(db_session):

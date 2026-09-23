@@ -51,7 +51,7 @@ async def test_settings_write_needs_settings_write_scope(client, as_principal):
 
 async def test_settings_cache_flush_allowed_with_write_scope(client, as_principal, monkeypatch):
     as_principal(role="staff", scopes=["settings:write"])
-    monkeypatch.setattr("app.routers.settings.flush_similarity_cache", AsyncMock())
+    monkeypatch.setattr("app.features.settings.routers.settings.flush_similarity_cache", AsyncMock())
     r = await client.post("/api/v1/settings/cache/flush")
     assert r.status_code == 200
 

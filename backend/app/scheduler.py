@@ -5,21 +5,21 @@ import logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
-from app.concurrency import spawn_logged
-from app.config import settings
-from app.db import AsyncSessionLocal
-from app.models import Agency
-from app.repositories import agency as agency_repo
-from app.repositories import connection_log as connection_log_repo
-from app.services.agency import test_connection
-from app.services.agency_reconcile import reconcile_statuses
-from app.services.analytics import regenerate_weekly_brief
-from app.services.evaluation import run_evaluation
-from app.services.event_consumers import register_consumers
-from app.services.events import dispatch_pending
-from app.services.popular_questions import regenerate as regenerate_popular_questions
-from app.services.log_sanitize import sanitize_body
-from app.utils import generate_uuid, now
+from app.core.concurrency import spawn_logged
+from app.core.config import settings
+from app.core.db import AsyncSessionLocal
+from app.features.agency.models.agency import Agency
+from app.features.agency.repositories import agency as agency_repo
+from app.core.repositories import connection_log as connection_log_repo
+from app.features.agency.services.agency import test_connection
+from app.features.agency.services.agency_reconcile import reconcile_statuses
+from app.features.analytics.services import regenerate_weekly_brief
+from app.features.agency.services.evaluation import run_evaluation
+from app.core.event_consumers import register_consumers
+from app.core.events import dispatch_pending
+from app.features.analytics.services.popular_questions import regenerate as regenerate_popular_questions
+from app.core.log_sanitize import sanitize_body
+from app.core.utils import generate_uuid, now
 
 scheduler = AsyncIOScheduler()
 sem: asyncio.Semaphore | None = None

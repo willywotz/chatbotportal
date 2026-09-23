@@ -1,6 +1,6 @@
 """Verify that AgencyStatus no longer contains the legacy 'inactive' value."""
 
-from app.models.agency import AgencyStatus
+from app.features.agency.models.agency import AgencyStatus
 
 
 def test_inactive_removed_from_agency_status():

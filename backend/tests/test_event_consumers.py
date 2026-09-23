@@ -2,8 +2,8 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.models.audit import AuditLog
-from app.services import event_consumers
+from app.core.models.audit import AuditLog
+from app.core import event_consumers
 
 
 async def test_on_agency_status_changed_writes_audit_row(db_session, monkeypatch):
@@ -27,7 +27,7 @@ async def test_on_agency_status_changed_writes_audit_row(db_session, monkeypatch
 
 
 def test_register_consumers_is_idempotent(monkeypatch):
-    from app.services import events
+    from app.core import events
 
     monkeypatch.setattr(event_consumers, "_registered", False)
     monkeypatch.setattr(events, "_HANDLERS", {})

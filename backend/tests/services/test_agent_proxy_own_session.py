@@ -1,6 +1,6 @@
 """agent_proxy is a logging/telemetry write path: agency lookup, the call
 counter, and the ConnectionLog write each open their own short-lived session
-(app.db.AsyncSessionLocal) so they persist independently of any request
+(app.core.db.AsyncSessionLocal) so they persist independently of any request
 rollback. Bind that session factory to the test's own connection (same
 pattern as test_rate_limit.py) so writes are visible/rolled back with it.
 """
@@ -12,11 +12,11 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.errors import ApiError
-from app.models.agency import Agency
-from app.models.connection_log import ConnectionLog
-from app.repositories import agency as agency_repo
-from app.services import agent_proxy
+from app.core.errors import ApiError
+from app.features.agency.models.agency import Agency
+from app.core.models.connection_log import ConnectionLog
+from app.features.agency.repositories import agency as agency_repo
+from app.features.mcp.services import agent_proxy
 
 pytestmark = pytest.mark.asyncio
 

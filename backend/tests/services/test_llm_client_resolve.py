@@ -1,7 +1,7 @@
 import pytest
 
-from app.repositories import llm as llm_repo
-from app.services.llm import client as c
+from app.features.llm.repositories import llm as llm_repo
+from app.features.llm.services import client as c
 
 pytestmark = pytest.mark.asyncio
 

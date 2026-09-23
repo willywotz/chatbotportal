@@ -3,9 +3,10 @@
 Living source of truth. Prune on every change. Distilled from the retired `CONTEXT.md`; dated changelog dropped (it lives in Git history).
 
 ## Current Focus
-- Branch `refactor/frontend-to-web` (off `main`): renamed SPA dir `frontend/` → `web/` (git mv, history kept) and Compose service `frontend` → `web`. Updated `compose.yaml` (service + `context: ./web` + caddy `depends_on: web`), `compose.override.yaml` (dev watch paths), `deploy/caddy/Caddyfile` (`reverse_proxy web:8080`), `.dockerignore`/`.graphifyignore` (`!/web`), `.github/workflows/{ci,release}.yaml` (job/working-directory/context; release image tag was already `chatbotportal-web`), `web/nginx.conf` + `docs/development.md`. Removed bun: deleted `web/bun.lock` + `web/bun.lockb`; also deleted stray `web/package-lock.json`. `web/pnpm-lock.yaml` is now the only lockfile (build is pnpm-only via corepack). Backend `.py` "frontend" strings are SPA-concept prose, NOT renamed. `docker compose config` renders `web`; caddy `depends_on: web service_healthy`.
-- Next actionable: open PR `refactor/frontend-to-web` → `main`.
-- Pre-existing (NOT from this work) web failures remain: `useTextScale`/`TextScaleControl`/`ChatConversation` fail with `window.localStorage` undefined under jsdom/Node 24 (`--localstorage-file` not passed).
+- Branch `refactor/backend-feature-slices` (off `main`): reorganized `backend/app` from technical layers into **feature-based clean architecture** — a shared `app/core/` kernel + `app/features/<slice>/` (identity, settings, llm, onechat, chat, agency, mcp, analytics). Structural move only (no ports/entity rewrite/new events). Files moved with `git mv` (history kept); all `app.*` imports rewritten; no shims. Behavior byte-identical: 755 tests pass, route audit green, `Base.metadata` holds all 19 tables. Spec `docs/superpowers/specs/2026-09-23-backend-feature-slices-design.md`, plan `docs/superpowers/plans/2026-09-23-backend-feature-slices.md`.
+- Next actionable: open PR `refactor/backend-feature-slices` → `main`.
+- Test files kept at their existing `tests/` paths (root `conftest.py` applies to all); relocation into `tests/features/` deferred as a separate optional pass.
+- Pre-existing stale script (NOT from this work): `backend/scripts/hash_existing_api_keys.py` imports `app.auth.security` (removed pre-OIDC); dead, not imported by app/tests.
 
 ## Active Status
 - [x] SQLAlchemy 2 async + Alembic baseline (`versions/0001_initial.py`) + PGroonga. App is Tortoise-free (0 refs in `app`/`tests`).
@@ -49,6 +50,7 @@ All traffic via **caddy** (80/443, TLS auto via `CERT_DOMAIN`; `caddy/Caddyfile`
 - **Connection test** = one reachability probe/type (HEAD→GET), any HTTP response (incl 4xx/5xx) = reachable=success; only transport failure = error. No protocol handshake.
 
 ## Conventions & Pitfalls
+- **Backend layout = feature-based clean architecture.** `app/core/` = shared kernel (config, db, base, errors, concurrency, trace_util, utils, usage_context, log_sanitize, events outbox, audit, connection_log, `security/` guard = principal/scopes/dependencies/tokens, `registry.py` = fills `Base.metadata`). `app/features/<slice>/` each own `routers/services/repositories/schemas/models`. Dependency rule: feature → core only, never feature → feature router. `main.py`/`scheduler.py` = composition roots. Translating older notes here: former `app/models/X` → its feature's `models/X` (or `core/models/X` for event/audit/connection_log); `app/services/X`, `app/routers/X`, `app/repositories/X`, `app/schemas/X` → the owning `app/features/<slice>/…`; `app/auth/*` → `core/security/*` (guard) or `features/identity/oidc/*` (provider). Alembic sources `app.core.registry`.
 - Reply in ASD-STE100 Simplified Technical English. Self-documenting code, **no comments** except Swagger/OpenAPI (project rule). KEEP-only comment policy = explain WHY (security/external-quirk/PDPA/async hazard/`withinlazy:` simplification).
 - 15-Factor App mandatory. Full-English API route names (no short forms). TDD mandatory (red→green→refactor). Branch before multi-task work; **never** git worktree.
 - **All OneChat calls via `services/onechat/`** — never inline an upstream URL. Inject `httpx.MockTransport` to test.

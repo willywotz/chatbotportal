@@ -5,11 +5,11 @@ Auth is mocked via the as_principal fixture.
 import uuid
 from datetime import timedelta
 
-from app.auth.principal import Principal
-from app.repositories import conversation as conversation_repo
-from app.repositories import message as message_repo
-from app.routers.conversations import get_conversation_messages
-from app.utils import now
+from app.core.security.principal import Principal
+from app.features.chat.repositories import conversation as conversation_repo
+from app.features.chat.repositories import message as message_repo
+from app.features.chat.routers.conversations import get_conversation_messages
+from app.core.utils import now
 
 
 async def test_history_returns_full_list_when_no_params(client, db_session, as_principal):

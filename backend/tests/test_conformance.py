@@ -1,7 +1,7 @@
 import pytest
 
-from app.repositories import agency as agency_repo
-from app.services import conformance
+from app.features.agency.repositories import agency as agency_repo
+from app.features.agency.services import conformance
 
 
 @pytest.mark.asyncio

@@ -1,8 +1,8 @@
 import pytest
 
-from app.repositories import agency as agency_repo
-from app.repositories import evaluation as evaluation_repo
-from app.models.evaluation import GoldenQuestion
+from app.features.agency.repositories import agency as agency_repo
+from app.features.agency.repositories import evaluation as evaluation_repo
+from app.features.agency.models.evaluation import GoldenQuestion
 
 pytestmark = pytest.mark.asyncio
 
