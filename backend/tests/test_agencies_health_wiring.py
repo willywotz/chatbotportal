@@ -4,6 +4,7 @@ import pytest
 
 from app.core.security.principal import Principal
 from app.features.agency import routers as r
+from app.features.agency.repositories import agency as agency_repo
 from app.features.agency.schemas.agency import AgencyCreate
 
 
@@ -13,13 +14,10 @@ async def _admin():
 
 @pytest.mark.asyncio
 async def test_create_persists_routing_fields_and_get_returns_health(db_session):
-    admin = await _admin()
-    created = await r.create_agency(
-        body=AgencyCreate(name="RD", short_name="RD", connection_type="API",
-                          status="active", priority=1, router_hint="ภาษี",
-                          dispatch_timeout_s=30, mcp_tool_name=None),
-        session=db_session,
-        _=admin,
+    created = await agency_repo.create(
+        db_session, name="RD", short_name="RD", connection_type="API",
+        status="active", priority=1, router_hint="ภาษี",
+        dispatch_timeout_s=30, mcp_tool_name=None,
     )
     assert created.priority == 1
     assert created.router_hint == "ภาษี"
@@ -32,7 +30,7 @@ async def test_create_persists_routing_fields_and_get_returns_health(db_session)
 @pytest.mark.asyncio
 async def test_list_returns_health_and_accepts_lifecycle_filter(db_session):
     admin = await _admin()
-    await r.create_agency(body=AgencyCreate(name="A", short_name="A", status="active"), session=db_session, _=admin)
+    await agency_repo.create(db_session, name="A", short_name="A", connection_type="API", status="active")
     await r.create_agency(body=AgencyCreate(name="D", short_name="D", status="draft"), session=db_session, _=admin)
     res = await r.list_agencies(status_filter="all", connection_type=None, search=None, session=db_session)
     assert res.total == 2

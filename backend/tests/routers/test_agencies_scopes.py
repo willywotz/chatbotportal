@@ -20,5 +20,5 @@ async def test_create_agency_forbidden_with_only_agency_list_scope(client, as_pr
 
 async def test_create_agency_allowed_with_agency_write_scope(client, as_principal):
     as_principal(role="user", scopes=["agency:write"])
-    r = await client.post("/api/v1/agencies", json={"name": "New", "short_name": "N"})
+    r = await client.post("/api/v1/agencies", json={"name": "New", "short_name": "N", "status": "draft"})
     assert r.status_code == 201

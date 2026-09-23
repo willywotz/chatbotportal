@@ -12,6 +12,7 @@ from app.core.probe import probe_reachability
 from app.features.agency.models.agency import Agency
 from app.features.agency.repositories import agency as agency_repo
 from app.features.agency.schemas.agency import AgencyCreate, AgencyUpdate
+from app.features.agency.services.agency_lifecycle import assert_legal_transition
 from app.features.monitoring.repositories import check_state as cs_repo
 from app.features.monitoring.services import monitor
 from app.core.log_sanitize import sanitize_body
@@ -54,12 +55,34 @@ def _apply(agency: Agency, data: dict) -> None:
         setattr(agency, field, value)
 
 
+def _connection_identity_changed(agency: Agency, data: dict) -> bool:
+    return any(
+        field in data and (data[field] or None) != (getattr(agency, field) or None)
+        for field in _CONNECTION_IDENTITY_FIELDS
+    )
+
+
+def _status_value(agency: Agency) -> str:
+    return getattr(agency.status, "value", agency.status)
+
+
+def _demote_or_validate(agency: Agency, data: dict) -> None:
+    if _connection_identity_changed(agency, data) and agency.status in ("active", "maintenance"):
+        data["status"] = "draft"
+        data["conformance_report"] = None
+    elif "status" in data:
+        assert_legal_transition(_status_value(agency), data["status"], agency.conformance_report)
+
+
 async def create_agency(session: AsyncSession, body: AgencyCreate) -> Agency:
+    assert_legal_transition("draft", body.status, None)
     return await agency_repo.create(session, **_flatten_agency_payload(body))
 
 
 async def replace_agency(session: AsyncSession, agency: Agency, body: AgencyCreate) -> Agency:
-    _apply(agency, _flatten_agency_payload(body))
+    data = _flatten_agency_payload(body)
+    _demote_or_validate(agency, data)
+    _apply(agency, data)
     await agency_repo.save(session, agency)
     return agency
 
@@ -71,13 +94,7 @@ async def update_agency(session: AsyncSession, agency: Agency, body: AgencyUpdat
         if update_data.get(field) is not None:
             update_data[field] = [e.model_dump() if hasattr(e, "model_dump") else e for e in update_data[field]]
 
-    connection_changed = any(
-        field in update_data and update_data[field] != getattr(agency, field)
-        for field in _CONNECTION_IDENTITY_FIELDS
-    )
-    if connection_changed and agency.status in ("active", "maintenance"):
-        update_data["status"] = "draft"
-        update_data["conformance_report"] = None
+    _demote_or_validate(agency, update_data)
 
     _apply(agency, update_data)
     await agency_repo.save(session, agency)
