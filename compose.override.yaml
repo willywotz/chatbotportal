@@ -38,7 +38,7 @@
 #           path: ./backend/app
 #           target: /app/app
 
-#   frontend:
+#   web:
 #     build:
 #       target: development
 #     environment:
@@ -53,7 +53,7 @@
 #       VITE_OIDC_CLIENT_ID: ${VITE_OIDC_CLIENT_ID:-chatbotportal-web}
 #     # Vite dev server has no /healthz route (that lives in the production
 #     # nginx.conf); probe "/" instead so the container becomes healthy and Caddy
-#     # (depends_on: frontend healthy) starts.
+#     # (depends_on: web healthy) starts.
 #     healthcheck:
 #       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
 #       interval: 15s
@@ -64,10 +64,10 @@
 #       watch:
 #         # Dependency changes -> rebuild (pnpm install runs in the image build).
 #         - action: rebuild
-#           path: ./frontend/package.json
+#           path: ./web/package.json
 #         - action: rebuild
-#           path: ./frontend/pnpm-lock.yaml
+#           path: ./web/pnpm-lock.yaml
 #         # Source -> sync. Vite's HMR picks up the change and pushes an update.
 #         - action: sync
-#           path: ./frontend/src
+#           path: ./web/src
 #           target: /app/src

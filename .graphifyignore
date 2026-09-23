@@ -2,8 +2,8 @@
 
 !/backend
 !/backend/**
-!/frontend
-!/frontend/**
+!/web
+!/web/**
 !/deploy/caddy
 !/deploy/caddy/**
 

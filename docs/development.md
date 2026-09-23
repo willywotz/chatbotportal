@@ -25,7 +25,7 @@ docker compose up --watch --build   # builds dev images, starts stack, begins sy
 ```
 
 Reach the app at `http://localhost:${EXTERNAL_HTTP_PORT}` (8080 by default).
-Traffic enters Caddy, which proxies `/` → frontend and `/api` → backend — the
+Traffic enters Caddy, which proxies `/` → web and `/api` → backend — the
 same routing contract as prod, just plain HTTP (no `CERT_DOMAIN` set).
 
 ## Hot-reload
@@ -38,7 +38,7 @@ container — always use `--watch` for development.
 
 | Action | When | Effect |
 |---|---|---|
-| `sync` | Source edits (`backend/app`, `frontend/src`) | File is copied into the container. The dev server then reloads: backend `watchfiles` restarts uvicorn; frontend Vite pushes an HMR update. |
+| `sync` | Source edits (`backend/app`, `web/src`) | File is copied into the container. The dev server then reloads: backend `watchfiles` restarts uvicorn; the web Vite server pushes an HMR update. |
 | `sync+restart` | `backend/migrations` | File copied, then the process restarted (a migration needs a restart to apply). |
 | `rebuild` | Dependency manifests (`pyproject.toml`/`uv.lock`, `package.json`/`pnpm-lock.yaml`) | Image rebuilt and container recreated — `sync` can't add packages. |
 
@@ -51,14 +51,14 @@ Compose rebuilds that service automatically.
 docker compose up --watch          # start + sync (the normal dev command)
 docker compose up --watch --build  # force-rebuild images (after big changes)
 docker compose down                # stop
-docker compose logs -f backend frontend   # tail dev-server output
+docker compose logs -f backend web   # tail dev-server output
 ```
 
 ## Reaching individual services
 
 The gateway is the normal entry point, but for debugging you can hit services
 directly. Add `EXTERNAL_POSTGRES_PORT=5432` to `.env` to expose postgres.
-Backend and frontend are not published to the host by default — reach them
+Backend and web are not published to the host by default — reach them
 through Caddy, or `docker compose exec backend wget -qO- http://localhost:8080/health`.
 
 ## Running tests
@@ -69,8 +69,8 @@ Tests run on the host, not in the dev stack:
 # Backend
 cd backend && uv sync && uv run pytest
 
-# Frontend
-cd frontend && pnpm install && pnpm test
+# Web
+cd web && pnpm install && pnpm test
 ```
 
 ## What is NOT in dev

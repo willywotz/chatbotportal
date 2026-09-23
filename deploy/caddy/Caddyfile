@@ -49,12 +49,12 @@
 	# own /.well-known/acme-challenge/* cert issuance keeps working), and the
 	# flow endpoints under /oauth2. X-Forwarded-* let the backend build
 	# public-origin URLs. The SPA's /auth/callback route is NOT here: it falls
-	# through to the frontend SPA below.
+	# through to the web SPA below.
 	@oidc path /.well-known/openid-configuration /.well-known/jwks.json /oauth2/*
 	handle @oidc {
 		reverse_proxy backend:8080
 	}
 
-	# Everything else -> SPA (frontend:8080, see frontend/nginx.conf).
-	reverse_proxy frontend:8080
+	# Everything else -> SPA (web:8080, see web/nginx.conf).
+	reverse_proxy web:8080
 }
