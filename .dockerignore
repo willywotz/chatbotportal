@@ -6,6 +6,8 @@
 !/web/**
 !/deploy/caddy
 !/deploy/caddy/**
+!/deploy/nginx
+!/deploy/nginx/**
 
 **/.pytest_cache
 **/.venv
