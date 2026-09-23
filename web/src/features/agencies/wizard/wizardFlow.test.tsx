@@ -55,7 +55,7 @@ describe("wizard connection step — URL validation", () => {
 });
 
 describe("wizard full flow (API agency)", () => {
-  it("creates an active agency through all five steps", async () => {
+  it("creates an active agency through all four steps", async () => {
     const user = userEvent.setup();
     renderWizard();
 
@@ -69,11 +69,6 @@ describe("wizard full flow (API agency)", () => {
     await waitFor(() => expect(mockAgencies.some((a) => a.name === "กรมศุลกากร")).toBe(true));
     const created = mockAgencies.find((a) => a.name === "กรมศุลกากร")!;
     expect(created.status).toBe("draft");
-
-    // Step 3 — test: run the conformance battery (required before activation)
-    await user.click(screen.getByRole("button", { name: /รันชุดทดสอบ Conformance/ }));
-    await waitFor(() => expect(screen.getByText(/ผ่านการทดสอบ Conformance/)).toBeInTheDocument());
-    await user.click(screen.getByRole("button", { name: /ถัดไป/ }));
 
     await user.type(screen.getByLabelText(/Router hint/), "คำถามภาษีนำเข้า");
     await user.type(screen.getByLabelText(/Priority/), "2");
@@ -90,7 +85,7 @@ describe("wizard full flow (API agency)", () => {
     expect(final.priority).toBe(2);
   });
 
-  it("keeps เปิดใช้งาน disabled on review until conformance passes", async () => {
+  it("enables เปิดใช้งาน on the review step", async () => {
     const user = userEvent.setup();
     renderWizard();
 
@@ -101,11 +96,8 @@ describe("wizard full flow (API agency)", () => {
     await user.click(screen.getByRole("button", { name: /ถัดไป/ }));
 
     await user.click(screen.getByRole("button", { name: /ถัดไป/ }));
-    await user.click(screen.getByRole("button", { name: /ถัดไป/ }));
 
-    // Review: activation is blocked until the conformance battery passes
-    expect(screen.getByRole("button", { name: /เปิดใช้งาน/ })).toBeDisabled();
-    expect(screen.getByText(/ต้องรันชุดทดสอบ Conformance/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /เปิดใช้งาน/ })).not.toBeDisabled();
   });
 
   it("saves as draft from the review step", async () => {
@@ -116,7 +108,6 @@ describe("wizard full flow (API agency)", () => {
     await user.type(screen.getByLabelText("ชื่อย่อ"), "ปม.");
     await user.click(screen.getByRole("button", { name: /ถัดไป/ }));
     await user.type(screen.getByLabelText("Endpoint URL"), "https://forest.example/api");
-    await user.click(screen.getByRole("button", { name: /ถัดไป/ }));
     await user.click(screen.getByRole("button", { name: /ถัดไป/ }));
     await user.click(screen.getByRole("button", { name: /ถัดไป/ }));
     await user.click(screen.getByRole("button", { name: /บันทึกเป็น Draft/ }));

@@ -118,11 +118,10 @@ async def test_update_agency_demotes_active_agency_on_connection_identity_change
 
     agency = await _agency(
         db_session, status=AgencyStatus.active,
-        endpoint_url="https://old.example.com", conformance_report={"passed": True, "checks": []},
+        endpoint_url="https://old.example.com",
     )
     updated = await update_agency(db_session, agency, AgencyUpdate(endpoint_url="https://new.example.com"))
     assert updated.status == "draft"
-    assert updated.conformance_report is None
 
 
 async def test_delete_agency_removes_the_row(db_session):

@@ -1,9 +1,8 @@
 """Tests for app.features.agency.routers — create honours the lifecycle gate.
 
-A fresh agency may only be created in a state reachable from `draft` without a
-conformance report: `draft` itself or `disabled`. Creating straight into
-`active`/`maintenance` must be refused, so the conformance battery cannot be
-skipped through the create endpoint.
+A fresh agency may only be created in a state reachable from `draft`: `draft`,
+`disabled` or `active`. Creating straight into `maintenance` must be refused,
+since `draft -> maintenance` is not a legal transition.
 """
 
 import uuid
@@ -40,7 +39,7 @@ async def test_create_agency_with_draft_status(db_session):
 @pytest.mark.asyncio
 async def test_create_agency_accepts_states_reachable_from_draft(db_session):
     admin = await _admin()
-    for i, st in enumerate(("draft", "disabled")):
+    for i, st in enumerate(("draft", "disabled", "active")):
         res = await agencies_router.create_agency(
             body=AgencyCreate(name=f"agency-{i}", short_name="a", status=st),
             session=db_session,
@@ -50,12 +49,11 @@ async def test_create_agency_accepts_states_reachable_from_draft(db_session):
 
 
 @pytest.mark.asyncio
-async def test_create_agency_refuses_ungated_activation(db_session):
+async def test_create_agency_refuses_maintenance(db_session):
     admin = await _admin()
-    for st in ("active", "maintenance"):
-        with pytest.raises(ApiError):
-            await agencies_router.create_agency(
-                body=AgencyCreate(name=f"x-{st}", short_name="a", status=st),
-                session=db_session,
-                _=admin,
-            )
+    with pytest.raises(ApiError):
+        await agencies_router.create_agency(
+            body=AgencyCreate(name="x-maintenance", short_name="a", status="maintenance"),
+            session=db_session,
+            _=admin,
+        )

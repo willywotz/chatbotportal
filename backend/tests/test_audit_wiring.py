@@ -30,7 +30,6 @@ async def test_update_agency_status_writes_audit(db_session):
     admin = _admin()
     ag = await agency_repo.create(
         db_session, name="A", short_name="A", connection_type="API", status=AgencyStatus.draft,
-        conformance_report={"passed": True, "checks": []},
     )
     await agencies_router.update_agency_status(ag.id, StatusUpdateRequest(status="active"), db_session, user=admin)
     row = await _find(db_session, "agency.status_change")

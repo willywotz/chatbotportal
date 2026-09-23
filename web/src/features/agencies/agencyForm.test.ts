@@ -280,11 +280,10 @@ describe("PROTOCOL_INFO", () => {
 });
 
 describe("wizard step validation", () => {
-  it("defines five steps in order", () => {
+  it("defines four steps in order", () => {
     expect(WIZARD_STEPS.map((s) => s.id)).toEqual([
       "general",
       "connection",
-      "test",
       "routing",
       "review",
     ]);
@@ -317,12 +316,12 @@ describe("wizard step validation", () => {
     ).toBe(true);
   });
 
-  it("firstIncompleteStep walks general → connection → test", () => {
+  it("firstIncompleteStep walks general → connection → routing", () => {
     expect(firstIncompleteStep(DEFAULT_FORM_STATE)).toBe("general");
     expect(firstIncompleteStep({ ...DEFAULT_FORM_STATE, name: "ก", shortName: "ข" })).toBe("connection");
     expect(
       firstIncompleteStep({ ...DEFAULT_FORM_STATE, name: "ก", shortName: "ข", endpointUrl: "https://x.example" }),
-    ).toBe("test");
+    ).toBe("routing");
   });
 });
 

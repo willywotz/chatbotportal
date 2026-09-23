@@ -6,7 +6,6 @@ import type { Agency } from '@/shared/types';
 import type {
   AgencyLifecycleStatus,
   AgencyRow,
-  ConformanceReport,
   HealthHistoryBucket,
   HealthHistoryBucketRow,
   HealthWindow,
@@ -136,15 +135,6 @@ export function useTestConnection() {
     onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: connectionLogKeys.list(variables.agencyId) });
     },
-  });
-}
-
-export function useRunConformance() {
-  const qc = useQueryClient();
-  return useMutation<ConformanceReport, Error, { agencyId: string }>({
-    mutationFn: async ({ agencyId }) =>
-      await api.post<ConformanceReport>(`/api/v1/agencies/${agencyId}/conformance`, {}),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['agencies'] }),
   });
 }
 

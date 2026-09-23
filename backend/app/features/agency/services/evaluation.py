@@ -5,10 +5,27 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import AsyncSessionLocal
+from app.core.utils import now
+from app.features.agency.models.agency import Agency
 from app.features.agency.repositories import evaluation as evaluation_repo
-from app.features.agency.services.conformance import _ask
+from app.features.chat.services.dispatch import dispatch_one
 
 logger = logging.getLogger(__name__)
+
+
+async def _ask(agency: Agency, question: str) -> dict:
+    route = {
+        "agency_id": str(agency.id), "agency_name": agency.name,
+        "connection_type": agency.connection_type, "endpoint_url": agency.endpoint_url,
+        "sub_question": question, "expected_payload": agency.expected_payload,
+        "api_headers": agency.api_headers, "dispatch_timeout_s": agency.dispatch_timeout_s,
+    }
+    start = now()
+    result = await dispatch_one(route, conversation_id="")
+    latency_ms = int((now() - start).total_seconds() * 1000)
+    ok = result.get("status") == "ok"
+    return {"ok": ok, "latency_ms": latency_ms,
+            "answer": str(result.get("response", "")), "error": None if ok else result.get("response")}
 
 _JUDGE_PROMPT = """\
 คุณเป็นผู้ตรวจคุณภาพคำตอบบริการภาครัฐ ให้คะแนนคำตอบ 0.0–1.0

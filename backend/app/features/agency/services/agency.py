@@ -21,7 +21,7 @@ from app.core.utils import now
 logger = logging.getLogger(__name__)
 
 # Fields that identify *how* an agency is reached. Changing any of these on a
-# live agency invalidates its conformance battery, so it must be re-vetted.
+# live agency demotes it to draft, so it must be re-activated deliberately.
 _CONNECTION_IDENTITY_FIELDS = frozenset(
     {"connection_type", "endpoint_url", "api_headers", "expected_payload", "mcp_tool_name"}
 )
@@ -69,13 +69,12 @@ def _status_value(agency: Agency) -> str:
 def _demote_or_validate(agency: Agency, data: dict) -> None:
     if _connection_identity_changed(agency, data) and agency.status in ("active", "maintenance"):
         data["status"] = "draft"
-        data["conformance_report"] = None
     elif "status" in data:
-        assert_legal_transition(_status_value(agency), data["status"], agency.conformance_report)
+        assert_legal_transition(_status_value(agency), data["status"])
 
 
 async def create_agency(session: AsyncSession, body: AgencyCreate) -> Agency:
-    assert_legal_transition("draft", body.status, None)
+    assert_legal_transition("draft", body.status)
     return await agency_repo.create(session, **_flatten_agency_payload(body))
 
 
