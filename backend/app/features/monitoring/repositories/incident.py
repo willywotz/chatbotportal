@@ -12,6 +12,11 @@ async def find_open(session: AsyncSession, agency_id) -> Incident | None:
     return (await session.execute(stmt)).scalars().first()
 
 
+async def agencies_with_open_incident(session: AsyncSession) -> set[str]:
+    stmt = select(Incident.agency_id).where(Incident.ended_at.is_(None))
+    return {str(r) for r in (await session.execute(stmt)).scalars().all()}
+
+
 async def open_incident(session: AsyncSession, agency_id, detail: str) -> Incident:
     obj = Incident(agency_id=agency_id, detail=detail)
     session.add(obj)
