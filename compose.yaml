@@ -37,8 +37,6 @@ services:
       # OIDC_ALLOWED_REDIRECT_URIS and SEED_ADMIN_PASSWORD.
       OIDC_ISSUER: ${OIDC_ISSUER:-http://localhost:8080}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-chatbotportal-web}
-      # Empty = use OIDC_ISSUER as the access-token audience (single-issuer default).
-      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-}
       OIDC_ALLOWED_REDIRECT_URIS: ${OIDC_ALLOWED_REDIRECT_URIS:-["http://localhost:8080/auth/callback"]}
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@chatbotportal.local}
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-admin}

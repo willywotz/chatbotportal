@@ -28,7 +28,7 @@ def mint_access_token(*, sub: str, email: str | None, display_name: str | None, 
     scope = " ".join(sorted(scopes_for_role(role)))
     claims = {
         "iss": settings.OIDC_ISSUER,
-        "aud": settings.oidc_audience,
+        "aud": settings.OIDC_ISSUER,
         "sub": sub,
         "email": email,
         "name": display_name,
@@ -80,7 +80,7 @@ def verify_token(token: str) -> Principal:
             token,
             public_key,
             algorithms=_ALGORITHMS,
-            audience=settings.oidc_audience,
+            audience=settings.OIDC_ISSUER,
             issuer=settings.OIDC_ISSUER,
         )
         return principal_from_claims(claims)

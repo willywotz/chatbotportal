@@ -53,7 +53,7 @@ def test_missing_sub_rejected(rsa_keypair):
     now = int(time.time())
     claims = {
         "iss": settings.OIDC_ISSUER,
-        "aud": settings.oidc_audience,
+        "aud": settings.OIDC_ISSUER,
         "email": "u@example.com",
         "name": "u@example.com",
         "iat": now,
