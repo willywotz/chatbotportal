@@ -3,7 +3,7 @@
 Living source of truth. Prune on every change. Distilled from the retired `CONTEXT.md`; dated changelog dropped (it lives in Git history).
 
 ## Current Focus
-- Branch `feat/self-hosted-oidc`: Keycloak removed; backend is now its own OIDC provider/IdP (Auth-Code+PKCE/S256, RS256, JWKS, refresh rotation). Backend suite green (755). Frontend on `oidc-client-ts`, tsc clean, 43 auth tests green.
+- Branch `feat/self-hosted-oidc`: Keycloak removed; backend is now its own OIDC provider/IdP (Auth-Code+PKCE/S256, RS256, JWKS, refresh rotation). Discovery/JWKS at root `/.well-known/*`, flow under `/oauth2/*`, issuer = root origin. Backend suite green (756). Frontend on `oidc-client-ts`, tsc clean, 43 auth tests green.
 - Next actionable: open PR `feat/self-hosted-oidc` → `dev`. Pre-existing (NOT from this work) frontend failures remain: `useTextScale`/`TextScaleControl`/`ChatConversation` fail with `window.localStorage` undefined under jsdom/Node 24.
 
 ## Active Status
