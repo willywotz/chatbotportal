@@ -51,10 +51,11 @@ export function useAuth(): AuthState {
 
   const signOut = useCallback(() => {
     // No RP-initiated logout endpoint on the provider; drop the local session
-    // (access + refresh tokens) and return home.
-    void Promise.resolve(oidc?.removeUser()).then(() => {
-      window.location.href = "/";
-    });
+    // (removeUser clears the stored tokens synchronously) and hard-navigate home
+    // right away — awaiting first lets ProtectedRoute re-render and bounce to the
+    // login redirect instead of "/".
+    void oidc?.removeUser();
+    window.location.href = "/";
   }, [oidc]);
 
   if (MOCK) {
