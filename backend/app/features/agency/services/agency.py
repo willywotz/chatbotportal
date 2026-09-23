@@ -1,24 +1,23 @@
 import json as _json
 import logging
-import time
 from typing import Any
 from uuid import UUID
 
-import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.db import AsyncSessionLocal
 from app.core.errors import ApiError, ErrorCode
+from app.core.probe import probe_reachability
 from app.features.agency.models.agency import Agency
 from app.features.agency.repositories import agency as agency_repo
 from app.features.agency.schemas.agency import AgencyCreate, AgencyUpdate
+from app.features.monitoring.repositories import check_state as cs_repo
+from app.features.monitoring.services import monitor
 from app.core.log_sanitize import sanitize_body
 from app.core.utils import now
 
 logger = logging.getLogger(__name__)
-
-_PROTOCOL = {"API": "REST API", "MCP": "MCP", "A2A": "A2A"}
 
 # Fields that identify *how* an agency is reached. Changing any of these on a
 # live agency invalidates its conformance battery, so it must be re-vetted.
@@ -93,77 +92,12 @@ async def increment_calls(session: AsyncSession, agency: Agency) -> Agency:
     return await agency_repo.increment_calls(session, agency)
 
 
-def _failure(protocol: str, error: str, steps: list[dict] | None = None, latency_ms: int = 0) -> dict[str, Any]:
-    return {"success": False, "protocol": protocol, "version": "-", "steps": steps or [],
-            "latency": f"{latency_ms}ms", "error": error}
-
-
-async def test_connection(connection_type: str, agency: Agency) -> dict[str, Any]:
-    """Reachability probe: HEAD with a GET fallback.
-
-    Any HTTP response — including 4xx/5xx — means the endpoint is reachable and
-    counts as success. Only a transport failure (refused, DNS, timeout) is an
-    error. No protocol-level handshake is performed for any connection type.
-    """
-    protocol = _PROTOCOL.get(connection_type)
-    if protocol is None:
-        return _failure("UNKNOWN", "Unsupported connection type")
-
-    url = (agency.endpoint_url or "").strip()
-    if not url:
-        return _failure(protocol, "Endpoint URL is required")
-
-    headers = {"User-Agent": f"{settings.USER_AGENT_PREFIX} ConnectionTest"}
-    start = time.monotonic()
-    response = None
-    method = "HEAD"
-    last_exc: Exception | None = None
-
-    async with httpx.AsyncClient(timeout=settings.CONNECTION_TEST_TIMEOUT) as client:
-        for probe_method in ("HEAD", "GET"):
-            try:
-                response = await getattr(client, probe_method.lower())(url, headers=headers)
-                method = probe_method
-                break
-            except Exception as exc:
-                last_exc = exc
-
-    elapsed = int((time.monotonic() - start) * 1000)
-
-    if response is None:
-        error = (
-            f"Connection timeout ({settings.CONNECTION_TEST_TIMEOUT}s)"
-            if isinstance(last_exc, httpx.TimeoutException)
-            else str(last_exc)
-        )
-        steps = [{"step": 1, "label": "TCP Connection", "status": "error", "time_ms": elapsed}]
-        return _failure(protocol, error, steps, elapsed)
-
-    return {
-        "success": True,
-        "protocol": protocol,
-        "version": "-",
-        "steps": [
-            {"step": 1, "label": "TCP Connection", "status": "done", "time_ms": elapsed},
-            {"step": 2, "label": f"{method} {response.status_code} {response.reason_phrase}", "status": "done", "time_ms": 0},
-        ],
-        "latency": f"{elapsed}ms",
-        "statusCode": response.status_code,
-        "statusText": response.reason_phrase,
-        "server": response.headers.get("server", "unknown"),
-        "contentType": response.headers.get("content-type", "unknown").split(";")[0],
-    }
-
-
 async def run_connection_test(session: AsyncSession, agency: Agency) -> dict[str, Any]:
     """Probe `agency`, persist the reset baseline, and record the result into
     the uptime monitor (check-state, buckets, incident), auto-recovering a
     rule-set maintenance agency on success. Writes no `ConnectionLog` row."""
-    from app.features.monitoring.repositories import check_state as cs_repo
-    from app.features.monitoring.services import monitor
-
     agency.stats_reset_at = now()
-    raw = await test_connection(agency.connection_type, agency)
+    raw = await probe_reachability(agency.connection_type, agency.endpoint_url)
     await agency_repo.save(session, agency, update_fields=["stats_reset_at", "updated_at"])
 
     await cs_repo.ensure_states(session, settings.DEFAULT_CHECK_INTERVAL_SECONDS)

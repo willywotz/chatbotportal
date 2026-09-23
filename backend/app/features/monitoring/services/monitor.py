@@ -15,7 +15,7 @@ from app.core.db import AsyncSessionLocal
 from app.core.utils import now
 from app.core.utils.retry import TRANSIENT, retry_async
 from app.features.agency.repositories import agency as agency_repo
-from app.features.agency.services.agency import test_connection
+from app.core.probe import probe_reachability
 from app.features.monitoring.repositories import check_state as cs_repo
 
 logger = logging.getLogger(__name__)
@@ -47,7 +47,7 @@ class _ProbeFailed(Exception):
 
 async def probe_agency(agency, *, retry_max: int, base_delay_ms: int) -> dict:
     async def _once():
-        result = await test_connection(agency.connection_type, agency)
+        result = await probe_reachability(agency.connection_type, agency.endpoint_url)
         if not result.get("success"):
             raise _ProbeFailed(result)
         return result

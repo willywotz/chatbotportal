@@ -1,17 +1,18 @@
-"""Tests for test_connection's reachability-only probe.
+"""Tests for the reachability-only probe (app.core.probe).
 
 Every connection type takes the same path: HEAD (GET fallback). Any HTTP
 response — including 4xx/5xx — means the endpoint is reachable. Only a
 transport failure is an error.
 """
 
-from types import SimpleNamespace
 from unittest.mock import patch
 
 import httpx
 import pytest
 
-from app.features.agency.services.agency import test_connection as probe
+from app.core.probe import probe_reachability as probe
+
+_URL = "https://x.example/chat"
 
 
 class _Resp:
@@ -52,17 +53,11 @@ class _FakeClient:
         raise AssertionError("reachability probe must not POST")
 
 
-def _agency(**kw):
-    base = {"endpoint_url": "https://x.example/chat", "api_headers": [], "expected_payload": None}
-    base.update(kw)
-    return SimpleNamespace(**base)
-
-
 @pytest.mark.asyncio
 async def test_head_2xx_is_success():
     fake = _FakeClient(head=_Resp(200, "OK"))
-    with patch("app.features.agency.services.agency.httpx.AsyncClient", return_value=fake):
-        res = await probe("API", _agency())
+    with patch("app.core.probe.httpx.AsyncClient", return_value=fake):
+        res = await probe("API", _URL)
     assert res["success"] is True
     assert res["statusCode"] == 200
     assert fake.calls == ["HEAD"]
@@ -72,8 +67,8 @@ async def test_head_2xx_is_success():
 @pytest.mark.asyncio
 async def test_head_405_is_still_reachable():
     fake = _FakeClient(head=_Resp(405, "Method Not Allowed"))
-    with patch("app.features.agency.services.agency.httpx.AsyncClient", return_value=fake):
-        res = await probe("API", _agency(expected_payload={"query": "__query__"}))
+    with patch("app.core.probe.httpx.AsyncClient", return_value=fake):
+        res = await probe("API", _URL)
     assert res["success"] is True
     assert res["statusCode"] == 405
     assert fake.posted is None
@@ -82,8 +77,8 @@ async def test_head_405_is_still_reachable():
 @pytest.mark.asyncio
 async def test_head_500_is_still_reachable():
     fake = _FakeClient(head=_Resp(500, "Internal Server Error"))
-    with patch("app.features.agency.services.agency.httpx.AsyncClient", return_value=fake):
-        res = await probe("API", _agency())
+    with patch("app.core.probe.httpx.AsyncClient", return_value=fake):
+        res = await probe("API", _URL)
     assert res["success"] is True
     assert res["statusCode"] == 500
 
@@ -91,8 +86,8 @@ async def test_head_500_is_still_reachable():
 @pytest.mark.asyncio
 async def test_head_raises_then_get_is_success():
     fake = _FakeClient(head=_Resp(200, "OK"), head_exc=httpx.ConnectError("boom"))
-    with patch("app.features.agency.services.agency.httpx.AsyncClient", return_value=fake):
-        res = await probe("API", _agency())
+    with patch("app.core.probe.httpx.AsyncClient", return_value=fake):
+        res = await probe("API", _URL)
     assert res["success"] is True
     assert fake.calls == ["HEAD", "GET"]
 
@@ -100,8 +95,8 @@ async def test_head_raises_then_get_is_success():
 @pytest.mark.asyncio
 async def test_transport_failure_is_error():
     fake = _FakeClient(head_exc=httpx.ConnectError("refused"), get_exc=httpx.ConnectError("refused"))
-    with patch("app.features.agency.services.agency.httpx.AsyncClient", return_value=fake):
-        res = await probe("API", _agency())
+    with patch("app.core.probe.httpx.AsyncClient", return_value=fake):
+        res = await probe("API", _URL)
     assert res["success"] is False
     assert "refused" in res["error"]
     assert res["steps"][0]["status"] == "error"
@@ -110,8 +105,8 @@ async def test_transport_failure_is_error():
 @pytest.mark.asyncio
 async def test_timeout_reports_the_configured_timeout():
     fake = _FakeClient(head_exc=httpx.TimeoutException("t"), get_exc=httpx.TimeoutException("t"))
-    with patch("app.features.agency.services.agency.httpx.AsyncClient", return_value=fake):
-        res = await probe("API", _agency())
+    with patch("app.core.probe.httpx.AsyncClient", return_value=fake):
+        res = await probe("API", _URL)
     assert res["success"] is False
     assert "timeout" in res["error"].lower()
 
@@ -121,8 +116,8 @@ async def test_timeout_reports_the_configured_timeout():
 async def test_every_type_uses_the_same_probe(connection_type, protocol):
     """MCP no longer sends a JSON-RPC initialize; A2A no longer sends a chat query."""
     fake = _FakeClient(head=_Resp(200, "OK"))
-    with patch("app.features.agency.services.agency.httpx.AsyncClient", return_value=fake):
-        res = await probe(connection_type, _agency())
+    with patch("app.core.probe.httpx.AsyncClient", return_value=fake):
+        res = await probe(connection_type, _URL)
     assert res["success"] is True
     assert res["protocol"] == protocol
     assert fake.calls == ["HEAD"]
@@ -131,13 +126,13 @@ async def test_every_type_uses_the_same_probe(connection_type, protocol):
 
 @pytest.mark.asyncio
 async def test_missing_url_is_error():
-    res = await probe("API", _agency(endpoint_url=""))
+    res = await probe("API", "")
     assert res["success"] is False
     assert "required" in res["error"].lower()
 
 
 @pytest.mark.asyncio
 async def test_unknown_type_is_error():
-    res = await probe("UNKNOWN", _agency())
+    res = await probe("UNKNOWN", _URL)
     assert res["success"] is False
     assert res["protocol"] == "UNKNOWN"

@@ -35,7 +35,7 @@ async def test_probe_agency_retries_then_succeeds():
             return {"success": False, "latency": "0ms", "error": "boom"}
         return {"success": True, "latency": "30ms"}
 
-    with patch("app.features.monitoring.services.monitor.test_connection", side_effect=flaky):
+    with patch("app.features.monitoring.services.monitor.probe_reachability", side_effect=flaky):
         ag = Agency(name="P", status="active", connection_type="API", endpoint_url="https://x")
         result = await monitor.probe_agency(ag, retry_max=3, base_delay_ms=1)
     assert result["success"] is True
@@ -46,7 +46,7 @@ async def test_probe_agency_transport_error_returns_down():
     async def boom(_ct, _ag):
         raise RuntimeError("dns exploded")
 
-    with patch("app.features.monitoring.services.monitor.test_connection", side_effect=boom):
+    with patch("app.features.monitoring.services.monitor.probe_reachability", side_effect=boom):
         ag = Agency(name="P", status="active", connection_type="API", endpoint_url="https://x")
         result = await monitor.probe_agency(ag, retry_max=2, base_delay_ms=1)
     assert result["success"] is False
@@ -62,7 +62,7 @@ async def test_run_tick_records_claimed_agency(db_session):
     await db_session.flush()
 
     fake = {"success": True, "latency": "88ms"}
-    with patch("app.features.monitoring.services.monitor.test_connection", AsyncMock(return_value=fake)):
+    with patch("app.features.monitoring.services.monitor.probe_reachability", AsyncMock(return_value=fake)):
         recorded = await monitor.run_tick()
 
     assert recorded >= 1
@@ -104,7 +104,7 @@ async def test_probe_runs_with_no_db_session_held(db_session, monkeypatch):
         open_during_probe["v"] = live["n"]
         return {"success": True, "latency": "40ms"}
 
-    monkeypatch.setattr(monitor, "test_connection", fake)
+    monkeypatch.setattr(monitor, "probe_reachability", fake)
 
     await monitor.run_tick()
 

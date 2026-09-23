@@ -39,7 +39,7 @@ async def test_test_connection_sets_reset_baseline(db_session, monkeypatch):
 
     async def fake(_ct, _ag):
         return _fake_result(True)
-    monkeypatch.setattr(agency_service, "test_connection", fake)
+    monkeypatch.setattr(agency_service, "probe_reachability", fake)
 
     before = now()
     await lifecycle.test_connection_endpoint(ag.id, session=db_session, _=admin)
@@ -62,7 +62,7 @@ async def test_successful_test_reactivates_auto_maintenance(db_session, monkeypa
 
     async def fake(_ct, _ag):
         return _fake_result(True)
-    monkeypatch.setattr(agency_service, "test_connection", fake)
+    monkeypatch.setattr(agency_service, "probe_reachability", fake)
 
     await lifecycle.test_connection_endpoint(ag.id, session=db_session, _=admin)
     refreshed = await db_session.get(Agency, ag.id)
@@ -80,7 +80,7 @@ async def test_failed_test_does_not_reactivate(db_session, monkeypatch):
 
     async def fake(_ct, _ag):
         return _fake_result(False)
-    monkeypatch.setattr(agency_service, "test_connection", fake)
+    monkeypatch.setattr(agency_service, "probe_reachability", fake)
 
     await lifecycle.test_connection_endpoint(ag.id, session=db_session, _=admin)
     refreshed = await db_session.get(Agency, ag.id)
@@ -99,7 +99,7 @@ async def test_manual_maintenance_not_reactivated_by_test(db_session, monkeypatc
 
     async def fake(_ct, _ag):
         return _fake_result(True)
-    monkeypatch.setattr(agency_service, "test_connection", fake)
+    monkeypatch.setattr(agency_service, "probe_reachability", fake)
 
     await lifecycle.test_connection_endpoint(ag.id, session=db_session, _=admin)
     refreshed = await db_session.get(Agency, ag.id)
@@ -116,7 +116,7 @@ async def test_run_connection_test_writes_no_connection_log_test_row(db_session)
                                   status="active", endpoint_url="https://x")
     await db_session.flush()
     fake = {"success": True, "latency": "12ms", "protocol": "REST API", "statusCode": 200, "steps": []}
-    with patch("app.features.agency.services.agency.test_connection", AsyncMock(return_value=fake)):
+    with patch("app.features.agency.services.agency.probe_reachability", AsyncMock(return_value=fake)):
         await run_connection_test(db_session, ag)
 
     rows = (await db_session.execute(

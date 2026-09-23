@@ -155,7 +155,7 @@ async def test_run_connection_test_records_check_state_not_connection_log(db_ses
 
     agency = await _agency(db_session, endpoint_url="https://x.example")
     fake_result = {"success": True, "protocol": "REST API", "version": "-", "steps": [], "latency": "12ms", "statusCode": 200}
-    with patch("app.features.agency.services.agency.test_connection", AsyncMock(return_value=fake_result)):
+    with patch("app.features.agency.services.agency.probe_reachability", AsyncMock(return_value=fake_result)):
         raw = await run_connection_test(db_session, agency)
     assert raw["success"] is True
 
@@ -178,7 +178,7 @@ async def test_run_connection_test_recovers_auto_maintenance(db_session):
         status=AgencyStatus.maintenance, auto_maintenance=True,
     )
     fake_result = {"success": True, "protocol": "REST API", "version": "-", "steps": [], "latency": "5ms", "statusCode": 200}
-    with patch("app.features.agency.services.agency.test_connection", AsyncMock(return_value=fake_result)):
+    with patch("app.features.agency.services.agency.probe_reachability", AsyncMock(return_value=fake_result)):
         await run_connection_test(db_session, agency)
     assert agency.status == "active"
     assert agency.auto_maintenance is False

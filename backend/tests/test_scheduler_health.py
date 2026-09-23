@@ -37,7 +37,7 @@ async def test_monitor_tick_records_due_agency(db_session):
     await db_session.flush()
 
     fake = {"success": True, "latency": "70ms"}
-    with patch("app.features.monitoring.services.monitor.test_connection", AsyncMock(return_value=fake)):
+    with patch("app.features.monitoring.services.monitor.probe_reachability", AsyncMock(return_value=fake)):
         await scheduler.monitor_tick()
 
     st = await cs_repo.get(db_session, a.id)
