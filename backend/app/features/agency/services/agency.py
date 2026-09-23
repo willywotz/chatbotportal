@@ -94,12 +94,6 @@ async def increment_calls(session: AsyncSession, agency: Agency) -> Agency:
     return await agency_repo.increment_calls(session, agency)
 
 
-async def update_logo(session: AsyncSession, agency: Agency, logo_url: str) -> Agency:
-    agency.logo = logo_url
-    await agency_repo.save(session, agency, update_fields=["logo", "updated_at"])
-    return agency
-
-
 def _failure(protocol: str, error: str, steps: list[dict] | None = None, latency_ms: int = 0) -> dict[str, Any]:
     return {"success": False, "protocol": protocol, "version": "-", "steps": steps or [],
             "latency": f"{latency_ms}ms", "error": error}

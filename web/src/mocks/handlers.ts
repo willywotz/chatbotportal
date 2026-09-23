@@ -274,17 +274,6 @@ export const handlers = [
     return HttpResponse.json({ success: true });
   }),
 
-  http.post("*/api/v1/agencies/:id/logo", async ({ params, request }) => {
-    const agency = findAgency(params.id as string);
-    if (!agency) return HttpResponse.json({ detail: "Agency not found" }, { status: 404 });
-    const formData = await request.formData();
-    const file = formData.get("file");
-    if (!file) return HttpResponse.json({ detail: "file is required" }, { status: 422 });
-    agency.logo = `/api/v1/public/agencies/${agency.id}/logo?v=abcd1234`;
-    agency.updated_at = new Date().toISOString();
-    return HttpResponse.json(agency);
-  }),
-
   http.get("*/api/v1/agencies/:id/test", ({ params }) => {
     const agency = findAgency(params.id as string);
     if (!agency) return HttpResponse.json({ detail: "Agency not found" }, { status: 404 });

@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { mockAgencies, resetMockData } from "@/mocks/fixtures";
 import { mapRowToAgency } from "@/shared/types/agency";
@@ -11,18 +11,8 @@ import { ConnectionTab } from "./ConnectionTab";
 import { GeneralSection } from "./GeneralSection";
 import { RoutingTab } from "./RoutingTab";
 
-// jsdom's XHR/fetch stack can't encode real multipart bodies, so the logo
-// upload mutation is mocked here; its own network wiring is exercised
-// separately in useAgencies.test.tsx-style hook tests where relevant.
-const { mockUploadLogo } = vi.hoisted(() => ({ mockUploadLogo: vi.fn() }));
-vi.mock("../useAgencies", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../useAgencies")>();
-  return { ...actual, useUploadAgencyLogo: () => ({ mutateAsync: mockUploadLogo, isPending: false }) };
-});
-
 afterEach(() => {
   resetMockData();
-  mockUploadLogo.mockReset();
 });
 
 const ACTIVE_ID = "11111111-1111-1111-1111-111111111111";
@@ -232,27 +222,5 @@ describe("GeneralSection", () => {
     const colorInput = screen.getByLabelText("สี") as HTMLInputElement;
     expect(colorInput).toHaveAttribute("type", "color");
     expect(colorInput.value).toMatch(/^#[0-9a-f]{6}$/);
-  });
-
-  it("uploads a logo file and syncs the preview to the returned path", async () => {
-    const user = userEvent.setup();
-    const uploadedLogo = `/api/v1/public/agencies/${ACTIVE_ID}/logo?v=abcd1234`;
-    mockUploadLogo.mockResolvedValueOnce({ ...activeAgency(), logo: uploadedLogo });
-    render(wrap(<GeneralSection agency={activeAgency()} />));
-    const file = new File(["x"], "logo.png", { type: "image/png" });
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
-    await user.upload(input, file);
-    expect(mockUploadLogo).toHaveBeenCalledWith({ id: ACTIVE_ID, file });
-    await waitFor(() => expect(screen.getByRole("img")).toHaveAttribute("src", uploadedLogo));
-  });
-
-  it("rejects an oversized logo file before calling the upload mutation", async () => {
-    const user = userEvent.setup();
-    render(wrap(<GeneralSection agency={activeAgency()} />));
-    const big = new File([new Uint8Array(600 * 1024)], "big.png", { type: "image/png" });
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
-    await user.upload(input, big);
-    expect(mockUploadLogo).not.toHaveBeenCalled();
-    expect(screen.queryByRole("img")).not.toBeInTheDocument();
   });
 });

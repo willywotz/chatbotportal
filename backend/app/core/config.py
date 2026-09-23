@@ -29,12 +29,6 @@ class Settings(BaseSettings):
     DB_POOL_MIN: int = 1
     DB_POOL_MAX: int = 10
 
-    # ── Uploads ──────────────────────────────────────────────────────────────
-    # Single source of truth for on-disk upload storage (named Docker volume in
-    # compose.yaml, backend service only). Agency logos live under
-    # {UPLOAD_DIR}/agency-logos/.
-    UPLOAD_DIR: str = "/app/uploads"
-
     # ── CORS ─────────────────────────────────────────────────────────────────
     CORS_ORIGINS: list[str] = ["*"]
 

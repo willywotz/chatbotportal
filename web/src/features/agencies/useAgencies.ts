@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, axiosInstance } from '@/shared/lib/apiClient';
-import { getAccessToken } from '@/shared/lib/authToken';
+import { api } from '@/shared/lib/apiClient';
 import { REFETCH, STALE_TIME } from '@/shared/constants/query';
 import { connectionLogKeys } from '@/features/connection-logs/useConnectionLogs';
 import type { Agency } from '@/shared/types';
@@ -112,34 +111,6 @@ export function useUpdateAgency() {
         mcp_tool_name: agency.mcpToolName,
       });
       return mapRowToAgency(row);
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['agencies'] }),
-  });
-}
-
-export function useUploadAgencyLogo() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, file }: { id: string; file: File }): Promise<Agency> => {
-      const formData = new FormData();
-      formData.append('file', file);
-      const token = getAccessToken();
-      const headers: Record<string, string> = {};
-      if (token) {
-        headers.Authorization = `Bearer ${token}`;
-      }
-      // Uses fetch (not axios) so the browser sets multipart/form-data with
-      // the correct boundary itself, instead of axios's default JSON header.
-      const res = await fetch(`${axiosInstance.defaults.baseURL}/api/v1/agencies/${id}/logo`, {
-        method: 'POST',
-        headers,
-        body: formData,
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data?.error?.message ?? data?.detail ?? 'Request failed');
-      }
-      return mapRowToAgency(data as AgencyRow);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['agencies'] }),
   });

@@ -1,6 +1,6 @@
 import { cn } from "@/shared/lib/utils";
 
-const IMAGE_PREFIXES = ["/api/", "/uploads/", "http", "data:"];
+const IMAGE_PREFIXES = ["http", "data:"];
 
 function isImageLogo(logo: string): boolean {
   return IMAGE_PREFIXES.some((prefix) => logo.startsWith(prefix));
@@ -12,7 +12,7 @@ interface Props {
   className?: string;
 }
 
-/** Renders an agency's `logo`: an `<img>` for an uploaded image path/URL, else the emoji text. */
+/** Renders an agency's `logo`: an `<img>` for an external image URL, else the emoji text. */
 export function AgencyLogo({ logo, alt, className }: Props) {
   if (!logo) return null;
   if (isImageLogo(logo)) {
