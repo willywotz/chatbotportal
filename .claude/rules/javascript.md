@@ -1,3 +1,8 @@
+---
+paths:
+  - "**/*.js"
+---
+
 <!--
   Source: https://google.github.io/styleguide/jsguide.html
   Converted to Markdown from the published HTML. DO NOT EDIT.
@@ -2260,7 +2265,7 @@ All enums and typedefs must be documented with appropriate JSDoc tags (`@typedef
  * @typedef {!FruitType|!FruitTypeEnum}
  */
 let CoolUnionType;
- 
+
 /**
  * Types of fruits.
  * @enum {string}

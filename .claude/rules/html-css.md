@@ -1,3 +1,9 @@
+---
+paths:
+  - "**/*.html"
+  - "**/*.css"
+---
+
 <!--
   Source: https://google.github.io/styleguide/htmlcssguide.html
   Converted to Markdown from the published HTML. DO NOT EDIT.
