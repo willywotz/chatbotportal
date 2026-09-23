@@ -2,7 +2,7 @@ import { UserManager, WebStorageStateStore, type User } from 'oidc-client-ts';
 
 const env = import.meta.env;
 
-const authority = (env.VITE_OIDC_AUTHORITY as string) || `${window.location.origin}/oidc`;
+const authority = (env.VITE_OIDC_AUTHORITY as string) || window.location.origin;
 const clientId = (env.VITE_OIDC_CLIENT_ID as string) || 'portal-spa';
 
 export const userManager = new UserManager({

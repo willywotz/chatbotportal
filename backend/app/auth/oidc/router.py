@@ -1,8 +1,9 @@
 """HTTP surface of the self-hosted OIDC provider.
 
-Public endpoints (no bearer, except userinfo), mounted at the issuer root:
-discovery, JWKS, the authorization endpoint with its server-rendered login
-page, the token endpoint (authorization_code + refresh_token), and userinfo."""
+Public endpoints (no bearer, except userinfo): discovery and JWKS at the
+issuer root under `/.well-known`, and the authorization endpoint (with its
+server-rendered login page), token endpoint (authorization_code +
+refresh_token) and userinfo under `/oauth2`."""
 from __future__ import annotations
 
 import html
@@ -20,7 +21,7 @@ from app.config import settings
 from app.db import get_db
 from app.repositories import user as user_repo
 
-router = APIRouter(prefix="/oidc", tags=["OIDC"])
+router = APIRouter(tags=["OIDC"])
 
 
 def _oauth_error(error: str, description: str = "", status_code: int = 400) -> JSONResponse:
@@ -40,10 +41,10 @@ async def discovery() -> dict:
     issuer = settings.OIDC_ISSUER
     return {
         "issuer": issuer,
-        "authorization_endpoint": f"{issuer}/authorize",
-        "token_endpoint": f"{issuer}/token",
+        "authorization_endpoint": f"{issuer}/oauth2/authorize",
+        "token_endpoint": f"{issuer}/oauth2/token",
         "jwks_uri": f"{issuer}/.well-known/jwks.json",
-        "userinfo_endpoint": f"{issuer}/userinfo",
+        "userinfo_endpoint": f"{issuer}/oauth2/userinfo",
         "response_types_supported": ["code"],
         "grant_types_supported": ["authorization_code", "refresh_token"],
         "subject_types_supported": ["public"],
@@ -88,7 +89,7 @@ def _login_page(params: dict, error: str = "") -> HTMLResponse:
 </style>
 </head>
 <body>
-<form method="post" action="{settings.OIDC_ISSUER}/authorize">
+<form method="post" action="{settings.OIDC_ISSUER}/oauth2/authorize">
   <h1>เข้าสู่ระบบ</h1>
   {hidden}
   <label for="email">อีเมล (Email)</label>
@@ -119,7 +120,7 @@ def _authorize_params(
     }
 
 
-@router.get("/authorize", summary="Authorization endpoint — render login")
+@router.get("/oauth2/authorize", summary="Authorization endpoint — render login")
 async def authorize_get(
     client_id: str,
     redirect_uri: str,
@@ -145,7 +146,7 @@ async def authorize_get(
     return _login_page(params)
 
 
-@router.post("/authorize", summary="Authorization endpoint — verify credentials")
+@router.post("/oauth2/authorize", summary="Authorization endpoint — verify credentials")
 async def authorize_post(
     email: str = Form(...),
     password: str = Form(...),
@@ -182,7 +183,7 @@ async def authorize_post(
     return RedirectResponse(f"{redirect_uri}?{urlencode(query)}", status_code=302)
 
 
-@router.post("/token", summary="Token endpoint")
+@router.post("/oauth2/token", summary="Token endpoint")
 async def token(
     grant_type: str = Form(...),
     code: str | None = Form(None),
@@ -211,7 +212,7 @@ async def token(
     return JSONResponse(result)
 
 
-@router.get("/userinfo", summary="UserInfo endpoint")
+@router.get("/oauth2/userinfo", summary="UserInfo endpoint")
 async def userinfo(request: Request) -> JSONResponse:
     auth = request.headers.get("authorization", "")
     token_value = auth[7:] if auth.lower().startswith("bearer ") else ""

@@ -15,7 +15,7 @@ from base as builder
 copy . .
 # Vite inlines VITE_* at BUILD time, so OIDC config must be a build arg.
 # Defaults (also in src/shared/lib/oidc.ts) suit local compose; a real-domain
-# deploy overrides VITE_OIDC_AUTHORITY to its public /oidc issuer.
+# deploy overrides VITE_OIDC_AUTHORITY to its public root-origin issuer.
 arg VITE_OIDC_AUTHORITY
 arg VITE_OIDC_CLIENT_ID
 env VITE_OIDC_AUTHORITY=$VITE_OIDC_AUTHORITY

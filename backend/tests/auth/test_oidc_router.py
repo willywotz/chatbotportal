@@ -28,17 +28,20 @@ async def _seed(session, email="oidc@example.com", password="pw123456", role=Use
 
 
 async def test_discovery_document(client):
-    r = await client.get("/oidc/.well-known/openid-configuration")
+    r = await client.get("/.well-known/openid-configuration")
     assert r.status_code == 200
     doc = r.json()
     assert doc["issuer"] == settings.OIDC_ISSUER
     assert doc["code_challenge_methods_supported"] == ["S256"]
     assert doc["id_token_signing_alg_values_supported"] == ["RS256"]
-    assert doc["authorization_endpoint"].endswith("/authorize")
+    assert doc["authorization_endpoint"] == f"{settings.OIDC_ISSUER}/oauth2/authorize"
+    assert doc["token_endpoint"] == f"{settings.OIDC_ISSUER}/oauth2/token"
+    assert doc["userinfo_endpoint"] == f"{settings.OIDC_ISSUER}/oauth2/userinfo"
+    assert doc["jwks_uri"] == f"{settings.OIDC_ISSUER}/.well-known/jwks.json"
 
 
 async def test_jwks_lists_public_key(client):
-    r = await client.get("/oidc/.well-known/jwks.json")
+    r = await client.get("/.well-known/jwks.json")
     assert r.status_code == 200
     keys = r.json()["keys"]
     assert keys and keys[0]["kty"] == "RSA" and keys[0]["alg"] == "RS256"
@@ -47,7 +50,7 @@ async def test_jwks_lists_public_key(client):
 
 async def test_authorize_get_renders_login(client):
     _, challenge = _pkce()
-    r = await client.get("/oidc/authorize", params={
+    r = await client.get("/oauth2/authorize", params={
         "client_id": CLIENT, "redirect_uri": REDIRECT, "response_type": "code",
         "code_challenge": challenge, "code_challenge_method": "S256", "state": "xyz",
     })
@@ -58,7 +61,7 @@ async def test_authorize_get_renders_login(client):
 
 async def test_authorize_get_escapes_reflected_params(client):
     _, challenge = _pkce()
-    r = await client.get("/oidc/authorize", params={
+    r = await client.get("/oauth2/authorize", params={
         "client_id": CLIENT, "redirect_uri": REDIRECT, "response_type": "code",
         "code_challenge": challenge, "code_challenge_method": "S256",
         "state": '"><script>alert(1)</script>',
@@ -70,7 +73,7 @@ async def test_authorize_get_escapes_reflected_params(client):
 
 async def test_authorize_get_rejects_unknown_client(client):
     _, challenge = _pkce()
-    r = await client.get("/oidc/authorize", params={
+    r = await client.get("/oauth2/authorize", params={
         "client_id": "someone-else", "redirect_uri": REDIRECT,
         "code_challenge": challenge, "code_challenge_method": "S256",
     })
@@ -79,7 +82,7 @@ async def test_authorize_get_rejects_unknown_client(client):
 
 async def test_authorize_get_rejects_bad_redirect(client):
     _, challenge = _pkce()
-    r = await client.get("/oidc/authorize", params={
+    r = await client.get("/oauth2/authorize", params={
         "client_id": CLIENT, "redirect_uri": "https://evil.example/cb",
         "code_challenge": challenge, "code_challenge_method": "S256",
     })
@@ -90,7 +93,7 @@ async def test_full_code_flow_then_userinfo(client, db_session):
     verifier, challenge = _pkce()
     await _seed(db_session)
 
-    resp = await client.post("/oidc/authorize", data={
+    resp = await client.post("/oauth2/authorize", data={
         "email": "oidc@example.com", "password": "pw123456",
         "client_id": CLIENT, "redirect_uri": REDIRECT, "response_type": "code",
         "code_challenge": challenge, "code_challenge_method": "S256", "state": "xyz",
@@ -101,7 +104,7 @@ async def test_full_code_flow_then_userinfo(client, db_session):
     assert query["state"] == ["xyz"]
     code = query["code"][0]
 
-    tok = await client.post("/oidc/token", data={
+    tok = await client.post("/oauth2/token", data={
         "grant_type": "authorization_code", "code": code,
         "code_verifier": verifier, "redirect_uri": REDIRECT, "client_id": CLIENT,
     })
@@ -111,11 +114,11 @@ async def test_full_code_flow_then_userinfo(client, db_session):
     principal = verify_token(body["access_token"])
     assert principal.role == "admin"
 
-    info = await client.get("/oidc/userinfo", headers={"Authorization": f"Bearer {body['access_token']}"})
+    info = await client.get("/oauth2/userinfo", headers={"Authorization": f"Bearer {body['access_token']}"})
     assert info.status_code == 200
     assert info.json()["email"] == "oidc@example.com"
 
-    refreshed = await client.post("/oidc/token", data={
+    refreshed = await client.post("/oauth2/token", data={
         "grant_type": "refresh_token", "refresh_token": body["refresh_token"], "client_id": CLIENT,
     })
     assert refreshed.status_code == 200
@@ -125,7 +128,7 @@ async def test_full_code_flow_then_userinfo(client, db_session):
 async def test_authorize_post_bad_password_reshows_login(client, db_session):
     _, challenge = _pkce()
     await _seed(db_session, email="who@example.com", password="right-pw")
-    resp = await client.post("/oidc/authorize", data={
+    resp = await client.post("/oauth2/authorize", data={
         "email": "who@example.com", "password": "wrong-pw",
         "client_id": CLIENT, "redirect_uri": REDIRECT, "response_type": "code",
         "code_challenge": challenge, "code_challenge_method": "S256", "state": "xyz",
@@ -135,11 +138,11 @@ async def test_authorize_post_bad_password_reshows_login(client, db_session):
 
 
 async def test_token_rejects_unsupported_grant(client):
-    r = await client.post("/oidc/token", data={"grant_type": "password", "client_id": CLIENT})
+    r = await client.post("/oauth2/token", data={"grant_type": "password", "client_id": CLIENT})
     assert r.status_code == 400
     assert r.json()["error"] == "unsupported_grant_type"
 
 
 async def test_userinfo_requires_valid_token(client):
-    r = await client.get("/oidc/userinfo", headers={"Authorization": "Bearer garbage"})
+    r = await client.get("/oauth2/userinfo", headers={"Authorization": "Bearer garbage"})
     assert r.status_code == 401

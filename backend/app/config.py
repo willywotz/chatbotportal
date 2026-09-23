@@ -43,14 +43,16 @@ class Settings(BaseSettings):
 
     # ── OIDC provider (self-hosted) ──────────────────────────────────────────
     # The backend is its own OpenID Provider / IdP. OIDC_ISSUER is the PUBLIC,
-    # browser-facing issuer base (through Caddy, e.g. https://<domain>/oidc). It
-    # is the `iss` every token carries and the `authority` the SPA discovers, so
-    # the same value drives discovery, token signing and token verification.
-    # OIDC_AUDIENCE is the access-token `aud`; OIDC_CLIENT_ID is the sole
-    # first-party SPA client. Lifetimes are seconds. OIDC_PRIVATE_KEY is an
-    # optional PEM override; when empty the signing key is generated once and
-    # persisted in the database (shared across uvicorn workers).
-    OIDC_ISSUER: str = "http://localhost:8080/oidc"
+    # browser-facing issuer base (through Caddy, the root origin, e.g.
+    # https://<domain>). It is the `iss` every token carries and the `authority`
+    # the SPA discovers, so the same value drives discovery
+    # (`{issuer}/.well-known/openid-configuration`), token signing and token
+    # verification. Flow endpoints live under `{issuer}/oauth2/*`. OIDC_AUDIENCE
+    # is the access-token `aud`; OIDC_CLIENT_ID is the sole first-party SPA
+    # client. Lifetimes are seconds. OIDC_PRIVATE_KEY is an optional PEM
+    # override; when empty the signing key is generated once and persisted in
+    # the database (shared across uvicorn workers).
+    OIDC_ISSUER: str = "http://localhost:8080"
     OIDC_CLIENT_ID: str = "portal-spa"
     OIDC_AUDIENCE: str = "backend"
     OIDC_ALLOWED_REDIRECT_URIS: list[str] = [

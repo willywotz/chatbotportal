@@ -46,9 +46,10 @@ services:
       # proxies /api -> backend. Empty = window.location.origin.
       VITE_API_BASE_URL: ""
       # Vite dev reads VITE_* at RUNTIME (unlike the prod nginx build, which
-      # bakes them via build args). The public OIDC issuer, browser-facing —
-      # must match OIDC_ISSUER and the gateway port (EXTERNAL_HTTP_PORT).
-      VITE_OIDC_AUTHORITY: ${VITE_OIDC_AUTHORITY:-http://localhost:8080/oidc}
+      # bakes them via build args). The public OIDC issuer (root origin),
+      # browser-facing — must match OIDC_ISSUER and the gateway port
+      # (EXTERNAL_HTTP_PORT).
+      VITE_OIDC_AUTHORITY: ${VITE_OIDC_AUTHORITY:-http://localhost:8080}
       VITE_OIDC_CLIENT_ID: ${VITE_OIDC_CLIENT_ID:-portal-spa}
     # Vite dev server has no /healthz route (that lives in the production
     # nginx.conf); probe "/" instead so the container becomes healthy and Caddy

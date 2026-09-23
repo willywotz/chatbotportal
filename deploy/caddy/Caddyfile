@@ -44,11 +44,13 @@
 		reverse_proxy jaeger:16686
 	}
 
-	# Self-hosted OIDC provider — discovery, jwks, authorize, token, userinfo all
-	# live under /oidc on the backend. X-Forwarded-* let the backend build
+	# Self-hosted OIDC provider on the backend: discovery + JWKS at the two
+	# specific /.well-known paths (NOT the whole /.well-known/* tree, so Caddy's
+	# own /.well-known/acme-challenge/* cert issuance keeps working), and the
+	# flow endpoints under /oauth2. X-Forwarded-* let the backend build
 	# public-origin URLs. The SPA's /auth/callback route is NOT here: it falls
 	# through to the frontend SPA below.
-	@oidc path /oidc/*
+	@oidc path /.well-known/openid-configuration /.well-known/jwks.json /oauth2/*
 	handle @oidc {
 		reverse_proxy backend:8080
 	}

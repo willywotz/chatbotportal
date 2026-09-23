@@ -30,10 +30,12 @@ services:
       ENV: ${ENV:-development}
       CORS_ORIGINS: ${CORS_ORIGINS:-["*"]}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      # Self-hosted OIDC provider. OIDC_ISSUER is the PUBLIC issuer base (through
-      # Caddy) and must equal the token `iss` and the SPA authority. PROD MUST
-      # override OIDC_ISSUER, OIDC_ALLOWED_REDIRECT_URIS and SEED_ADMIN_PASSWORD.
-      OIDC_ISSUER: ${OIDC_ISSUER:-http://localhost:8080/oidc}
+      # Self-hosted OIDC provider. OIDC_ISSUER is the PUBLIC root origin (through
+      # Caddy); discovery is at {issuer}/.well-known/openid-configuration and the
+      # flow endpoints under {issuer}/oauth2/*. It must equal the token `iss` and
+      # the SPA authority. PROD MUST override OIDC_ISSUER,
+      # OIDC_ALLOWED_REDIRECT_URIS and SEED_ADMIN_PASSWORD.
+      OIDC_ISSUER: ${OIDC_ISSUER:-http://localhost:8080}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-portal-spa}
       OIDC_AUDIENCE: ${OIDC_AUDIENCE:-backend}
       OIDC_ALLOWED_REDIRECT_URIS: ${OIDC_ALLOWED_REDIRECT_URIS:-["http://localhost:8080/auth/callback"]}
@@ -62,9 +64,9 @@ services:
       target: production
       args:
         # Vite inlines these at build time. VITE_OIDC_AUTHORITY is the public
-        # issuer (browser-facing) and must equal OIDC_ISSUER. Prod: override to
-        # https://<domain>/oidc.
-        VITE_OIDC_AUTHORITY: ${VITE_OIDC_AUTHORITY:-http://localhost:8080/oidc}
+        # issuer (browser-facing root origin) and must equal OIDC_ISSUER. Prod:
+        # override to https://<domain>.
+        VITE_OIDC_AUTHORITY: ${VITE_OIDC_AUTHORITY:-http://localhost:8080}
         VITE_OIDC_CLIENT_ID: ${VITE_OIDC_CLIENT_ID:-portal-spa}
     restart: unless-stopped
     environment:

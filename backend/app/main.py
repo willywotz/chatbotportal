@@ -148,9 +148,9 @@ app.include_router(audit_log.router, prefix="/api/v1")
 app.include_router(llm_router.router, prefix="/api/v1")
 app.include_router(agent_proxy.router, prefix="/api/v1")
 
-# OIDC provider — mounted at the issuer root (/oidc), NOT under /api/v1, so its
-# discovery, authorize, token, jwks and userinfo endpoints sit where the SPA's
-# OIDC client and the token `iss` expect them.
+# OIDC provider — NOT under /api/v1: discovery/JWKS live at the issuer root
+# under /.well-known and the flow endpoints under /oauth2, where the SPA's OIDC
+# client and the token `iss` expect them.
 app.include_router(oidc_router)
 
 # ---------------------------------------------------------------------------
