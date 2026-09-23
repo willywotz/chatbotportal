@@ -24,3 +24,17 @@ export function setOnUnauthenticated(cb: (() => void) | undefined): void {
 export function notifyUnauthenticated(): void {
   onUnauthenticated?.();
 }
+
+// Set for the brief window between clicking logout and the browser leaving the
+// page. removeUser() flips react-oidc-context to unauthenticated, which would
+// otherwise make ProtectedRoute redirect to the login page before our
+// navigation to "/" commits. Cleared naturally by the full page load.
+let loggingOut = false;
+
+export function beginLogout(): void {
+  loggingOut = true;
+}
+
+export function isLoggingOut(): boolean {
+  return loggingOut;
+}

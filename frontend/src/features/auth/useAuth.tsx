@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from "react";
 import { useAuth as useOidcAuth } from "react-oidc-context";
 
-import { setAccessToken, setOnUnauthenticated } from "@/shared/lib/authToken";
+import { beginLogout, setAccessToken, setOnUnauthenticated } from "@/shared/lib/authToken";
 import { type Role } from "@/features/auth/roles";
 
 export interface AuthUser {
@@ -51,9 +51,10 @@ export function useAuth(): AuthState {
 
   const signOut = useCallback(() => {
     // No RP-initiated logout endpoint on the provider; drop the local session
-    // (removeUser clears the stored tokens synchronously) and hard-navigate home
-    // right away — awaiting first lets ProtectedRoute re-render and bounce to the
-    // login redirect instead of "/".
+    // and hard-navigate home. beginLogout() suppresses ProtectedRoute's
+    // auto-redirect so removeUser flipping to unauthenticated does not bounce us
+    // to the login page before "/" loads.
+    beginLogout();
     void oidc?.removeUser();
     window.location.href = "/";
   }, [oidc]);

@@ -19,7 +19,7 @@
 
 import axios, { type AxiosInstance, type AxiosResponse } from 'axios';
 
-import { getAccessToken, notifyUnauthenticated } from '@/shared/lib/authToken';
+import { getAccessToken, isLoggingOut, notifyUnauthenticated } from '@/shared/lib/authToken';
 
 const appConfig = (window as any).__APP_CONFIG__;
 
@@ -50,7 +50,7 @@ axiosInstance.interceptors.response.use(
   (error) => {
     // Only re-login when a previously-authenticated session got a 401;
     // an anonymous 401 must not trigger a redirect loop.
-    if (error?.response?.status === 401 && getAccessToken()) {
+    if (error?.response?.status === 401 && getAccessToken() && !isLoggingOut()) {
       notifyUnauthenticated();
     }
     const data = error?.response?.data;

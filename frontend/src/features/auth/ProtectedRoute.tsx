@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/features/auth/useAuth";
+import { isLoggingOut } from "@/shared/lib/authToken";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import type { Role } from "@/features/auth/roles";
 
@@ -27,7 +28,7 @@ export function ProtectedRoute({ children, requireAdmin = false, allowedRoles }:
   const loginTriggered = useRef(false);
 
   useEffect(() => {
-    if (!isLoading && !user && !loginTriggered.current) {
+    if (!isLoading && !user && !loginTriggered.current && !isLoggingOut()) {
       loginTriggered.current = true;
       signIn(window.location.pathname + window.location.search);
     }
