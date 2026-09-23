@@ -3,13 +3,13 @@
 Living source of truth. Prune on every change. Distilled from the retired `CONTEXT.md`; dated changelog dropped (it lives in Git history).
 
 ## Current Focus
-- Repo on `main`. Tortoise→SQLAlchemy 2 + Alembic + PGroonga migration is merged and audited (full suite green, 720 tests).
-- Next actionable cleanup: purge stale Aerich docs in `backend/readme.md` (lines 7,13,14) and `docs/aerich-migrations.md`; delete on-disk `backend/migrations/` cruft (0 git-tracked, only gitignored `.pyc`).
+- Branch `feat/self-hosted-oidc`: Keycloak removed; backend is now its own OIDC provider/IdP (Auth-Code+PKCE/S256, RS256, JWKS, refresh rotation). Backend suite green (755). Frontend on `oidc-client-ts`, tsc clean, 43 auth tests green.
+- Next actionable: open PR `feat/self-hosted-oidc` → `dev`. Pre-existing (NOT from this work) frontend failures remain: `useTextScale`/`TextScaleControl`/`ChatConversation` fail with `window.localStorage` undefined under jsdom/Node 24.
 
 ## Active Status
 - [x] SQLAlchemy 2 async + Alembic baseline (`versions/0001_initial.py`) + PGroonga. App is Tortoise-free (0 refs in `app`/`tests`).
 - [x] Repository layer (`app/repositories/*`, `session`-first module funcs). `get_db` owns one txn/request.
-- [x] Keycloak OIDC auth (migrated 2026-08-19); local users/sessions/API-keys/JWT removed.
+- [x] Self-hosted OIDC provider/IdP (replaced Keycloak). Local `users` table; RS256 signing key in DB; role→scope map in `app/auth/scopes.py`.
 - [ ] Stale Aerich doc references (readme + docs).
 - [ ] `testcontainers.postgres` deprecation → `testcontainers.community.postgres` (`tests/conftest.py:26`).
 
@@ -18,7 +18,7 @@ AI gateway/one-stop portal: routes Thai citizens' NL questions to Thai gov agenc
 
 ## Services (`compose.yaml`)
 All traffic via **caddy** (80/443, TLS auto via `CERT_DOMAIN`; `caddy/Caddyfile` = single routing+TLS source). `backend` Python 3.12 · FastAPI · SQLAlchemy 2 async · Alembic · FastMCP (`/api/v1`, `/mcp`, port 8080, `uvicorn --workers 4` → MCP stateless-http). `frontend` React 18 · Vite 5 · TS · shadcn/ui. `postgres` = `groonga/pgroonga:4.0.8-debian-17` (PG17). `jaeger` = `jaegertracing/jaeger:2.18.0` (OTLP `jaeger:4317`, UI `/jaeger/`). `agent-proxy` (Go) reverse-proxies agency calls, logs every call, bumps `total_calls` on 2xx.
-- Caddy `/api /sse /messages /mcp /docs /redoc /openapi.json`→backend (`/api/v1/responses` gets its own 3700s WS timeout block); `/jaeger/*`→jaeger; `/`→frontend SPA.
+- Caddy `/api /sse /messages /mcp /docs /redoc /openapi.json`→backend (`/api/v1/responses` gets its own 3700s WS timeout block); `/oidc/*`→backend (OIDC provider); `/jaeger/*`→jaeger; `/`→frontend SPA (incl. `/auth/callback`).
 
 ## Request flow (chat)
 `POST /api/v1/chat` (JSON, or SSE when body `stream:true`); `WS /api/v1/chat` same path. `POST /api/v1/responses` = OpenAI Responses-compatible (HTTP/SSE/WS; model id `onechat` only, version via `onechat_version` body field). All transports drive one transport-free pipeline `prepare_turn`+`run_turn` (`services/chat/stream.py`).
@@ -30,16 +30,17 @@ All traffic via **caddy** (80/443, TLS auto via `CERT_DOMAIN`; `caddy/Caddyfile`
 ## Data model (SQLAlchemy 2 declarative, `app/models/`)
 - Access via **module-level repo funcs** (`session` first arg). Routers `Depends(get_db)` = one txn/request, commit-on-success. Non-request contexts (scheduler, MCP, seed, chat-stream persist, agent-proxy, rate-limit, outbox dispatch) open own short `AsyncSessionLocal()`+`begin()`. **Services never `commit()`**; use `flush()` for mid-txn PKs.
 - Enum cols = `Enum(EnumClass, native_enum=False, create_constraint=False, length=n)` (varchar, coerced on read; app uses `.value`). All datetimes `timestamptz`. `Base` sets `eager_defaults=True` + naming convention (clean Alembic diffs).
-- 15 tables: `agencies`, `conversations`, `messages`, `connection_logs`, `golden_questions`, `eval_results`, `executive_briefs`, `llm_providers`, `llm_routes`, `llm_usage`, `audit_logs`, `settings` (PK=`key`, no id), `popular_questions`, `domain_events` (outbox), `rate_limit_counters` (BigInt PK + unique(key,window_start)).
-- `Conversation.meta` = Python attr mapped to DB col `metadata` (SQLAlchemy reserves `Base.metadata`). `user_id` = plain nullable UUID (Keycloak sub; FK dropped). `Message.summary_references` NOT `references` (reserved word). `LlmUsage.total_tokens` = Python `@property`.
+- 19 tables: `agencies`, `conversations`, `messages`, `connection_logs`, `golden_questions`, `eval_results`, `executive_briefs`, `llm_providers`, `llm_routes`, `llm_usage`, `audit_logs`, `settings` (PK=`key`, no id), `popular_questions`, `domain_events` (outbox), `rate_limit_counters` (BigInt PK + unique(key,window_start)); OIDC: `users`, `signing_keys` (PK=`kid`), `oauth_auth_codes` (PK=`code_hash`), `oauth_refresh_tokens`. Alembic `0002` adds the four OIDC tables.
+- `Conversation.meta` = Python attr mapped to DB col `metadata` (SQLAlchemy reserves `Base.metadata`). `user_id` = plain nullable UUID (OIDC sub → `users.id`; no hard FK). `Message.summary_references` NOT `references` (reserved word). `LlmUsage.total_tokens` = Python `@property`.
 - **Migrations = Alembic only** (`backend/alembic/`, async env sourcing URL from settings). Tortoise/Aerich squashed into `0001_initial` (pgroonga extension + 15 tables w/ FK ondelete + `messages.content` PGroonga index). `init_db()` runs `alembic upgrade head` at startup (serialized across workers by a Postgres advisory lock; NO `create_all`/`generate_schemas`). Schema change = edit model → `uv run alembic revision --autogenerate -m "..."`, review diff.
 
-## Auth & RBAC (Keycloak OIDC — authoritative, supersedes all older cookie/JWT/Redis notes)
-- No local password/session/API-key auth; `users`/`sessions`/`user_api_keys` tables gone. SPA does Auth-Code+PKCE, sends `Authorization: Bearer`. Backend verifies locally vs cached JWKS (`app/auth/keycloak.py::verify_token`, RS256) → frozen `Principal{id(sub),email,display_name,role,scopes}`.
-- **Per-route scopes, no runtime gate**: each protected route `Security(require_scope, scopes=[…])`; old `enforce_role_allowlist`/`require_admin` deleted. CI test `tests/test_route_audit.py` guarantees no route is silently unprotected (must be `/public`, whitelist, or carry `require_scope`).
-- **Anonymous = `/api/v1/public/*`** (auth-optional): `public_status`, `popular_questions`, guest chat `POST /public/chat`, logo `GET /public/agencies/{id}/logo`. Whitelisted non-public: `/api/v1/agent-proxy/{id}` (OneChat callback, own auth), `GET /api/v1/authentication/me`.
-- Roles→scopes live in **Keycloak** (composite realm roles `user`/`staff`/`admin`; `deploy/keycloak/realm-export.json`). Granting a perm = realm edit, no deploy. Ownership is scope-based (`conversation:read:all` vs filter to `principal.id`); no `role=="admin"` literals in services.
-- User mgmt proxies to Keycloak Admin REST (`services/keycloak_admin.py`, `routers/users.py` under `user:manage`); hard delete, refuses self-delete. Config: `KEYCLOAK_URL/REALM/CLIENT_ID/AUDIENCE(backend)/ADMIN_CLIENT_ID/ADMIN_CLIENT_SECRET`; SPA `VITE_KEYCLOAK_URL/REALM/CLIENT_ID`.
+## Auth & RBAC (self-hosted OIDC — authoritative, supersedes all Keycloak/cookie/JWT notes)
+- Backend IS the OpenID Provider (`app/auth/oidc/`): discovery/jwks/authorize/token/userinfo under `/oidc` (mounted at issuer root, NOT `/api/v1`; Caddy routes `/oidc/*`→backend). Auth-Code+PKCE(S256), RS256, refresh-token rotation (reuse revokes the chain). SPA (`oidc-client-ts`) sends `Authorization: Bearer`; `/oidc/authorize` serves a server-rendered login page (HTML-escaped inputs).
+- **Signing key**: `signing_keys` table, one RSA keypair generated at startup under a PG advisory lock (shared across workers; distinct lock key from migrations); env override `OIDC_PRIVATE_KEY`. Public keys cached in-memory so `verify_token` (`app/auth/oidc/tokens.py`, RS256, iss=`OIDC_ISSUER`, aud=`OIDC_AUDIENCE`) does no per-request I/O → frozen `Principal{id(sub),email,display_name,role,scopes}` (`app/auth/principal.py`).
+- **Per-route scopes, no runtime gate**: each protected route `Security(require_scope, scopes=[…])`. Access-token JWT carries flat `role` + space-delimited `scope`. CI `tests/test_route_audit.py` guarantees no route is silently unprotected.
+- **Anonymous = `/api/v1/public/*`** (auth-optional): `public_status`, `popular_questions`, guest chat `POST /public/chat`, logo. Whitelisted non-public: `/api/v1/agent-proxy/{id}` (OneChat callback), `GET /api/v1/authentication/me`.
+- Roles→scopes live in **code** (`app/auth/scopes.py`, composite `user`⊂`staff`⊂`admin`), replicating the old realm composites verbatim. Ownership is scope-based (`conversation:read:all` vs filter to `principal.id`); no `role=="admin"` literals in services.
+- User mgmt = local `users` table via `services/user_admin.py` (`routers/users.py` under `user:manage`; bcrypt via `app/auth/oidc/passwords.py`, SHA-256 pre-hash); hard delete, refuses self-delete. Startup seeds `SEED_ADMIN_EMAIL` (role admin) if none exists. Config: `OIDC_ISSUER/CLIENT_ID/AUDIENCE/ALLOWED_REDIRECT_URIS/ACCESS_TOKEN_TTL/REFRESH_TOKEN_TTL/CODE_TTL/PRIVATE_KEY`, `SEED_ADMIN_EMAIL/PASSWORD`; SPA `VITE_OIDC_AUTHORITY/CLIENT_ID`, callback route `/auth/callback`.
 
 ## Scheduler jobs (`app/scheduler.py`)
 `agency_chat_test` (15 min: probe non-draft/disabled agencies via `test_connection`, log, `reconcile_statuses`), `regenerate_brief_job` (24h), `purge_old_connection_logs` (24h, retention 90d), `run_evaluation` (weekly golden-question LLM-judge), `regenerate_popular_questions` (24h: LLM-synth คำถามยอดนิยม from successful turns; no-op below `POPULAR_QUESTIONS_MIN_TURNS`=20; replaces only unpinned/unhidden `auto` rows; hidden `text_key`=tombstone).
@@ -63,7 +64,7 @@ All traffic via **caddy** (80/443, TLS auto via `CERT_DOMAIN`; `caddy/Caddyfile`
 - Error envelope `{"error":{"code","message","retryable","upstream_status"}}` (`app/errors.py`); frontend unwraps (legacy `detail` fallback).
 - `utils.clean_agency_ids` at every read of `Message.agency_ids` — legacy comma-joined `"id1,id2"` is an invalid UUID that crashes asyncpg `id__in` queries.
 - **MCP `endpoint_url` scheme** resolves cf-visitor → X-Forwarded-Proto → connection scheme (`_external_scheme`, `app/mcp/server.py`) — behind Cloudflare the chain speaks http; only `cf-visitor` carries the real https. Covered by `test_mcp_endpoint_scheme.py`.
-- **Keycloak user-profile config must live under `components`**, not realm `attributes` — `--import-realm` silently ignores it in `attributes` and forces the first/last-name screen.
+- **OIDC issuer must match**: `OIDC_ISSUER` (token `iss` + SPA authority) must equal the browser origin+`/oidc`; a mismatch fails `verify_token`'s issuer check. `OIDC_ALLOWED_REDIRECT_URIS` must list the SPA's `/auth/callback`.
 - `docker compose up` won't rebuild an existing image → config edits do nothing until `up -d --build <svc>`.
 - Frontend tests can't use `node` env or import `vite.config.ts` (jsdom@20 under Node 24; `setup.ts` touches `window`).
 - Agency conformance: 5-check battery (`responds`,`non_empty`,`thai_text`,`concurrency_3`,`garbage_input`) gates `draft→active` (setup wizard only). Editing connection-identity fields on active/maintenance agency demotes to `draft` + clears report (ADR 0002). Agency `API` must return HTTP 200 for every valid question.
