@@ -10,6 +10,10 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-23-backend-feature-slices-design.md` (read it — the per-feature file-mapping tables are the authoritative move list; this plan drives them slice by slice).
 
+**Execution deviations (recorded during implementation):**
+- The move + import-rewrite was run as **one scripted, deterministic pass** (mapping-driven `git mv` + import rewriter) rather than nine per-slice commits. A global import rewrite cannot be cleanly split into per-slice commits; the script is re-runnable from the scaffold commit, so correctness was gated by `import app.main` + full-suite parity instead of per-slice suites. Rename detection keeps history.
+- **Test files keep their current paths.** Relocating ~168 tests into `tests/features/<slice>/` is organizational-only (the root `conftest.py` applies to every subdir, so pass/fail is unchanged), high-churn, and ambiguous for cross-cutting tests. The production `app/` tree is what "feature-based clean architecture" governs; it is fully sliced. Test relocation is a separate, optional pass. The unused `tests/features/` scaffold was removed.
+
 ## Global Constraints
 
 - Behavior byte-identical: no route, status code, JSON body, scope, or migration change.
