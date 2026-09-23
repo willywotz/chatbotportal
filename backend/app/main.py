@@ -180,6 +180,10 @@ app.mount("/mcp", QueryTraceparentASGI(OpenTelemetryMiddleware(mcp_app)))
 async def health_check():
     return "ok\n"
 
+@app.get("/healthz", tags=["Health"])
+async def healthz_check():
+    return "ok\n"
+
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 FastAPIInstrumentor.instrument_app(

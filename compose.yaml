@@ -7,51 +7,31 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-chatbot}
       POSTGRES_USER: ${POSTGRES_USER:-chatbot}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-chatbot_secret}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+    volumes: [postgres_data:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-chatbot} -d ${POSTGRES_DB:-chatbot}"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
-    ports:
-      - target: 5432
-        published: "${EXTERNAL_POSTGRES_PORT:-}"
+    ports: ["${EXTERNAL_POSTGRES_PORT:-${POSTGRES_PORT:-}}:5432"]
 
   backend:
     build: {context: ./backend, target: production}
     restart: unless-stopped
+    depends_on:
+      postgres: {condition: service_healthy, restart: true}
+      jaeger: {condition: service_started}
     environment:
-      ENV: ${ENV:-development}
       DATABASE_URL: postgres://${POSTGRES_USER:-chatbot}:${POSTGRES_PASSWORD:-chatbot_secret}@${POSTGRES_HOST:-postgres}:5432/${POSTGRES_DB:-chatbot}
       CORS_ORIGINS: ${CORS_ORIGINS:-["*"]}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      # Self-hosted OIDC provider. OIDC_ISSUER is the PUBLIC root origin (through
-      # Caddy); discovery is at {issuer}/.well-known/openid-configuration and the
-      # flow endpoints under {issuer}/oauth2/*. It must equal the token `iss` and
-      # the SPA authority. PROD MUST override OIDC_ISSUER,
-      # OIDC_ALLOWED_REDIRECT_URIS and SEED_ADMIN_PASSWORD.
       OIDC_ISSUER: ${OIDC_ISSUER:-http://localhost:${HTTP_PORT:-8080}}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-chatbotportal-web}
       OIDC_ALLOWED_REDIRECT_URIS: ${OIDC_ALLOWED_REDIRECT_URIS:-["http://localhost:${HTTP_PORT:-8080}/auth/callback"]}
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@example.com}
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-admin1234}
-    depends_on:
-      postgres:
-        condition: service_healthy
-        restart: true
-      jaeger:
-        condition: service_started
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
-      interval: 15s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
-    volumes:
-      - backend-uv-cache:/root/.cache/uv
-      - agency-uploads:/app/uploads
+    volumes: [agency-uploads:/app/uploads]
 
   web:
     build: {context: ./web, target: production}
@@ -61,34 +41,6 @@ services:
       OIDC_AUTHORITY: ${OIDC_AUTHORITY:-${OIDC_ISSUER:-http://localhost:${HTTP_PORT:-8080}}}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-chatbotportal-web}
 
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    environment:
-      # Drives the Caddyfile site address. Defaults to ":80" (plain HTTP, local
-      # dev). Set CERT_DOMAIN to the public hostname to enable auto-HTTPS.
-      # Never empty — Caddy's site address must always resolve to a real value.
-      SITE_ADDRESS: ${CERT_DOMAIN:-:80}
-      CERT_EMAIL: ${CERT_EMAIL:-}
-    volumes:
-      - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      web:
-        condition: service_healthy
-        restart: true
-      backend:
-        condition: service_healthy
-        restart: true
-      jaeger:
-        condition: service_started
-    ports:
-      - target: 80
-        published: "${EXTERNAL_HTTP_PORT:-${HTTP_PORT:-8080}}"
-      - target: 443
-        published: "${EXTERNAL_HTTPS_PORT:-${HTTPS_PORT:-8443}}"
-
   jaeger:
     image: jaegertracing/jaeger:2.18.0
     restart: unless-stopped
@@ -96,9 +48,26 @@ services:
       - "--set=extensions.jaeger_query.base_path=/jaeger"
       - "--set=extensions.jaeger_storage.backends.some_storage.memory.max_traces=1000"
 
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      SITE_ADDRESS: ${CERT_DOMAIN:-:80}
+      CERT_EMAIL: ${CERT_EMAIL:-}
+    volumes:
+      - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      backend: {condition: service_healthy, restart: true}
+      web: {condition: service_healthy, restart: true}
+      jaeger: {condition: service_started}
+    ports:
+      - "${EXTERNAL_HTTP_PORT:-${HTTP_PORT:-8080}}:80"
+      - "${EXTERNAL_HTTPS_PORT:-${HTTPS_PORT:-8443}}:443"
+
 volumes:
   postgres_data:
-  backend-uv-cache:
   agency-uploads:
   caddy_data:
   caddy_config:
