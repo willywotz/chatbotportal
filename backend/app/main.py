@@ -158,7 +158,7 @@ app.include_router(oidc_router)
 #
 # Mounted sub-apps (app.mount) bypass FastAPI's per-request dependency
 # injection by design, so the REST routers' `require_scope` never runs for
-# this mount. MCP auth is enforced in app/mcp/server.py via a Keycloak bearer
+# this mount. MCP auth is enforced in app/mcp/server.py via an OIDC bearer
 # token: any authenticated principal is admitted with no role check — see
 # backend/tests/test_mcp_role_access.py.
 # ---------------------------------------------------------------------------

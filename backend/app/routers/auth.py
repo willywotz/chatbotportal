@@ -1,4 +1,4 @@
-"""Auth router — Keycloak bearer authentication.
+"""Auth router — OIDC bearer authentication.
 
 Endpoints
 ---------

@@ -1,4 +1,4 @@
-"""Tests for the executive-summary routes (Keycloak scope-gated)."""
+"""Tests for the executive-summary routes (OIDC scope-gated)."""
 
 from unittest.mock import AsyncMock, MagicMock, patch
 

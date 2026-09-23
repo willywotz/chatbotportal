@@ -6,8 +6,6 @@
 !/frontend/**
 !/deploy/caddy
 !/deploy/caddy/**
-!/deploy/keycloak
-!/deploy/keycloak/**
 
 **/.pytest_cache
 **/.venv
@@ -18,4 +16,4 @@
 **/node_modules
 
 **/test_*.py
-**/*.test.ts
+**/*.test.tsx?

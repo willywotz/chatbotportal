@@ -82,7 +82,7 @@ export function useChat() {
     setActiveStepCount(0);
 
     try {
-      // /chat sits behind ProtectedRoute, so a Keycloak session is already
+      // /chat sits behind ProtectedRoute, so an OIDC session is already
       // guaranteed here — no anonymous session to bootstrap.
       const { usedSSE, aborted } = await startStream({
         query: question,

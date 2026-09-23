@@ -7,7 +7,7 @@ const ADMIN: Role[] = ["admin"];
 /**
  * Roles permitted to view each route. Single source of truth shared by the
  * route guard (ProtectedRoute) and the sidebar. The backend now enforces
- * access via Keycloak scopes; this map is UX-only (hides/shows nav and
+ * access via OIDC scopes; this map is UX-only (hides/shows nav and
  * blocks deep links client-side).
  */
 export const ROUTE_ROLES: Record<string, Role[]> = {
