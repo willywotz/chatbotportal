@@ -50,7 +50,7 @@ services:
       # browser-facing — must match OIDC_ISSUER and the gateway port
       # (EXTERNAL_HTTP_PORT).
       VITE_OIDC_AUTHORITY: ${VITE_OIDC_AUTHORITY:-http://localhost:8080}
-      VITE_OIDC_CLIENT_ID: ${VITE_OIDC_CLIENT_ID:-portal-spa}
+      VITE_OIDC_CLIENT_ID: ${VITE_OIDC_CLIENT_ID:-chatbotportal-web}
     # Vite dev server has no /healthz route (that lives in the production
     # nginx.conf); probe "/" instead so the container becomes healthy and Caddy
     # (depends_on: frontend healthy) starts.

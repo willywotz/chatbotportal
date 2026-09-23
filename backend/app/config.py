@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     # override; when empty the signing key is generated once and persisted in
     # the database (shared across uvicorn workers).
     OIDC_ISSUER: str = "http://localhost:8080"
-    OIDC_CLIENT_ID: str = "portal-spa"
+    OIDC_CLIENT_ID: str = "chatbotportal-web"
     OIDC_AUDIENCE: str = "backend"
     OIDC_ALLOWED_REDIRECT_URIS: list[str] = [
         "http://localhost:8080/auth/callback",

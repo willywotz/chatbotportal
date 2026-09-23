@@ -100,7 +100,7 @@ exists. Dev password from `SEED_ADMIN_PASSWORD` env (has a code default).
 
 Remove `keycloak-js`; add `oidc-client-ts`. New `shared/lib/oidc.ts` wraps a
 `UserManager` (authority = backend discovery URL, `VITE_OIDC_AUTHORITY`;
-`VITE_OIDC_CLIENT_ID=portal-spa`; `response_type=code`;
+`VITE_OIDC_CLIENT_ID=chatbotportal-web`; `response_type=code`;
 `code_challenge_method=S256`; silent renew via refresh token). Same exported
 helpers as today (`login`, `logout`, `getToken`, `isAuthenticated`, `init`).
 - `apiClient.ts` — interceptor gets/renews the token, attaches `Bearer`;

@@ -36,7 +36,7 @@ services:
       # the SPA authority. PROD MUST override OIDC_ISSUER,
       # OIDC_ALLOWED_REDIRECT_URIS and SEED_ADMIN_PASSWORD.
       OIDC_ISSUER: ${OIDC_ISSUER:-http://localhost:8080}
-      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-portal-spa}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-chatbotportal-web}
       OIDC_AUDIENCE: ${OIDC_AUDIENCE:-backend}
       OIDC_ALLOWED_REDIRECT_URIS: ${OIDC_ALLOWED_REDIRECT_URIS:-["http://localhost:8080/auth/callback"]}
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@chatbotportal.local}
@@ -67,7 +67,7 @@ services:
         # issuer (browser-facing root origin) and must equal OIDC_ISSUER. Prod:
         # override to https://<domain>.
         VITE_OIDC_AUTHORITY: ${VITE_OIDC_AUTHORITY:-http://localhost:8080}
-        VITE_OIDC_CLIENT_ID: ${VITE_OIDC_CLIENT_ID:-portal-spa}
+        VITE_OIDC_CLIENT_ID: ${VITE_OIDC_CLIENT_ID:-chatbotportal-web}
     restart: unless-stopped
     environment:
       VITE_API_BASE_URL: "${VITE_API_BASE_URL:-}"
