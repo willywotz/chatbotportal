@@ -7,8 +7,8 @@ import { Textarea } from "@/shared/components/ui/textarea";
 import type { Agency } from "@/shared/types/agency";
 
 import { invalidHeaderIndices, isUrlValid, parseExpectedPayload, PROTOCOL_INFO, type AgencyFormState } from "../agencyForm";
+import { HeadersEditor } from "../HeadersEditor";
 import { useDiscoverMcpTools } from "../useAgencies";
-import { HeadersEditor } from "./HeadersEditor";
 
 const CONNECTION_TYPES: Agency["connectionType"][] = ["API", "MCP", "A2A"];
 
@@ -17,14 +17,14 @@ interface Props {
   patch: (p: Partial<AgencyFormState>) => void;
 }
 
-export function StepConnection({ form, patch }: Props) {
+export function ConnectionFields({ form, patch }: Props) {
   const discover = useDiscoverMcpTools();
   const payloadError = parseExpectedPayload(form.expectedPayload).error;
   const urlInvalid = form.endpointUrl.length > 0 && !isUrlValid(form.endpointUrl);
   const badHeaders = invalidHeaderIndices(form.apiHeaders);
 
   return (
-    <div className="space-y-5 max-w-lg">
+    <div className="space-y-5">
       <div className="space-y-1.5">
         <Label>ประเภทการเชื่อมต่อ</Label>
         <div className="flex gap-2">
@@ -44,9 +44,9 @@ export function StepConnection({ form, patch }: Props) {
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="wiz-endpoint">Endpoint URL</Label>
+        <Label htmlFor="agency-endpoint">Endpoint URL</Label>
         <Input
-          id="wiz-endpoint"
+          id="agency-endpoint"
           placeholder="https://…"
           value={form.endpointUrl}
           onChange={(e) => patch({ endpointUrl: e.target.value })}
@@ -62,9 +62,9 @@ export function StepConnection({ form, patch }: Props) {
             {badHeaders.length > 0 && <p className="text-xs text-destructive">กรุณากรอก Header name และ Value ให้ครบ</p>}
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="wiz-payload">Expected payload (JSON template)</Label>
+            <Label htmlFor="agency-payload">Expected payload (JSON template)</Label>
             <Textarea
-              id="wiz-payload"
+              id="agency-payload"
               rows={5}
               placeholder='{"query": "__query__", "session_id": "__session_id__"}'
               value={form.expectedPayload}

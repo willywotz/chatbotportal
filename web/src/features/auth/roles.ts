@@ -24,6 +24,7 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
   "/agencies/:id": ADMIN,
   "/agencies/new": ADMIN,
   "/agencies/:id/setup": ADMIN,
+  "/agencies/:id/edit": ADMIN,
   "/connection-logs": ADMIN,
   "/users": ADMIN,
   "/audit-log": ADMIN,

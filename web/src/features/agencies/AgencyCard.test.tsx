@@ -66,7 +66,7 @@ describe("AgencyCard", () => {
     expect(screen.getByText(/12.5%/)).toBeInTheDocument();
   });
 
-  it("navigates to the edit tab when choosing แก้ไข from the menu", async () => {
+  it("navigates to the edit form when choosing แก้ไข from the menu", async () => {
     const user = userEvent.setup();
     function LocationProbe() {
       const location = useLocation();
@@ -79,12 +79,12 @@ describe("AgencyCard", () => {
             path="/"
             element={<AgencyCard agency={active} onTest={noop} onDelete={noop} onStatusChange={noop} testing={false} testResult={null} />}
           />
-          <Route path="/agencies/:id" element={<LocationProbe />} />
+          <Route path="/agencies/:id/edit" element={<LocationProbe />} />
         </Routes>
       </MemoryRouter>,
     );
     await user.click(screen.getByLabelText("actions"));
     await user.click(screen.getByText("แก้ไข"));
-    expect(await screen.findByTestId("location")).toHaveTextContent(`/agencies/${active.id}?tab=edit`);
+    expect(await screen.findByTestId("location")).toHaveTextContent(`/agencies/${active.id}/edit`);
   });
 });

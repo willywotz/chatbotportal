@@ -2,14 +2,12 @@ import { describe, it, expect } from "vitest";
 import {
   DEFAULT_FORM_STATE,
   PROTOCOL_INFO,
-  WIZARD_STEPS,
   agencyToFormState,
   buildSavePayload,
   canActivate,
-  firstIncompleteStep,
   invalidHeaderIndices,
-  isStepConnectionValid,
-  isStepGeneralValid,
+  isConnectionValid,
+  isGeneralValid,
   isUrlValid,
   parseExpectedPayload,
 } from "./agencyForm";
@@ -279,29 +277,20 @@ describe("PROTOCOL_INFO", () => {
   });
 });
 
-describe("wizard step validation", () => {
-  it("defines four steps in order", () => {
-    expect(WIZARD_STEPS.map((s) => s.id)).toEqual([
-      "general",
-      "connection",
-      "routing",
-      "review",
-    ]);
+describe("form field validation", () => {
+  it("general fields require name and shortName", () => {
+    expect(isGeneralValid({ ...DEFAULT_FORM_STATE })).toBe(false);
+    expect(isGeneralValid({ ...DEFAULT_FORM_STATE, name: "กรมที่ดิน", shortName: "DOL" })).toBe(true);
   });
 
-  it("general step requires name and shortName", () => {
-    expect(isStepGeneralValid({ ...DEFAULT_FORM_STATE })).toBe(false);
-    expect(isStepGeneralValid({ ...DEFAULT_FORM_STATE, name: "กรมที่ดิน", shortName: "DOL" })).toBe(true);
-  });
-
-  it("connection step requires endpoint; MCP also requires a selected tool", () => {
+  it("connection fields require endpoint; MCP also requires a selected tool", () => {
     const api = { ...DEFAULT_FORM_STATE, connectionType: "API" as const };
-    expect(isStepConnectionValid(api)).toBe(false);
-    expect(isStepConnectionValid({ ...api, endpointUrl: "https://x.example" })).toBe(true);
+    expect(isConnectionValid(api)).toBe(false);
+    expect(isConnectionValid({ ...api, endpointUrl: "https://x.example" })).toBe(true);
 
     const mcp = { ...DEFAULT_FORM_STATE, connectionType: "MCP" as const, endpointUrl: "https://x.example/mcp" };
-    expect(isStepConnectionValid(mcp)).toBe(false);
-    expect(isStepConnectionValid({ ...mcp, mcpToolName: "chat" })).toBe(true);
+    expect(isConnectionValid(mcp)).toBe(false);
+    expect(isConnectionValid({ ...mcp, mcpToolName: "chat" })).toBe(true);
   });
 
   it("canActivate requires general + connection", () => {
@@ -314,14 +303,6 @@ describe("wizard step validation", () => {
         endpointUrl: "https://x.example",
       }),
     ).toBe(true);
-  });
-
-  it("firstIncompleteStep walks general → connection → routing", () => {
-    expect(firstIncompleteStep(DEFAULT_FORM_STATE)).toBe("general");
-    expect(firstIncompleteStep({ ...DEFAULT_FORM_STATE, name: "ก", shortName: "ข" })).toBe("connection");
-    expect(
-      firstIncompleteStep({ ...DEFAULT_FORM_STATE, name: "ก", shortName: "ข", endpointUrl: "https://x.example" }),
-    ).toBe("routing");
   });
 });
 
@@ -370,23 +351,23 @@ describe("invalidHeaderIndices", () => {
   });
 });
 
-describe("isStepConnectionValid — header gating", () => {
+describe("isConnectionValid — header gating", () => {
   const base = { ...DEFAULT_FORM_STATE, connectionType: "API" as const, endpointUrl: "https://x.example" };
 
   it("returns false when a header has a value but no name", () => {
-    expect(isStepConnectionValid({ ...base, apiHeaders: [{ name: "", value: "v" }] })).toBe(false);
+    expect(isConnectionValid({ ...base, apiHeaders: [{ name: "", value: "v" }] })).toBe(false);
   });
 
   it("returns false when a header has a name but no value", () => {
-    expect(isStepConnectionValid({ ...base, apiHeaders: [{ name: "X-Key", value: "" }] })).toBe(false);
+    expect(isConnectionValid({ ...base, apiHeaders: [{ name: "X-Key", value: "" }] })).toBe(false);
   });
 
   it("returns true when all headers are valid", () => {
-    expect(isStepConnectionValid({ ...base, apiHeaders: [{ name: "X-Key", value: "v" }] })).toBe(true);
+    expect(isConnectionValid({ ...base, apiHeaders: [{ name: "X-Key", value: "v" }] })).toBe(true);
   });
 
   it("returns true when headers contain only empty rows", () => {
-    expect(isStepConnectionValid({ ...base, apiHeaders: [{ name: "", value: "" }] })).toBe(true);
+    expect(isConnectionValid({ ...base, apiHeaders: [{ name: "", value: "" }] })).toBe(true);
   });
 });
 

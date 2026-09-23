@@ -89,16 +89,7 @@ export function agencyToFormState(agency: Agency): AgencyFormState {
   };
 }
 
-export type WizardStepId = "general" | "connection" | "routing" | "review";
-
-export const WIZARD_STEPS: { id: WizardStepId; label: string }[] = [
-  { id: "general", label: "ข้อมูลทั่วไป" },
-  { id: "connection", label: "การเชื่อมต่อ" },
-  { id: "routing", label: "Routing" },
-  { id: "review", label: "สรุป" },
-];
-
-export function isStepGeneralValid(s: Pick<AgencyFormState, "name" | "shortName">): boolean {
+export function isGeneralValid(s: Pick<AgencyFormState, "name" | "shortName">): boolean {
   return Boolean(s.name.trim() && s.shortName.trim());
 }
 
@@ -120,7 +111,7 @@ export function invalidHeaderIndices(headers: ApiHeader[]): number[] {
   }, []);
 }
 
-export function isStepConnectionValid(
+export function isConnectionValid(
   s: Pick<AgencyFormState, "connectionType" | "endpointUrl" | "mcpToolName" | "apiHeaders">,
 ): boolean {
   if (!isUrlValid(s.endpointUrl)) return false;
@@ -146,13 +137,7 @@ export function validateAgencyForm(
 }
 
 export function canActivate(s: AgencyFormState): boolean {
-  return isStepGeneralValid(s) && isStepConnectionValid(s);
-}
-
-export function firstIncompleteStep(s: AgencyFormState): WizardStepId {
-  if (!isStepGeneralValid(s)) return "general";
-  if (!isStepConnectionValid(s)) return "connection";
-  return "routing";
+  return isGeneralValid(s) && isConnectionValid(s);
 }
 
 export function parseIntOrNull(raw: string): number | null {
