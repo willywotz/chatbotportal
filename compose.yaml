@@ -30,22 +30,20 @@ services:
       ENV: ${ENV:-development}
       CORS_ORIGINS: ${CORS_ORIGINS:-["*"]}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      KEYCLOAK_URL: ${KEYCLOAK_URL:-http://localhost:8080/auth}
-      KEYCLOAK_INTERNAL_URL: ${KEYCLOAK_INTERNAL_URL:-http://keycloak:8080/auth}
-      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-chatbotportal}
-      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-portal-spa}
-      KEYCLOAK_AUDIENCE: ${KEYCLOAK_AUDIENCE:-backend}
-      KEYCLOAK_ADMIN_CLIENT_ID: ${KEYCLOAK_ADMIN_CLIENT_ID:-portal-admin}
-      # Dev default matches the portal-admin secret in deploy/keycloak/realm-export.json
-      # so the user-management proxy works out of the box. PROD MUST override this.
-      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:-portal-admin-dev-secret}
+      # Self-hosted OIDC provider. OIDC_ISSUER is the PUBLIC issuer base (through
+      # Caddy) and must equal the token `iss` and the SPA authority. PROD MUST
+      # override OIDC_ISSUER, OIDC_ALLOWED_REDIRECT_URIS and SEED_ADMIN_PASSWORD.
+      OIDC_ISSUER: ${OIDC_ISSUER:-http://localhost:8080/oidc}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-portal-spa}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-backend}
+      OIDC_ALLOWED_REDIRECT_URIS: ${OIDC_ALLOWED_REDIRECT_URIS:-["http://localhost:8080/auth/callback"]}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@chatbotportal.local}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-admin}
     depends_on:
       postgres:
         condition: service_healthy
         restart: true
       jaeger:
-        condition: service_started
-      keycloak:
         condition: service_started
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
@@ -63,11 +61,11 @@ services:
       context: ./frontend
       target: production
       args:
-        # Vite inlines these at build time. Public /auth origin (browser-facing);
-        # must equal KEYCLOAK_URL. Prod: override to https://<domain>/auth.
-        VITE_KEYCLOAK_URL: ${VITE_KEYCLOAK_URL:-http://localhost:8080/auth}
-        VITE_KEYCLOAK_REALM: ${VITE_KEYCLOAK_REALM:-chatbotportal}
-        VITE_KEYCLOAK_CLIENT_ID: ${VITE_KEYCLOAK_CLIENT_ID:-portal-spa}
+        # Vite inlines these at build time. VITE_OIDC_AUTHORITY is the public
+        # issuer (browser-facing) and must equal OIDC_ISSUER. Prod: override to
+        # https://<domain>/oidc.
+        VITE_OIDC_AUTHORITY: ${VITE_OIDC_AUTHORITY:-http://localhost:8080/oidc}
+        VITE_OIDC_CLIENT_ID: ${VITE_OIDC_CLIENT_ID:-portal-spa}
     restart: unless-stopped
     environment:
       VITE_API_BASE_URL: "${VITE_API_BASE_URL:-}"
@@ -114,24 +112,6 @@ services:
     command:
       - "--set=extensions.jaeger_query.base_path=/jaeger"
       - "--set=storage.memory.max_traces=1000"
-
-  # Behind Caddy (no published host port) — reached by the browser at /auth via
-  # the gateway, and by the backend directly on the network (KEYCLOAK_INTERNAL_URL).
-  keycloak:
-    image: quay.io/keycloak/keycloak:26.0
-    command: ["start-dev", "--import-realm"]
-    restart: unless-stopped
-    environment:
-      KC_BOOTSTRAP_ADMIN_USERNAME: admin
-      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_BOOTSTRAP_PASSWORD:-admin}
-      # Serve under /auth so it shares the gateway origin with the SPA and API.
-      KC_HTTP_RELATIVE_PATH: /auth
-      # Trust Caddy's X-Forwarded-* so issued URLs (incl. the token issuer) use
-      # the public origin. start-dev derives the hostname from these headers; a
-      # hardened prod (start mode) should also set KC_HOSTNAME to the public URL.
-      KC_PROXY_HEADERS: xforwarded
-    volumes:
-      - ./deploy/keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
 
 volumes:
   postgres_data:
