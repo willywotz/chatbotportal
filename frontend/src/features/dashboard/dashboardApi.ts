@@ -1,5 +1,10 @@
 import { api } from '@/shared/lib/apiClient';
-import { dashboardStats, agencyUsageData, weeklyTrendData, categoryData } from '@/shared/data/mockData';
+import type {
+  AgencyUsageDatum,
+  CategoryDatum,
+  DashboardStats,
+  WeeklyTrendDatum,
+} from '@/shared/types/dashboard';
 
 export interface LlmUsageRow {
   key: string;
@@ -11,10 +16,10 @@ export interface LlmUsageRow {
 interface DashboardApiResponse {
   success: boolean;
   data: {
-    stats: typeof dashboardStats;
-    agencyUsage: typeof agencyUsageData;
-    weeklyTrend: typeof weeklyTrendData;
-    categoryData: typeof categoryData;
+    stats: DashboardStats;
+    agencyUsage: AgencyUsageDatum[];
+    weeklyTrend: WeeklyTrendDatum[];
+    categoryData: CategoryDatum[];
   };
   responseTime: number;
 }
@@ -23,22 +28,22 @@ async function fetchFromApi(): Promise<DashboardApiResponse> {
   return api.get<DashboardApiResponse>('/api/v1/dashboard/statistics')
 }
 
-export async function fetchDashboardStats(): Promise<typeof dashboardStats> {
+export async function fetchDashboardStats(): Promise<DashboardStats> {
   const res = await fetchFromApi();
   return res.data.stats;
 }
 
-export async function fetchAgencyUsage(): Promise<typeof agencyUsageData> {
+export async function fetchAgencyUsage(): Promise<AgencyUsageDatum[]> {
   const res = await fetchFromApi();
   return res.data.agencyUsage;
 }
 
-export async function fetchWeeklyTrend(): Promise<typeof weeklyTrendData> {
+export async function fetchWeeklyTrend(): Promise<WeeklyTrendDatum[]> {
   const res = await fetchFromApi();
   return res.data.weeklyTrend;
 }
 
-export async function fetchCategoryData(): Promise<typeof categoryData> {
+export async function fetchCategoryData(): Promise<CategoryDatum[]> {
   const res = await fetchFromApi();
   return res.data.categoryData;
 }

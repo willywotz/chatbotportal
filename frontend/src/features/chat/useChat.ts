@@ -2,7 +2,6 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ChatMessage, AgentStep } from '@/shared/types';
 import { sendChatQuery } from '@/features/chat/chatApi';
 import { updateMessageRating } from '@/features/chat/feedbackApi';
-import { mockAgentSteps } from '@/shared/data/mockData';
 import { generateUniqueId } from '@/shared/lib/utils';
 import {
   buildAiMessageFromState,
@@ -17,7 +16,7 @@ export function useChat() {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [activeStepCount, setActiveStepCount] = useState(0);
-  const [currentSteps, setCurrentSteps] = useState<AgentStep[]>(mockAgentSteps);
+  const [currentSteps, setCurrentSteps] = useState<AgentStep[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -139,7 +138,7 @@ export function useChat() {
     setIsTyping(false);
     setActiveStepCount(0);
     setInput('');
-    setCurrentSteps(mockAgentSteps);
+    setCurrentSteps([]);
     setConversationId(null);
     resetStream();
   }, [resetStream]);

@@ -8,3 +8,19 @@ export interface DashboardStats {
   satisfactionRate: number;
   satisfactionRateTrend: number;
 }
+
+export interface AgencyUsageDatum {
+  name: string;
+  value: number;
+  fill: string;
+}
+
+export interface WeeklyTrendDatum {
+  day: string;
+  questions: number;
+}
+
+export interface CategoryDatum {
+  category: string;
+  count: number;
+}
