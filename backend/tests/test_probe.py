@@ -1,6 +1,6 @@
 """Tests for the reachability-only probe (app.core.probe).
 
-Every connection type takes the same path: HEAD (GET fallback). Any HTTP
+Every connection type takes the same path: GET (HEAD fallback). Any HTTP
 response — including 4xx/5xx — means the endpoint is reachable. Only a
 transport failure is an error.
 """
@@ -54,13 +54,13 @@ class _FakeClient:
 
 
 @pytest.mark.asyncio
-async def test_head_2xx_is_success():
+async def test_get_2xx_is_success():
     fake = _FakeClient(head=_Resp(200, "OK"))
     with patch("app.core.probe.httpx.AsyncClient", return_value=fake):
         res = await probe("API", _URL)
     assert res["success"] is True
     assert res["statusCode"] == 200
-    assert fake.calls == ["HEAD"]
+    assert fake.calls == ["GET"]
     assert fake.posted is None
 
 
@@ -84,12 +84,12 @@ async def test_head_500_is_still_reachable():
 
 
 @pytest.mark.asyncio
-async def test_head_raises_then_get_is_success():
-    fake = _FakeClient(head=_Resp(200, "OK"), head_exc=httpx.ConnectError("boom"))
+async def test_get_raises_then_head_is_success():
+    fake = _FakeClient(head=_Resp(200, "OK"), get_exc=httpx.ConnectError("boom"))
     with patch("app.core.probe.httpx.AsyncClient", return_value=fake):
         res = await probe("API", _URL)
     assert res["success"] is True
-    assert fake.calls == ["HEAD", "GET"]
+    assert fake.calls == ["GET", "HEAD"]
 
 
 @pytest.mark.asyncio
@@ -120,7 +120,7 @@ async def test_every_type_uses_the_same_probe(connection_type, protocol):
         res = await probe(connection_type, _URL)
     assert res["success"] is True
     assert res["protocol"] == protocol
-    assert fake.calls == ["HEAD"]
+    assert fake.calls == ["GET"]
     assert fake.posted is None
 
 

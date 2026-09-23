@@ -14,7 +14,7 @@ def _failure(protocol: str, error: str, steps: list[dict] | None = None, latency
 
 
 async def probe_reachability(connection_type: str, endpoint_url: str | None) -> dict[str, Any]:
-    """Reachability probe: HEAD with a GET fallback.
+    """Reachability probe: GET with a HEAD fallback.
 
     Any HTTP response — including 4xx/5xx — means the endpoint is reachable and
     counts as success. Only a transport failure (refused, DNS, timeout) is an
