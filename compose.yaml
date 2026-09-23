@@ -47,24 +47,6 @@ services:
       - "--set=extensions.jaeger_query.base_path=/jaeger"
       - "--set=extensions.jaeger_storage.backends.some_storage.memory.max_traces=1000"
 
-  # caddy:
-  #   image: caddy:2-alpine
-  #   restart: unless-stopped
-  #   environment:
-  #     SITE_ADDRESS: ${CERT_DOMAIN:-:80}
-  #     CERT_EMAIL: ${CERT_EMAIL:-}
-  #   volumes:
-  #     - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-  #     - caddy_data:/data
-  #     - caddy_config:/config
-  #   depends_on:
-  #     backend: {condition: service_healthy, restart: true}
-  #     web: {condition: service_healthy, restart: true}
-  #     jaeger: {condition: service_started}
-  #   ports:
-  #     - "${EXTERNAL_HTTP_PORT:-${HTTP_PORT:-8080}}:80"
-  #     - "${EXTERNAL_HTTPS_PORT:-${HTTPS_PORT:-8443}}:443"
-
   nginx:
     build: {context: ./deploy/nginx}
     restart: unless-stopped
@@ -72,5 +54,3 @@ services:
 
 volumes:
   postgres_data:
-  # caddy_data:
-  # caddy_config:
