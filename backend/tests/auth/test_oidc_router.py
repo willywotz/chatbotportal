@@ -59,6 +59,19 @@ async def test_authorize_get_renders_login(client):
     assert "password" in r.text
 
 
+async def test_authorize_get_uses_web_theme(client):
+    _, challenge = _pkce()
+    r = await client.get("/oauth2/authorize", params={
+        "client_id": CLIENT, "redirect_uri": REDIRECT, "response_type": "code",
+        "code_challenge": challenge, "code_challenge_method": "S256", "state": "xyz",
+    })
+    assert r.status_code == 200
+    assert "Sarabun" in r.text
+    assert "213 70% 45%" in r.text
+    assert "210 33% 98%" in r.text
+    assert "0.625rem" in r.text
+
+
 async def test_authorize_get_escapes_reflected_params(client):
     _, challenge = _pkce()
     r = await client.get("/oauth2/authorize", params={

@@ -3,9 +3,8 @@
 Living source of truth. Prune on every change. Distilled from the retired `CONTEXT.md`; dated changelog dropped (it lives in Git history).
 
 ## Current Focus
-- Branch `refactor/backend-feature-slices` (off `main`): reorganized `backend/app` from technical layers into **feature-based clean architecture** — a shared `app/core/` kernel + `app/features/<slice>/` (identity, settings, llm, onechat, chat, agency, mcp, analytics). Structural move only (no ports/entity rewrite/new events). Files moved with `git mv` (history kept); all `app.*` imports rewritten; no shims. Behavior byte-identical: 755 tests pass, route audit green, `Base.metadata` holds all 19 tables. Spec `docs/superpowers/specs/2026-09-23-backend-feature-slices-design.md`, plan `docs/superpowers/plans/2026-09-23-backend-feature-slices.md`.
-- Next actionable: open PR `refactor/backend-feature-slices` → `main`.
-- Test files kept at their existing `tests/` paths (root `conftest.py` applies to all); relocation into `tests/features/` deferred as a separate optional pass.
+- Branch `feat/oauth-authorize-web-theme` (off `main`): restyled the server-rendered `/oauth2/authorize` login page (`_login_page`, `backend/app/features/identity/oidc/router.py`) to match the `web/` SPA theme — Sarabun (Google Fonts), light tokens (bg `210 33% 98%`, primary `213 70% 45%`, radius `0.625rem`), white card, gradient brand wordmark "Agentic AI Chatbot", muted subtitle, `prefers-color-scheme: dark` block from the SPA `.dark` tokens. Functional bits unchanged (hidden inputs, HTML escaping, POST action, error reshow). TDD: `test_authorize_get_uses_web_theme` added; all 11 `tests/auth/test_oidc_router.py` pass.
+- Next actionable: open PR `feat/oauth-authorize-web-theme` → `main`.
 - Pre-existing stale script (NOT from this work): `backend/scripts/hash_existing_api_keys.py` imports `app.auth.security` (removed pre-OIDC); dead, not imported by app/tests.
 
 ## Active Status
@@ -58,6 +57,7 @@ All traffic via **caddy** (80/443, TLS auto via `CERT_DOMAIN`; `caddy/Caddyfile`
 - Error envelope `{"error":{"code","message","retryable","upstream_status"}}` (`app/errors.py`); frontend unwraps (legacy `detail` fallback).
 - `utils.clean_agency_ids` at every read of `Message.agency_ids` — legacy comma-joined `"id1,id2"` is an invalid UUID that crashes asyncpg `id__in` queries.
 - **MCP `endpoint_url` scheme** resolves cf-visitor → X-Forwarded-Proto → connection scheme (`_external_scheme`, `app/mcp/server.py`) — behind Cloudflare the chain speaks http; only `cf-visitor` carries the real https. Covered by `test_mcp_endpoint_scheme.py`.
+- Server-rendered `/oauth2/authorize` login page inlines the `web/` SPA design tokens (`web/src/index.css` `:root`/`.dark`) + Sarabun; keep the two in sync when the SPA theme changes (no shared stylesheet — the page is a standalone HTML string).
 - **OIDC issuer must match**: `OIDC_ISSUER` (token `iss` + SPA authority) must equal the browser root origin (no path); a mismatch fails `verify_token`'s issuer check. `OIDC_ALLOWED_REDIRECT_URIS` must list the SPA's `/auth/callback`.
 - **Frontend config is RUNTIME, not build-time**: the prod image bakes no `VITE_*` values. `web/docker-entrypoint.d/40-app-config.sh` writes `/config.js` (`window.__APP_CONFIG__`) from the web container's `OIDC_AUTHORITY`/`OIDC_CLIENT_ID`/`API_BASE_URL` env at startup; `index.html` loads it (classic script) before the app module. One image runs on any port/domain — change env + recreate, no rebuild. nginx serves `config.js` `no-store` (fixed name, mutable body) while hashed `/assets/*` stay `immutable`. The earlier "unknown client_id"/wrong-port bug was a stale build-time `VITE_OIDC_*` bake; this replaces it. Compose passes the SPA env as `OIDC_AUTHORITY`/`OIDC_CLIENT_ID`/`API_BASE_URL` (defaults track `OIDC_ISSUER` and `HTTP_PORT`).
 - `docker compose up` won't rebuild an existing image → config edits do nothing until `up -d --build <svc>`.

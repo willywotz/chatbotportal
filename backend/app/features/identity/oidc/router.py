@@ -74,23 +74,74 @@ def _login_page(params: dict, error: str = "") -> HTMLResponse:
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>เข้าสู่ระบบ · AI Chatbot Portal</title>
+<title>เข้าสู่ระบบ · Agentic AI Chatbot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  body {{ font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0;
-         display: flex; min-height: 100vh; align-items: center; justify-content: center; margin: 0; }}
-  form {{ background: #1e293b; padding: 2rem; border-radius: 12px; width: 320px; }}
-  h1 {{ font-size: 1.25rem; margin: 0 0 1.25rem; }}
-  label {{ display: block; font-size: .8rem; margin: .75rem 0 .25rem; }}
-  input[type=email], input[type=password] {{ width: 100%; padding: .6rem; border-radius: 8px;
-         border: 1px solid #334155; background: #0f172a; color: #e2e8f0; box-sizing: border-box; }}
-  button {{ margin-top: 1.25rem; width: 100%; padding: .6rem; border: 0; border-radius: 8px;
-           background: #2563eb; color: white; font-weight: 600; cursor: pointer; }}
-  .error {{ color: #f87171; font-size: .8rem; margin: .5rem 0 0; }}
+  :root {{
+    --background: 210 33% 98%;
+    --foreground: 215 25% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 215 25% 15%;
+    --primary: 213 70% 45%;
+    --primary-foreground: 0 0% 100%;
+    --muted-foreground: 215 15% 50%;
+    --border: 214 25% 90%;
+    --input: 214 25% 88%;
+    --ring: 213 70% 45%;
+    --destructive: 0 72% 55%;
+    --radius: 0.625rem;
+  }}
+  @media (prefers-color-scheme: dark) {{
+    :root {{
+      --background: 220 20% 10%;
+      --foreground: 210 30% 92%;
+      --card: 220 18% 14%;
+      --card-foreground: 210 30% 92%;
+      --primary: 213 65% 55%;
+      --primary-foreground: 0 0% 100%;
+      --muted-foreground: 215 15% 55%;
+      --border: 220 15% 22%;
+      --input: 220 15% 22%;
+      --ring: 213 65% 55%;
+      --destructive: 0 62% 45%;
+    }}
+  }}
+  * {{ box-sizing: border-box; }}
+  body {{ font-family: 'Sarabun', sans-serif; font-weight: 300; line-height: 1.6;
+         background: hsl(var(--background)); color: hsl(var(--foreground));
+         display: flex; min-height: 100vh; align-items: center; justify-content: center;
+         margin: 0; padding: 1rem; }}
+  .card {{ background: hsl(var(--card)); color: hsl(var(--card-foreground));
+          border: 1px solid hsl(var(--border)); border-radius: var(--radius);
+          box-shadow: 0 1px 3px 0 hsl(215 25% 15% / .08), 0 1px 2px -1px hsl(215 25% 15% / .08);
+          padding: 2rem; width: 100%; max-width: 28rem; }}
+  .brand {{ text-align: center; font-size: 1.5rem; font-weight: 600; margin: 0;
+           background: linear-gradient(135deg, hsl(213 70% 40%) 0%, hsl(200 50% 50%) 100%);
+           -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+           background-clip: text; }}
+  .subtitle {{ text-align: center; font-size: .875rem; color: hsl(var(--muted-foreground));
+              margin: .5rem 0 1.75rem; }}
+  label {{ display: block; font-size: .875rem; font-weight: 500; margin: 1rem 0 .375rem; }}
+  input[type=email], input[type=password] {{ width: 100%; padding: .625rem .75rem;
+         font: inherit; border-radius: calc(var(--radius) - 2px);
+         border: 1px solid hsl(var(--input)); background: hsl(var(--card));
+         color: hsl(var(--foreground)); }}
+  input[type=email]:focus, input[type=password]:focus {{ outline: none;
+         border-color: hsl(var(--ring)); box-shadow: 0 0 0 3px hsl(var(--ring) / .25); }}
+  button {{ margin-top: 1.5rem; width: 100%; padding: .625rem; font: inherit; font-weight: 500;
+           border: 0; border-radius: calc(var(--radius) - 2px);
+           background: hsl(var(--primary)); color: hsl(var(--primary-foreground));
+           cursor: pointer; transition: opacity .15s ease; }}
+  button:hover {{ opacity: .9; }}
+  .error {{ color: hsl(var(--destructive)); font-size: .875rem; margin: .75rem 0 0; }}
 </style>
 </head>
 <body>
-<form method="post" action="{settings.OIDC_ISSUER}/oauth2/authorize">
-  <h1>เข้าสู่ระบบ</h1>
+<form class="card" method="post" action="{settings.OIDC_ISSUER}/oauth2/authorize">
+  <h1 class="brand">Agentic AI Chatbot</h1>
+  <p class="subtitle">ระบบบูรณาการข้อมูลหน่วยงานภาครัฐ</p>
   {hidden}
   <label for="email">อีเมล (Email)</label>
   <input id="email" name="email" type="email" autocomplete="username" required autofocus>
