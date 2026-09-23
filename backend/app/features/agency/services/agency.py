@@ -12,7 +12,6 @@ from app.core.db import AsyncSessionLocal
 from app.core.errors import ApiError, ErrorCode
 from app.features.agency.models.agency import Agency
 from app.features.agency.repositories import agency as agency_repo
-from app.core.repositories import connection_log as connection_log_repo
 from app.features.agency.schemas.agency import AgencyCreate, AgencyUpdate
 from app.core.log_sanitize import sanitize_body
 from app.core.utils import now
@@ -157,36 +156,23 @@ async def test_connection(connection_type: str, agency: Agency) -> dict[str, Any
 
 
 async def run_connection_test(session: AsyncSession, agency: Agency) -> dict[str, Any]:
-    """Probe `agency`, persist the reset baseline, auto-recover a rule-set
-    maintenance agency on success, and record a ConnectionLog row."""
+    """Probe `agency`, persist the reset baseline, and record the result into
+    the uptime monitor (check-state, buckets, incident), auto-recovering a
+    rule-set maintenance agency on success. Writes no `ConnectionLog` row."""
+    from app.features.monitoring.repositories import check_state as cs_repo
+    from app.features.monitoring.services import monitor
+
     agency.stats_reset_at = now()
     raw = await test_connection(agency.connection_type, agency)
+    await agency_repo.save(session, agency, update_fields=["stats_reset_at", "updated_at"])
 
-    update_fields = ["stats_reset_at", "updated_at"]
-    if raw["success"] and agency.status == "maintenance" and agency.auto_maintenance:
-        agency.status = "active"
-        agency.auto_maintenance = False
-        update_fields += ["status", "auto_maintenance"]
-    await agency_repo.save(session, agency, update_fields=update_fields)
-
-    latency_ms = int(raw["latency"].replace("ms", ""))
+    await cs_repo.ensure_states(session, settings.DEFAULT_CHECK_INTERVAL_SECONDS)
+    state = await cs_repo.get(session, agency.id)
+    ok = bool(raw.get("success"))
+    latency_ms = int(str(raw.get("latency", "0")).replace("ms", "") or 0)
     status_code = raw.get("statusCode")
     detail = sanitize_body(raw.get("error") or (f"HTTP {status_code}" if status_code else raw["protocol"]))
-    await connection_log_repo.create(
-        session,
-        agency_id=agency.id,
-        action="test",
-        connection_type=agency.connection_type,
-        status="success" if raw["success"] else "error",
-        latency_ms=latency_ms,
-        detail=detail,
-        # Explicit created_at, not the column's server_default: Postgres's
-        # `now()` is transaction-scoped, so a server-generated value here
-        # would be pinned to the request's transaction start — before
-        # `stats_reset_at` above — breaking the health/uptime "since reset"
-        # window this row is meant to fall inside.
-        created_at=agency.stats_reset_at,
-    )
+    await monitor.record_result(session, state, agency, ok=ok, latency_ms=latency_ms, detail=detail, ts=now())
     return raw
 
 

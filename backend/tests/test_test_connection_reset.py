@@ -1,4 +1,5 @@
 import uuid
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy import select
@@ -45,11 +46,10 @@ async def test_test_connection_sets_reset_baseline(db_session, monkeypatch):
     refreshed = await db_session.get(Agency, ag.id)
     assert refreshed.stats_reset_at is not None
     assert refreshed.stats_reset_at >= before
-    log = (await db_session.execute(
-        select(ConnectionLog).where(ConnectionLog.agency_id == ag.id)
-    )).scalars().first()
-    assert log is not None
-    assert log.created_at >= refreshed.stats_reset_at
+    rows = (await db_session.execute(
+        select(ConnectionLog).where(ConnectionLog.agency_id == ag.id, ConnectionLog.action == "test")
+    )).scalars().all()
+    assert rows == []
 
 
 @pytest.mark.asyncio
@@ -104,3 +104,27 @@ async def test_manual_maintenance_not_reactivated_by_test(db_session, monkeypatc
     await lifecycle.test_connection_endpoint(ag.id, session=db_session, _=admin)
     refreshed = await db_session.get(Agency, ag.id)
     assert refreshed.status == "maintenance"
+
+
+@pytest.mark.asyncio
+async def test_run_connection_test_writes_no_connection_log_test_row(db_session):
+    from app.features.agency.services.agency import run_connection_test
+    from app.features.monitoring.repositories import check_state as cs_repo
+    from app.features.monitoring.models.check_state import CheckStatus
+
+    ag = await agency_repo.create(db_session, name="RC", connection_type="API",
+                                  status="active", endpoint_url="https://x")
+    await db_session.flush()
+    fake = {"success": True, "latency": "12ms", "protocol": "REST API", "statusCode": 200, "steps": []}
+    with patch("app.features.agency.services.agency.test_connection", AsyncMock(return_value=fake)):
+        await run_connection_test(db_session, ag)
+
+    rows = (await db_session.execute(
+        select(ConnectionLog).where(ConnectionLog.agency_id == ag.id, ConnectionLog.action == "test")
+    )).scalars().all()
+    assert rows == []
+
+    state = await cs_repo.get(db_session, ag.id)
+    assert state is not None
+    assert state.last_status == CheckStatus.up
+    assert state.last_latency_ms == 12

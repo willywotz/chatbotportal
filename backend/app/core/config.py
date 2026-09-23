@@ -89,7 +89,6 @@ class Settings(BaseSettings):
 
     # ── Agency health / scheduler ────────────────────────────────────────────
     AGENCY_CHAT_TIMEOUT: int = 180
-    AGENCY_CHAT_CONCURRENCY: int = 5
     HEALTH_CHECK_INTERVAL_MINUTES: int = 15
     CONNECTION_TEST_TIMEOUT: float = 10.0
     HEALTH_DEGRADED_UPTIME_PCT: float = 95.0
