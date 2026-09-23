@@ -32,7 +32,7 @@ async def probe_reachability(connection_type: str, endpoint_url: str | None) -> 
     if not url:
         return _failure(protocol, "Endpoint URL is required")
 
-    headers = {"User-Agent": f"{settings.USER_AGENT_PREFIX} ConnectionTest"}
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36"}
     start = time.monotonic()
     response = None
     method = "HEAD"
