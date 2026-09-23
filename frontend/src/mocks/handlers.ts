@@ -3,20 +3,24 @@ import { http, HttpResponse } from "msw";
 import { LEGAL_TRANSITIONS } from "@/features/agencies/lifecycle";
 import type { AgencyLifecycleStatus, AgencyRow, HealthWindow } from "@/shared/types/agency";
 import type { HistoryItem } from "@/features/history/historyApi";
-import { agencyUsageData, categoryData, dashboardStats, weeklyTrendData, conversationHistory } from "@/shared/data/mockData";
 
 import type { PopularQuestionAdmin } from "@/features/popular-questions/popularQuestionsApi";
 
-import { FIXTURE_MCP_TOOLS, makeHistory, mockAgencies, mockFeedbackStats, mockPopularQuestions, row } from "./fixtures";
+import {
+  FIXTURE_MCP_TOOLS,
+  agencyUsageData,
+  categoryData,
+  dashboardStats,
+  makeFixtureHistoryItems,
+  makeHistory,
+  mockAgencies,
+  mockFeedbackStats,
+  mockPopularQuestions,
+  row,
+  weeklyTrendData,
+} from "./fixtures";
 
-const MOCK_HISTORY_ITEMS: HistoryItem[] = (conversationHistory as unknown as HistoryItem[]).map((c) => ({
-  id: c.id,
-  title: c.title,
-  preview: c.preview,
-  date: c.date,
-  agencies: c.agencies,
-  status: c.status,
-}));
+const MOCK_HISTORY_ITEMS: HistoryItem[] = makeFixtureHistoryItems();
 
 const MOCK_CONNECTION_LOGS = {
   search: null,

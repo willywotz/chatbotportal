@@ -1,5 +1,12 @@
 import type { AgencyRow, HealthHistoryBucketRow, HealthWindow } from "@/shared/types/agency";
 import type { PopularQuestionAdmin } from "@/features/popular-questions/popularQuestionsApi";
+import type { HistoryItem } from "@/features/history/historyApi";
+import type {
+  AgencyUsageDatum,
+  CategoryDatum,
+  DashboardStats,
+  WeeklyTrendDatum,
+} from "@/shared/types/dashboard";
 
 export function row(partial: Partial<AgencyRow> & Pick<AgencyRow, "id" | "name" | "short_name">): AgencyRow {
   return {
@@ -178,6 +185,86 @@ export function makeHistory(agencyId: string, window: HealthWindow): HealthHisto
       failures,
     };
   });
+}
+
+export const dashboardStats: DashboardStats = {
+  totalQuestions: 0,
+  totalQuestionsTrend: 0.0,
+  todayQuestions: 0,
+  todayQuestionsTrend: 0.0,
+  avgResponseTime: 0.0,
+  avgResponseTimeTrend: 0.0,
+  satisfactionRate: 0.0,
+  satisfactionRateTrend: 0.0,
+};
+
+export const agencyUsageData: AgencyUsageDatum[] = [
+  { name: "อย.", value: 12450, fill: "hsl(145 55% 40%)" },
+  { name: "กรมสรรพากร", value: 18320, fill: "hsl(213 70% 45%)" },
+  { name: "กรมการปกครอง", value: 9870, fill: "hsl(25 85% 55%)" },
+  { name: "กรมที่ดิน", value: 7650, fill: "hsl(280 50% 50%)" },
+];
+
+export const weeklyTrendData: WeeklyTrendDatum[] = [
+  { day: "จันทร์", questions: 180 },
+  { day: "อังคาร", questions: 210 },
+  { day: "พุธ", questions: 195 },
+  { day: "พฤหัสบดี", questions: 240 },
+  { day: "ศุกร์", questions: 220 },
+  { day: "เสาร์", questions: 90 },
+  { day: "อาทิตย์", questions: 65 },
+];
+
+export const categoryData: CategoryDatum[] = [
+  { category: "สอบถามข้อมูล", count: 22450 },
+  { category: "ตรวจสอบสถานะ", count: 12300 },
+  { category: "ขั้นตอนดำเนินการ", count: 8900 },
+  { category: "กฎหมาย/ระเบียบ", count: 4640 },
+];
+
+export function makeFixtureHistoryItems(): HistoryItem[] {
+  return [
+    {
+      id: "conv-1",
+      title: "ตรวจสอบทะเบียนยาพาราเซตามอล",
+      preview: "ยาพาราเซตามอลที่ขายตามร้านขายยาทั่วไป ต้องขึ้นทะเบียนกับ อย. หรือไม่?",
+      date: "2568-02-22",
+      agencies: ["อย.", "กรมสรรพากร"],
+      status: "success",
+    },
+    {
+      id: "conv-2",
+      title: "สอบถามเรื่องลดหย่อนภาษี",
+      preview: "ค่าลดหย่อนภาษีเงินได้บุคคลธรรมดาปี 2568 มีอะไรบ้าง?",
+      date: "2568-02-21",
+      agencies: ["กรมสรรพากร"],
+      status: "success",
+    },
+    {
+      id: "conv-3",
+      title: "ขั้นตอนทำบัตรประชาชนใหม่",
+      preview: "บัตรประชาชนหาย ต้องทำอย่างไร ใช้เอกสารอะไรบ้าง?",
+      date: "2568-02-20",
+      agencies: ["กรมการปกครอง"],
+      status: "success",
+    },
+    {
+      id: "conv-4",
+      title: "ราคาประเมินที่ดิน กรุงเทพ",
+      preview: "ตรวจสอบราคาประเมินที่ดินในเขตบางรัก กรุงเทพมหานคร",
+      date: "2568-02-19",
+      agencies: ["กรมที่ดิน"],
+      status: "success",
+    },
+    {
+      id: "conv-5",
+      title: "นำเข้าอาหารเสริม",
+      preview: "ขั้นตอนการนำเข้าอาหารเสริมจากต่างประเทศ ต้องขออนุญาตจากหน่วยงานใดบ้าง?",
+      date: "2568-02-18",
+      agencies: ["อย.", "กรมสรรพากร"],
+      status: "failed",
+    },
+  ];
 }
 
 export const mockFeedbackStats = {

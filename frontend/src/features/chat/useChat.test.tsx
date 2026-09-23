@@ -18,10 +18,6 @@ vi.mock('@/features/chat/feedbackApi', () => ({
   updateMessageRating: vi.fn(),
 }));
 
-vi.mock('@/shared/data/mockData', () => ({
-  mockAgentSteps: [],
-}));
-
 import { updateMessageRating } from '@/features/chat/feedbackApi';
 import { sendChatQuery, sendChatQuerySSE } from '@/features/chat/chatApi';
 
@@ -206,6 +202,23 @@ describe('SSE idle timeout routes to connection-lost bubble', () => {
       expect(aiMessages[0].content).toBe(expectedGenericContent);
       expect(aiMessages[0].content).not.toBe(connectionLostContent);
     });
+  });
+});
+
+describe('useChat initial state', () => {
+  it('starts with no agent steps (no mock seed data)', () => {
+    const { result } = renderHook(() => useChat());
+    expect(result.current.currentSteps).toEqual([]);
+    expect(result.current.activeStepCount).toBe(0);
+    expect(result.current.messages).toEqual([]);
+  });
+
+  it('resets to no agent steps', () => {
+    const { result } = renderHook(() => useChat());
+    act(() => {
+      result.current.reset();
+    });
+    expect(result.current.currentSteps).toEqual([]);
   });
 });
 

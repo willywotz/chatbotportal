@@ -3,8 +3,9 @@
 Living source of truth. Prune on every change. Distilled from the retired `CONTEXT.md`; dated changelog dropped (it lives in Git history).
 
 ## Current Focus
-- Branch `feat/self-hosted-oidc`: Keycloak removed; backend is now its own OIDC provider/IdP (Auth-Code+PKCE/S256, RS256, JWKS, refresh rotation). Discovery/JWKS at root `/.well-known/*`, flow under `/oauth2/*`, issuer = root origin. Backend suite green (756). Frontend on `oidc-client-ts`, tsc clean, 43 auth tests green.
-- Next actionable: open PR `feat/self-hosted-oidc` → `dev`. Pre-existing (NOT from this work) frontend failures remain: `useTextScale`/`TextScaleControl`/`ChatConversation` fail with `window.localStorage` undefined under jsdom/Node 24.
+- Branch `chore/frontend-remove-mock` (off `main`): removed ALL runtime mock from the SPA. Deleted `src/shared/data/mockData.ts`, `src/mocks/browser.ts`, `public/mockServiceWorker.js`; dropped `VITE_USE_MOCKS` (main.tsx bootstrap, useAuth MOCK-admin, vite-env.d.ts, .env.example) and the mock fallbacks in `historyApi`/`dashboardApi`/`useChat`. MSW **test** harness KEPT (`src/mocks/handlers.ts`+`server.ts`+`fixtures.ts`); dashboard/history seed data moved from mockData into `fixtures.ts`. `dashboardApi` now uses real `AgencyUsageDatum`/`WeeklyTrendDatum`/`CategoryDatum` types (`shared/types/dashboard.ts`). `historyApi.fetchChatHistory` now throws on failure (no fallback). tsc clean; vitest 405 pass.
+- Next actionable: open PR `chore/frontend-remove-mock` → `dev`.
+- Pre-existing (NOT from this work) frontend failures remain: `useTextScale`/`TextScaleControl`/`ChatConversation` fail with `window.localStorage` undefined under jsdom/Node 24 (`--localstorage-file` not passed).
 
 ## Active Status
 - [x] SQLAlchemy 2 async + Alembic baseline (`versions/0001_initial.py`) + PGroonga. App is Tortoise-free (0 refs in `app`/`tests`).
@@ -49,7 +50,7 @@ All traffic via **caddy** (80/443, TLS auto via `CERT_DOMAIN`; `caddy/Caddyfile`
 
 ## Testing
 - backend: pytest `asyncio_mode=auto` over a **real Postgres+PGroonga testcontainer**; session-scoped container runs `alembic upgrade head`, `db_session` fixture = rolled-back txn, `client` fixture serves ASGI with `get_db` overridden. Requires Docker (Ryuk disabled in conftest). RBAC access-matrix tests live here.
-- frontend: vitest + jsdom + MSW (`src/mocks`, `VITE_USE_MOCKS`). Standalone `blackbox/` + `e2e/` removed; no E2E in CI.
+- frontend: vitest + jsdom + MSW. `src/mocks` (handlers/server/fixtures) is **test-only** — the SPA ships NO runtime mock and no `VITE_USE_MOCKS` flag. Standalone `blackbox/` + `e2e/` removed; no E2E in CI.
 
 ## CI/CD & deploy
 - Branches: `main`=prod (protected, PR-only), `dev`=dev. Branch off `dev`→PR→`dev`→PR→`main`. Never push `main`.

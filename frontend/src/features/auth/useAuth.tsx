@@ -20,17 +20,6 @@ export interface AuthState {
   signOut: () => void;
 }
 
-// Mock mode (MSW) has no real OIDC provider — stand in with a fixed admin so the
-// UI is browsable/testable without a login round-trip.
-const MOCK = import.meta.env.VITE_USE_MOCKS === "true";
-const MOCK_USER: AuthUser = {
-  id: "mock-admin",
-  email: "admin@example.com",
-  displayName: "Mock Admin",
-  role: "admin",
-  avatarUrl: null,
-};
-
 /**
  * App-facing auth hook. Wraps react-oidc-context and derives the user straight
  * from the OIDC profile (id-token claims) — no `/authentication/me` call.
@@ -58,10 +47,6 @@ export function useAuth(): AuthState {
     void oidc?.removeUser();
     window.location.href = "/";
   }, [oidc]);
-
-  if (MOCK) {
-    return { user: MOCK_USER, isAdmin: true, isLoading: false, signIn, signOut };
-  }
 
   const profile = oidc?.user?.profile;
   const user: AuthUser | null =
