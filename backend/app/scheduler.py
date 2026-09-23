@@ -7,7 +7,10 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from app.concurrency import spawn_logged
 from app.config import settings
-from app.models import Agency, ConnectionLog
+from app.db import AsyncSessionLocal
+from app.models import Agency
+from app.repositories import agency as agency_repo
+from app.repositories import connection_log as connection_log_repo
 from app.services.agency import test_connection
 from app.services.agency_reconcile import reconcile_statuses
 from app.services.analytics import regenerate_weekly_brief
@@ -51,15 +54,17 @@ async def _run_agency_item(agency: Agency) -> None:
             except ValueError:
                 latency = 0
             span.set_attribute("agency.api_latency_ms", latency)
-            await ConnectionLog.create(
-                id=str(generate_uuid()),
-                agency=agency,
-                action="test",
-                connection_type=agency.connection_type,
-                status="success" if result.get("success") else "error",
-                latency_ms=latency,
-                detail=sanitize_body(result.get("error") or "ok"),
-            )
+            async with AsyncSessionLocal() as session, session.begin():
+                await connection_log_repo.create(
+                    session,
+                    id=generate_uuid(),
+                    agency_id=agency.id,
+                    action="test",
+                    connection_type=agency.connection_type,
+                    status="success" if result.get("success") else "error",
+                    latency_ms=latency,
+                    detail=sanitize_body(result.get("error") or "ok"),
+                )
         except Exception as e:
             logger.error(f"Error testing agency {agency.name}: {e}")
             span.set_attribute("agency.error", str(e))
@@ -76,10 +81,14 @@ async def agency_chat_item(agency: Agency) -> None:
 
 async def agency_chat_test() -> None:
     logger.info("Running agency chat tests...")
-    agencies = await Agency.all()
+    async with AsyncSessionLocal() as session, session.begin():
+        agencies, _ = await agency_repo.list_and_count(
+            session, status="all", connection_type=None, search_text=None,
+        )
     await asyncio.gather(*[agency_chat_item(ag) for ag in agencies])
     try:
-        await reconcile_statuses()
+        async with AsyncSessionLocal() as session, session.begin():
+            await reconcile_statuses(session)
     except Exception as e:
         logger.error(f"Error reconciling agency statuses: {e}")
 
@@ -87,7 +96,8 @@ async def agency_chat_test() -> None:
 async def regenerate_brief_job() -> None:
     logger.info("Regenerating weekly brief...")
     try:
-        await regenerate_weekly_brief()
+        async with AsyncSessionLocal() as session, session.begin():
+            await regenerate_weekly_brief(session)
     except Exception as e:
         logger.error(f"Error regenerating weekly brief: {e}")
 
@@ -95,7 +105,8 @@ async def regenerate_brief_job() -> None:
 async def regenerate_popular_questions_job() -> None:
     logger.info("Regenerating popular questions...")
     try:
-        n = await regenerate_popular_questions()
+        async with AsyncSessionLocal() as session, session.begin():
+            n = await regenerate_popular_questions(session)
         logger.info("Popular questions regenerated: %d new row(s)", n)
     except Exception as e:
         logger.error(f"Error regenerating popular questions: {e}")
@@ -104,7 +115,8 @@ async def regenerate_popular_questions_job() -> None:
 async def purge_old_connection_logs() -> int:
     logger.info("Purging old connection logs...")
     cutoff = now() - timedelta(days=settings.CONNECTION_LOG_RETENTION_DAYS)
-    return await ConnectionLog.filter(created_at__lt=cutoff).delete()
+    async with AsyncSessionLocal() as session, session.begin():
+        return await connection_log_repo.delete_older_than(session, cutoff)
 
 
 async def start_scheduler() -> None:

@@ -13,7 +13,8 @@ from starlette.responses import PlainTextResponse
 
 from app.auth.keycloak import InvalidToken, verify_token
 from app.config import settings
-from app.models.agency import Agency
+from app.db import AsyncSessionLocal
+from app.repositories import agency as agency_repo
 from app.trace_util import with_trace_query
 from app.utils import generate_uuid
 
@@ -82,17 +83,8 @@ async def _fetch_agencies(ctx: Context) -> list[dict]:
     request = get_http_request()
     user_is_admin = await ctx.get_state("user_is_admin")
 
-    agencies = await Agency.all().values(
-        "id",
-        "name",
-        "status",
-        "description",
-        "connection_type",
-        "data_scope",
-        "endpoint_url",
-        "expected_payload",
-        "api_headers",
-    )
+    async with AsyncSessionLocal() as session, session.begin():
+        agencies = await agency_repo.list_for_mcp(session)
 
     placeholders = {
         "__user_id__": str(await ctx.get_state("user_id") or generate_uuid()),

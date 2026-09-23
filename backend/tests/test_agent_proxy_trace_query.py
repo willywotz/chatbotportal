@@ -5,20 +5,33 @@ with QueryTraceparentASGI promotes it to a header before OTel extraction.
 import json
 
 import httpx
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.main import asgi_app
-from app.models import Agency
+from app.repositories import agency as agency_repo
 from app.services import agent_proxy
+
+pytestmark = pytest.mark.asyncio
 
 _TRACE_ID = "0af7651916cd43dd8448eb211c80319c"
 _QUERY_TRACEPARENT = f"00-{_TRACE_ID}-b7ad6b7169203331-01"
 
 
-async def test_query_traceparent_promoted_to_upstream_header(db, monkeypatch):
-    agency = await Agency.create(
+async def test_query_traceparent_promoted_to_upstream_header(db_session, monkeypatch):
+    conn = await db_session.connection()
+    factory = async_sessionmaker(
+        bind=conn, class_=AsyncSession, expire_on_commit=False,
+        join_transaction_mode="create_savepoint",
+    )
+    monkeypatch.setattr(agent_proxy, "AsyncSessionLocal", factory)
+
+    agency = await agency_repo.create(
+        db_session,
         name="Dept", connection_type="API", status="active",
         endpoint_url="http://upstream.test/chat", expected_payload={}, api_headers=[],
     )
+    await db_session.flush()
 
     seen = {}
 

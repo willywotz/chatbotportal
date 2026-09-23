@@ -1,3 +1,5 @@
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.services.llm import client, usage
 from app.services.llm.client import (
     KNOWN_PURPOSES, LlmError, LlmPingResult, LlmResult, LlmUsageInfo, invalidate, ping,
@@ -5,12 +7,12 @@ from app.services.llm.client import (
 from app.services.llm.purpose import Purpose
 
 
-async def chat(*, purpose: Purpose, messages: list[dict], tools: list | None = None,
+async def chat(session: AsyncSession, *, purpose: Purpose, messages: list[dict], tools: list | None = None,
                tool_choice=None, max_tokens: int | None = None,
                user_id=None, agency_id=None, conversation_id=None) -> LlmResult:
     """Public LLM entry point: pure transport (client.chat) then usage accounting."""
-    result = await client.chat(purpose=purpose, messages=messages, tools=tools,
+    result = await client.chat(session, purpose=purpose, messages=messages, tools=tools,
                                tool_choice=tool_choice, max_tokens=max_tokens)
-    await usage.record(result.usage, purpose=purpose, user_id=user_id,
+    await usage.record(session, result.usage, purpose=purpose, user_id=user_id,
                        agency_id=agency_id, conversation_id=conversation_id)
     return result

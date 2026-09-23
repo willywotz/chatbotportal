@@ -29,9 +29,9 @@ All traffic enters through **caddy** on ports 80/443; services talk over the `ch
 | Service | Tech | Role |
 |---|---|---|
 | **caddy** | Caddy 2 | Reverse proxy + TLS terminator. HTTP on `EXTERNAL_HTTP_PORT`, HTTPS on `EXTERNAL_HTTPS_PORT`. Routing in `caddy/Caddyfile`. Obtains + renews the Let's Encrypt cert itself. |
-| **backend** | Python 3.12 · FastAPI · Tortoise ORM · FastMCP | REST API (`/api/v1`), MCP server (`/mcp`), scheduler, auth. Port 8080. |
+| **backend** | Python 3.12 · FastAPI · SQLAlchemy 2 (async) · Alembic · FastMCP | REST API (`/api/v1`), MCP server (`/mcp`), scheduler, auth. Port 8080. |
 | **frontend** | React 18 · Vite 5 · TS · shadcn/ui | SPA admin + public portal. Port 8080. |
-| **postgres** | pgvector/pgvector:pg16 | Shared DB (backend). Extension `pg_trgm` created by migrations on backend startup (`app/database.py` → aerich upgrade). |
+| **postgres** | groonga/pgroonga:4.0.8-debian-17 (PG17) | Shared DB (backend). Extension `pgroonga` + the `messages.content` PGroonga index created by the Alembic baseline on backend startup (`app/db.py::init_db` → `alembic upgrade head`). |
 | **jaeger** | jaegertracing/jaeger:2.18.0 | OTLP tracing sink (`jaeger:4317`), UI proxied at `/jaeger/`. |
 
 **caddy routing (`caddy/Caddyfile`, single source of truth):**
@@ -59,11 +59,12 @@ to the real incoming scheme automatically (no nginx `$scheme` overwrite). See `d
 `backend/app/routers/chat.py`.
 
 1. **Similarity cache** (new conversations only): `services/similarity.py`
-   `find_similar_question()` uses **`pg_trgm`** trigram similarity (`SIMILARITY_THRESHOLD` 0.95,
-   `SIMILARITY_WINDOW_SECONDS` 3 days) over prior successful turns. Hit → copy cached answer
-   (no new ConnectionLog, so copies never re-cache). Vector embeddings were removed in favor of
-   `pg_trgm` (migration `19_..._drop_embedding_add_pg_trgm`); the `vector` extension is installed
-   but not currently used for chat similarity. Note: `Conversation.status="failed"` is a one-way
+   `find_similar_question(session, query)` uses **PGroonga similar-search** (`content &@* :query`
+   ordered by `pgroonga_score`, `SIMILARITY_THRESHOLD` 0.95 reinterpreted as a PGroonga **score
+   floor — needs retuning**, `SIMILARITY_WINDOW_SECONDS` 3 days) over prior successful turns. Hit →
+   copy cached answer (no new ConnectionLog, so copies never re-cache). PGroonga replaced the earlier
+   `pg_trgm` trigram approach (better for Thai); vector embeddings were removed long ago. Tune via the
+   PGroonga tokenizer/normalizer (`NormalizerNFKC150`). Note: `Conversation.status="failed"` is a one-way
    ratchet, so failed turns never poison the cache.
 2. **Dispatch to OneChat** via the transport client `services/onechat/` (`get_client(version)` →
    `OneChatClient`): sync `/chat` → `chat_external()` calls `chat_v3()`; `/chat/stream` and the
@@ -138,7 +139,7 @@ start scheduler → mount MCP. `uvicorn --workers 4` in prod, so MCP runs **stat
   `public_status` also exposes anonymous `GET /public/agencies` — a display-safe agency directory
   (id/name/short_name/logo/description/connection_type/status, non-draft only; no internals) that
   feeds the portal's หน่วยงานที่เชื่อมต่อ block.
-- `models/` — Tortoise ORM (see Data model).
+- `models/` — SQLAlchemy 2 declarative (see Data model).
 - `schemas/` — Pydantic request/response models.
 - `services/` — domain logic: `agency*` (health, lifecycle, reconcile, conformance),
   `chat/` (dispatch, llm, turn, **`stream`** — the transport-free turn pipeline shared by
@@ -218,7 +219,14 @@ route". The panel shows ✓ latency / ✗ error inline.
 
 **Tests:** pytest (`asyncio_mode=auto`, `backend/tests/`), httpx AsyncClient transport.
 
-## Data model (Tortoise ORM, `app/models/`)
+## Data model (SQLAlchemy 2 declarative, `app/models/`)
+
+> Access is via **module-level repository functions** in `app/repositories/*` that take an
+> `AsyncSession` first arg. Routers depend on `get_db` (one transaction per request,
+> commit-on-success); non-request contexts (scheduler, MCP, seed, chat-stream persistence,
+> agent-proxy, rate-limit, outbox dispatch) open their own short `AsyncSessionLocal()` + `begin()`.
+> Enum columns are `Enum(native_enum=False, create_constraint=False)` (varchar, coerced on read);
+> all datetime columns are `timestamptz`; `Base` sets `eager_defaults=True`.
 
 | Model | Table | Purpose / key fields |
 |---|---|---|
@@ -236,11 +244,11 @@ route". The panel shows ✓ latency / ✗ error inline.
 | `Setting` | `settings` | Runtime config overrides (key/value/type/group/is_secret), loaded at startup over env defaults. |
 | `PopularQuestion` | `popular_questions` | คำถามยอดนิยม shown on portal/chat. `text`, unique normalized `text_key` (dedupe + hidden-tombstone), nullable `agency` FK (SET_NULL), `source` (seed/auto/manual), `pinned`, `hidden`, `sort_order`, `score`. Published = not-hidden, pinned→sort_order→score→recency, capped `POPULAR_QUESTIONS_DISPLAY_COUNT` (8). |
 
-Migrations: **aerich** (`backend/migrations/`, **27 applied, `0`–`26`**; recent: `19` drop
-embedding + add pg_trgm, `24` drop `relationships`/collapse roles, `25` drop rate-limit columns,
-`26` promote `user`→`staff`). **Never hand-carry `MODELS_STATE`** —
-always regenerate via `aerich migrate` against an upgraded DB. See `docs/aerich-migrations.md`
-and the mandatory rules in `CLAUDE.md`.
+Migrations: **Alembic** (`backend/alembic/`, async env sourcing the URL from settings). The prior
+Tortoise/Aerich history was squashed into a single baseline `versions/0001_initial.py` (creates the
+`pgroonga` extension, all 15 tables with FK ondelete, and the `messages.content` PGroonga index).
+`init_db()` runs `alembic upgrade head` at startup (no `create_all`/`generate_schemas`). Add a schema
+change by editing a model then `uv run alembic revision --autogenerate -m "..."`, reviewing the diff.
 
 ## Auth & RBAC (Keycloak — migrated 2026-08-19)
 
@@ -287,9 +295,13 @@ Auth is **Keycloak OIDC**. There is **no local password/session/API-key auth** �
   disabled on your own row). The old last-admin guardrail lives in the **Keycloak console** (the
   authoritative recovery path with a bootstrap admin). A user's name is a single **display name**
   (stored in Keycloak `firstName`; `_display_name` reads it). The realm's declarative user profile
-  (`realm-export.json` → `attributes["kc.user.profile.config"]`) makes `firstName`/`lastName`
-  **optional** and hides `lastName` from users, so first login does not force a first/last-name
-  screen — without this, Keycloak 26 requires both by default.
+  (`realm-export.json` → `components["org.keycloak.userprofile.UserProfileProvider"]`, provider
+  `declarative-user-profile`, `config.kc.user.profile.config` as a one-element array) makes
+  `firstName`/`lastName` **optional** and hides `lastName` from users (admin-only edit), so first
+  login does not force a first/last-name screen — without this, Keycloak 26 requires both by default.
+  **Must live under `components`, not the realm-level `attributes` map** — `--import-realm` ignores
+  a profile config placed in `attributes` and silently falls back to the default (both names
+  required), which is exactly what caused the forced-lastName screen before this fix.
 - **MCP mount (`/mcp`) is outside** the app (mounted sub-app). Its own `AuthMiddleware`
   (`mcp/server.py`) verifies a Keycloak **bearer** via `verify_token` when present, else anonymous;
   no role check. See `tests/test_mcp_role_access.py`.
@@ -482,9 +494,11 @@ usage, feedback, public, status, auth). Shared code in `src/shared/*`. Package m
 
 ## Testing suites
 
-- **backend/tests** — pytest (`asyncio_mode=auto`), in-process httpx AsyncClient over a SQLite
-  `:memory:` DB; Postgres-only paths (pg_trgm similarity, some analytics SQL) are `skipif`-gated on
-  `TEST_PG_URL`. The RBAC "access matrix" now lives here as `test_basic_user_allowlist` /
+- **backend/tests** — pytest (`asyncio_mode=auto`) over a **real Postgres+PGroonga testcontainer**
+  (`groonga/pgroonga:4.0.8-debian-17`); a session-scoped container runs `alembic upgrade head`, the
+  `db_session` fixture gives each test a rolled-back transaction, and the `client` fixture serves the
+  ASGI app with `get_db` overridden to it. All paths (PGroonga similarity, analytics SQL) run for real
+  now — no SQLite, no skipif gating. Requires Docker (Ryuk disabled in conftest for credential-store envs). The RBAC "access matrix" now lives here as `test_basic_user_allowlist` /
   `test_staff_allowlist` / `test_residual_role_denied` / `test_mcp_role_access` / `test_surface_parity`.
 - **frontend** — vitest + jsdom + MSW, colocated `*.test.tsx`/`*.test.ts` throughout `src/features`.
 - The former standalone **`blackbox/`** (vitest access-matrix) and **`e2e/`** (Playwright) suites
@@ -1598,3 +1612,38 @@ Branch `refactor/mcp-server-cleanup`. Cleaned `app/mcp/server.py`.
 - **Surface reduced:** removed the `agencies://list` MCP **resource** (and its now-dead `_serialize` /
   `datetime` import); the `list_agency` **tool** is the single surface. Nothing referenced the resource.
   MCP suite now **22 pass**.
+
+### 2026-08-19 — Migrate Tortoise-ORM + Aerich → SQLAlchemy 2 (async) + Alembic + PGroonga
+
+Branch `refactor/sqlalchemy-migration`. Spec `docs/superpowers/specs/2026-08-19-tortoise-to-sqlalchemy-migration-design.md`,
+plan `docs/superpowers/plans/2026-08-19-tortoise-to-sqlalchemy-migration.md`. Big-bang cutover; **full
+suite 719 passed / 0 errors** on real Postgres, app boots clean (`alembic upgrade head` → seed → `/health` ok).
+
+- **ORM:** all 15 models → SQLAlchemy 2 declarative (`Mapped`/`mapped_column`), `Base` with
+  `eager_defaults=True` + naming convention. Enum columns `Enum(native_enum=False, create_constraint=False,
+  length=n)` (varchar, coerced on read — services rely on `.status.value`). **All datetime columns
+  `DateTime(timezone=True)`** (matches the original `TIMESTAMPTZ`; a naive-`timestamp` drift was caught
+  and fixed). `Conversation.metadata` field → attribute `meta` (avoids `Base.metadata` clash).
+- **Session model:** `app/db.py` `get_db` dependency owns one transaction per request
+  (`async with session.begin()`, commit-on-success). No Unit-of-Work object. Repositories are
+  **module-level functions taking `session` first**; services take `session` and never commit.
+  Non-request contexts + chat-stream persistence open their own short `AsyncSessionLocal()`+`begin()`
+  (stream never pins a connection across the SSE/WS stream). Transactional outbox stays atomic:
+  `events.publish(session, …)` writes the `DomainEvent` on the caller's transaction.
+- **Full repository layer:** `app/repositories/*` — write-model repos per aggregate + read-model repos
+  (`analytics`, `feedback_read`, `public_status_read`, `similarity`) owning all raw SQL. **Services import
+  zero `tortoise` and hold zero raw queries.**
+- **Search:** pg_trgm → **PGroonga** (`content &@* :query` + `pgroonga_score`); image
+  `pgvector/pgvector:pg16` → `groonga/pgroonga:4.0.8-debian-17`. `SIMILARITY_THRESHOLD` is now a PGroonga
+  score floor — **needs retuning**; tokenizer/normalizer (`NormalizerNFKC150`) is the knob.
+- **Migrations:** Aerich tree deleted; single squashed Alembic baseline `0001_initial.py`. `init_db()`
+  runs `alembic upgrade head` (no `generate_schemas`).
+- **Tests:** SQLite fixture → real Postgres+PGroonga testcontainer (`db_session`/`client` fixtures).
+- **Bugs fixed en route (caught by real-Postgres tests / real boot):** enum read-type, timestamptz drift,
+  `Base.eager_defaults` (post-UPDATE `updated_at` expired → sync-serialization crash), `Message.agent_steps`
+  accepts dict, and **3 `chat()` calls missing `session`** (weekly brief / eval judge / spec parse — mocked
+  in tests, would crash at runtime).
+- **Known follow-ups (non-blocking):** retune PGroonga score floor; `analytics` uptime uses
+  `status >= 'success'` (faithful to original, tighten if a new status is added); LLM-call-inside-transaction
+  pins a pooled connection for background jobs; `domain_events` unbounded + no `dispatched_at` partial index +
+  multi-worker double-delivery (all **pre-existing**, out of migration scope).

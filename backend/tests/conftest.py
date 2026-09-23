@@ -1,24 +1,33 @@
 """
 Shared pytest fixtures.
 
-`db` spins up an in-memory SQLite database with the app's Tortoise models so
-tests that exercise real queries (e.g. admin-count guardrails) run without a
-live PostgreSQL instance. SQLite is sufficient: the User model uses only
-portable field types (UUID/Char/Boolean/Datetime).
+`db_session` runs the app's Alembic migrations against a session-scoped
+Postgres+PGroonga testcontainer, then hands each test an `AsyncSession`
+bound to an outer transaction that is rolled back afterward. Nested writes
+inside a test use savepoints, so a test's own commits never leak.
 """
 
+import asyncio
+import os
 import time
 import uuid
+
+# This machine's docker credsStore breaks the testcontainers Ryuk sidecar pull;
+# session-scoped containers are cleaned up by their context manager regardless.
+os.environ.setdefault("TESTCONTAINERS_RYUK_DISABLED", "true")
 
 import jwt
 import pytest
 import pytest_asyncio
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from tortoise import Tortoise
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
+from testcontainers.postgres import PostgresContainer
 
 from app.auth.dependencies import get_current_user
 from app.auth.keycloak import Principal
+from app.config import settings
 
 _KID = "test-key"
 
@@ -52,17 +61,77 @@ def as_principal():
     installed["app"].dependency_overrides.pop(get_current_user, None)
 
 
-@pytest_asyncio.fixture(scope="function")
-async def db():
-    await Tortoise.init(
-        db_url="sqlite://:memory:",
-        modules={"models": ["app.models"]},
-    )
-    await Tortoise.generate_schemas()
+@pytest.fixture(scope="session")
+def pg_container():
+    with PostgresContainer("groonga/pgroonga:4.0.8-debian-17", driver="asyncpg") as pg:
+        yield pg
+
+
+@pytest_asyncio.fixture(scope="session")
+async def _engine(pg_container):
+    from alembic import command
+    from alembic.config import Config
+
+    url = pg_container.get_connection_url()
+    settings.DATABASE_URL = url  # alembic/env.py derives sqlalchemy.url from settings
+    cfg = Config("alembic.ini")
+    cfg.set_main_option("sqlalchemy.url", url)
+    await asyncio.to_thread(command.upgrade, cfg, "head")
+
+    # NullPool: a session-scoped engine outlives many function-scoped event loops
+    # (pytest-asyncio default); pooled connections from a prior loop would error
+    # with "attached to a different loop" on reuse.
+    engine = create_async_engine(url, poolclass=NullPool)
+    yield engine
+    await engine.dispose()
+
+
+@pytest_asyncio.fixture(scope="session", autouse=True)
+async def _bind_app_engine(_engine):
+    """Point the app's own-session factory at the test container so services
+    that open their OWN `AsyncSessionLocal()` hit the same test DB."""
+    import app.db as _db
+
+    _db.engine = _engine
+    _db.AsyncSessionLocal = async_sessionmaker(_engine, class_=AsyncSession, expire_on_commit=False)
+    yield
+
+
+@pytest_asyncio.fixture
+async def client(db_session):
+    """ASGI test client with `get_db` overridden to the test's `db_session`."""
+    from httpx import ASGITransport, AsyncClient
+
+    from app.db import get_db
+    from app.main import app
+
+    async def _override():
+        yield db_session
+
+    app.dependency_overrides[get_db] = _override
     try:
-        yield
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            yield c
     finally:
-        await Tortoise.close_connections()
+        app.dependency_overrides.pop(get_db, None)
+
+
+@pytest_asyncio.fixture
+async def db_session(_engine):
+    """Outer transaction rolled back after each test; nested writes use savepoints."""
+    conn = await _engine.connect()
+    trans = await conn.begin()
+    factory = async_sessionmaker(
+        bind=conn, class_=AsyncSession, expire_on_commit=False,
+        join_transaction_mode="create_savepoint",
+    )
+    session = factory()
+    try:
+        yield session
+    finally:
+        await session.close()
+        await trans.rollback()
+        await conn.close()
 
 
 @pytest_asyncio.fixture(autouse=True)

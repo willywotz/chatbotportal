@@ -1,5 +1,4 @@
 """Merged POST /chat: JSON by default, SSE when stream=true, model picks version."""
-import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -9,6 +8,8 @@ from app.routers import chat as chat_router
 from app.schemas.chat import ChatRequest
 from app.services.chat import stream as turn_stream
 from app.services.chat.stream import ChatEvent
+
+pytestmark = pytest.mark.asyncio
 
 
 def _events():
@@ -27,8 +28,7 @@ def _fake_run_turn(*events):
     return gen
 
 
-@pytest.mark.asyncio
-async def test_json_response_default(db):
+async def test_json_response_default(db_session):
     with patch.object(turn_stream, "find_similar_question", new=AsyncMock(return_value=None)), \
          patch.object(chat_router, "run_turn", _fake_run_turn(*_events())), \
          patch("app.services.chat.aggregate.run_turn", _fake_run_turn(*_events())):
@@ -41,8 +41,7 @@ async def test_json_response_default(db):
     assert result["responseTime"] == 42
 
 
-@pytest.mark.asyncio
-async def test_sse_response_when_stream_true(db):
+async def test_sse_response_when_stream_true(db_session):
     with patch.object(turn_stream, "find_similar_question", new=AsyncMock(return_value=None)), \
          patch.object(chat_router, "run_turn", _fake_run_turn(*_events())):
         resp = await chat_router.chat(ChatRequest(query="q", stream=True), BackgroundTasks(), None)
@@ -53,16 +52,14 @@ async def test_sse_response_when_stream_true(db):
     assert "event: done" in text
 
 
-@pytest.mark.asyncio
-async def test_empty_query_is_400(db):
+async def test_empty_query_is_400(db_session):
     from fastapi import HTTPException
     with pytest.raises(HTTPException) as exc:
         await chat_router.chat(ChatRequest(query="   "), BackgroundTasks(), None)
     assert exc.value.status_code == 400
 
 
-@pytest.mark.asyncio
-async def test_model_selects_version_v3(db):
+async def test_model_selects_version_v3(db_session):
     captured = {}
 
     async def fake_prepare(*, query, conversation_id, user, is_continuation, requested_version=None):

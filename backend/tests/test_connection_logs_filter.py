@@ -1,38 +1,28 @@
 """Characterization + new-filter tests for GET /connection-logs."""
-import pytest
-
-from app.main import app
-from app.models import Agency, ConnectionLog
-from httpx import ASGITransport, AsyncClient
+from app.models import AgencyStatus
+from app.repositories import agency as agency_repo
+from app.repositories import connection_log as connection_log_repo
 
 
-async def _client():
-    return AsyncClient(transport=ASGITransport(app=app), base_url="http://t")
-
-
-@pytest.mark.usefixtures("db")
-async def test_connection_logs_paginate_unchanged(as_principal):
+async def test_connection_logs_paginate_unchanged(client, as_principal, db_session):
     as_principal()
-    ag = await Agency.create(name="A", status="active")
+    ag = await agency_repo.create(db_session, name="A", status=AgencyStatus.active)
     for _ in range(5):
-        await ConnectionLog.create(agency=ag, connection_type="API", status="success", action="test")
-    async with await _client() as c:
-        r = await c.get("/api/v1/connection-logs", params={"page": 1, "limit": 2, "include_test": True})
+        await connection_log_repo.create(db_session, agency_id=ag.id, connection_type="API", status="success", action="test")
+    r = await client.get("/api/v1/connection-logs", params={"page": 1, "limit": 2, "include_test": True})
     body = r.json()
     assert len(body["items"]) == 2            # CURRENT behavior — pinned
     assert body["total_items"] == 5
 
 
-@pytest.mark.usefixtures("db")
-async def test_status_and_type_filters_apply_to_items_and_stats(as_principal):
+async def test_status_and_type_filters_apply_to_items_and_stats(client, as_principal, db_session):
     as_principal()
-    ag = await Agency.create(name="A", status="active")
-    await ConnectionLog.create(agency=ag, connection_type="API", status="success", action="test")
-    await ConnectionLog.create(agency=ag, connection_type="API", status="error", action="test")
-    await ConnectionLog.create(agency=ag, connection_type="MCP", status="success", action="test")
-    async with await _client() as c:
-        r = await c.get("/api/v1/connection-logs",
-                        params={"status": "success", "connection_type": "API", "include_test": True})
+    ag = await agency_repo.create(db_session, name="A", status=AgencyStatus.active)
+    await connection_log_repo.create(db_session, agency_id=ag.id, connection_type="API", status="success", action="test")
+    await connection_log_repo.create(db_session, agency_id=ag.id, connection_type="API", status="error", action="test")
+    await connection_log_repo.create(db_session, agency_id=ag.id, connection_type="MCP", status="success", action="test")
+    r = await client.get("/api/v1/connection-logs",
+                         params={"status": "success", "connection_type": "API", "include_test": True})
     body = r.json()
     assert len(body["items"]) == 1
     assert body["total_items"] == 1
@@ -40,12 +30,10 @@ async def test_status_and_type_filters_apply_to_items_and_stats(as_principal):
     assert body["failed_connections"] == 0
 
 
-@pytest.mark.usefixtures("db")
-async def test_page_size_alias_for_limit(as_principal):
+async def test_page_size_alias_for_limit(client, as_principal, db_session):
     as_principal()
-    ag = await Agency.create(name="A", status="active")
+    ag = await agency_repo.create(db_session, name="A", status=AgencyStatus.active)
     for _ in range(4):
-        await ConnectionLog.create(agency=ag, connection_type="API", status="success", action="test")
-    async with await _client() as c:
-        r = await c.get("/api/v1/connection-logs", params={"page_size": 2, "include_test": True})
+        await connection_log_repo.create(db_session, agency_id=ag.id, connection_type="API", status="success", action="test")
+    r = await client.get("/api/v1/connection-logs", params={"page_size": 2, "include_test": True})
     assert len(r.json()["items"]) == 2

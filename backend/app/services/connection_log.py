@@ -3,40 +3,25 @@ from __future__ import annotations
 import uuid
 from datetime import timedelta
 
-from tortoise.exceptions import DoesNotExist
-from tortoise.functions import Avg
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.errors import ApiError, ErrorCode
-from app.models import Agency, ConnectionLog
+from app.models.connection_log import ConnectionLog
+from app.repositories import agency as agency_repo
+from app.repositories import analytics as analytics_repo
+from app.repositories import connection_log as connection_log_repo
 from app.utils import now
 
 
-def _base_queryset(include_test: bool):
-    qs = ConnectionLog.all()
-    return qs if include_test else qs.exclude(action="test")
-
-
-async def _average_latency_ms(qs) -> int:
-    cutoff = now() - timedelta(days=settings.AVG_LATENCY_WINDOW_DAYS)
-    rows = await qs.filter(created_at__gte=cutoff).annotate(avg=Avg("latency_ms")).values("avg")
-    return int(rows[0]["avg"] or 0) if rows else 0
-
-
-async def _stats(qs) -> dict:
-    return {
-        "total_connections": await qs.count(),
-        "successful_connections": await qs.filter(status="success").count(),
-        "failed_connections": await qs.filter(status="error").count(),
-        "average_latency_ms": await _average_latency_ms(qs),
-    }
-
-
-async def get_stats(include_test: bool) -> dict:
-    return await _stats(_base_queryset(include_test))
+async def get_stats(session: AsyncSession, include_test: bool) -> dict:
+    since = now() - timedelta(days=settings.AVG_LATENCY_WINDOW_DAYS)
+    return await analytics_repo.connection_log_stats(session, since=since, include_test=include_test)
 
 
 async def list_logs(
+    session: AsyncSession,
     *,
     search: str | None,
     agency_id: str | None,
@@ -46,33 +31,41 @@ async def list_logs(
     page: int,
     limit: int,
 ) -> tuple[list[ConnectionLog], dict]:
-    qs = _base_queryset(include_test)
+    filters = [] if include_test else [ConnectionLog.action != "test"]
     if search:
-        qs = qs.filter(detail__icontains=search)
+        filters.append(ConnectionLog.detail.ilike(f"%{search}%"))
+
+    agency_uuid = None
     if agency_id:
         try:
             agency_uuid = uuid.UUID(agency_id)
-            await Agency.get(id=agency_uuid)
-            qs = qs.filter(agency_id=agency_uuid)
-        except (ValueError, DoesNotExist):
+        except ValueError:
             raise ApiError(ErrorCode.INVALID_REQUEST, "Invalid agency ID", status=400)
+        if await agency_repo.by_id(session, agency_uuid) is None:
+            raise ApiError(ErrorCode.INVALID_REQUEST, "Invalid agency ID", status=400)
+        filters.append(ConnectionLog.agency_id == agency_uuid)
+
     if status_filter:
-        qs = qs.filter(status=status_filter)
+        filters.append(ConnectionLog.status == status_filter)
     if connection_type:
-        qs = qs.filter(connection_type=connection_type)
+        filters.append(ConnectionLog.connection_type == connection_type)
 
-    qs_pagination = qs
+    stmt = select(ConnectionLog).where(*filters).order_by(ConnectionLog.created_at.desc())
     if page and limit:
-        qs_pagination = qs.offset((page - 1) * limit).limit(limit)
+        stmt = stmt.offset((page - 1) * limit).limit(limit)
+    logs = list((await session.execute(stmt)).scalars().all())
 
-    logs = await qs_pagination.order_by("-created_at")
-    stats = await _stats(qs)
+    since = now() - timedelta(days=settings.AVG_LATENCY_WINDOW_DAYS)
+    stats = await analytics_repo.connection_log_stats(
+        session, since=since, agency_id=agency_uuid, status=status_filter,
+        connection_type=connection_type, search=search, include_test=include_test,
+    )
     stats["total_items"] = stats["total_connections"]
     return logs, stats
 
 
-async def get_log(log_id: str) -> ConnectionLog:
-    try:
-        return await ConnectionLog.get(id=log_id)
-    except DoesNotExist:
+async def get_log(session: AsyncSession, log_id: str) -> ConnectionLog:
+    log = await connection_log_repo.get(session, log_id)
+    if log is None:
         raise ApiError(ErrorCode.NOT_FOUND, "Connection log not found", status=404)
+    return log

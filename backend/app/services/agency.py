@@ -5,12 +5,14 @@ from typing import Any
 from uuid import UUID
 
 import httpx
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.db import AsyncSessionLocal
 from app.errors import ApiError, ErrorCode
 from app.models.agency import Agency
-from app.models.connection_log import ConnectionLog
 from app.repositories import agency as agency_repo
+from app.repositories import connection_log as connection_log_repo
 from app.schemas.agency import AgencyCreate, AgencyUpdate
 from app.services.cache_flush import flush_similarity_cache
 from app.services.log_sanitize import sanitize_body
@@ -27,18 +29,18 @@ _CONNECTION_IDENTITY_FIELDS = frozenset(
 )
 
 
-async def get_agency_or_404(agency_id: UUID) -> Agency:
-    agency = await agency_repo.by_id(agency_id)
+async def get_agency_or_404(session: AsyncSession, agency_id: UUID) -> Agency:
+    agency = await agency_repo.by_id(session, agency_id)
     if agency is None:
         raise ApiError(ErrorCode.NOT_FOUND, "Agency not found", status=404)
     return agency
 
 
 async def list_agencies(
-    *, status_filter: str, connection_type: str | None, search: str | None
+    session: AsyncSession, *, status_filter: str, connection_type: str | None, search: str | None
 ) -> tuple[list[Agency], int]:
     return await agency_repo.list_and_count(
-        status=status_filter, connection_type=connection_type, search_text=search)
+        session, status=status_filter, connection_type=connection_type, search_text=search)
 
 
 def _flatten_agency_payload(body: AgencyCreate) -> dict:
@@ -50,25 +52,31 @@ def _flatten_agency_payload(body: AgencyCreate) -> dict:
     return data
 
 
-async def create_agency(body: AgencyCreate) -> Agency:
-    return await agency_repo.create(**_flatten_agency_payload(body))
+def _apply(agency: Agency, data: dict) -> None:
+    for field, value in data.items():
+        setattr(agency, field, value)
+
+
+async def create_agency(session: AsyncSession, body: AgencyCreate) -> Agency:
+    return await agency_repo.create(session, **_flatten_agency_payload(body))
 
 
 async def _flush_similarity_cache_best_effort() -> None:
     try:
-        await flush_similarity_cache()
+        async with AsyncSessionLocal() as session, session.begin():
+            await flush_similarity_cache(session)
     except Exception:
         logger.exception("failed to flush similarity cache after agency update")
 
 
-async def replace_agency(agency: Agency, body: AgencyCreate) -> Agency:
-    agency.update_from_dict(_flatten_agency_payload(body))
-    await agency_repo.save(agency)
+async def replace_agency(session: AsyncSession, agency: Agency, body: AgencyCreate) -> Agency:
+    _apply(agency, _flatten_agency_payload(body))
+    await agency_repo.save(session, agency)
     await _flush_similarity_cache_best_effort()
     return agency
 
 
-async def update_agency(agency: Agency, body: AgencyUpdate) -> Agency:
+async def update_agency(session: AsyncSession, agency: Agency, body: AgencyUpdate) -> Agency:
     update_data = body.model_dump(exclude_unset=True)
 
     for field in ("api_endpoints", "response_schema", "api_headers"):
@@ -83,23 +91,23 @@ async def update_agency(agency: Agency, body: AgencyUpdate) -> Agency:
         update_data["status"] = "draft"
         update_data["conformance_report"] = None
 
-    agency.update_from_dict(update_data)
-    await agency_repo.save(agency)
+    _apply(agency, update_data)
+    await agency_repo.save(session, agency)
     await _flush_similarity_cache_best_effort()
     return agency
 
 
-async def delete_agency(agency: Agency) -> None:
-    await agency_repo.delete(agency)
+async def delete_agency(session: AsyncSession, agency: Agency) -> None:
+    await agency_repo.delete(session, agency)
 
 
-async def increment_calls(agency: Agency) -> Agency:
-    return await agency_repo.increment_calls(agency)
+async def increment_calls(session: AsyncSession, agency: Agency) -> Agency:
+    return await agency_repo.increment_calls(session, agency)
 
 
-async def update_logo(agency: Agency, logo_url: str) -> Agency:
+async def update_logo(session: AsyncSession, agency: Agency, logo_url: str) -> Agency:
     agency.logo = logo_url
-    await agency_repo.save(agency, update_fields=["logo", "updated_at"])
+    await agency_repo.save(session, agency, update_fields=["logo", "updated_at"])
     return agency
 
 
@@ -165,7 +173,7 @@ async def test_connection(connection_type: str, agency: Agency) -> dict[str, Any
     }
 
 
-async def run_connection_test(agency: Agency) -> dict[str, Any]:
+async def run_connection_test(session: AsyncSession, agency: Agency) -> dict[str, Any]:
     """Probe `agency`, persist the reset baseline, auto-recover a rule-set
     maintenance agency on success, and record a ConnectionLog row."""
     agency.stats_reset_at = now()
@@ -176,18 +184,25 @@ async def run_connection_test(agency: Agency) -> dict[str, Any]:
         agency.status = "active"
         agency.auto_maintenance = False
         update_fields += ["status", "auto_maintenance"]
-    await agency_repo.save(agency, update_fields=update_fields)
+    await agency_repo.save(session, agency, update_fields=update_fields)
 
     latency_ms = int(raw["latency"].replace("ms", ""))
     status_code = raw.get("statusCode")
     detail = sanitize_body(raw.get("error") or (f"HTTP {status_code}" if status_code else raw["protocol"]))
-    await ConnectionLog.create(
-        agency=agency,
+    await connection_log_repo.create(
+        session,
+        agency_id=agency.id,
         action="test",
         connection_type=agency.connection_type,
         status="success" if raw["success"] else "error",
         latency_ms=latency_ms,
         detail=detail,
+        # Explicit created_at, not the column's server_default: Postgres's
+        # `now()` is transaction-scoped, so a server-generated value here
+        # would be pinned to the request's transaction start — before
+        # `stats_reset_at` above — breaking the health/uptime "since reset"
+        # window this row is meant to fall inside.
+        created_at=agency.stats_reset_at,
     )
     return raw
 
@@ -274,8 +289,9 @@ async def parse_spec(spec_text: str) -> dict[str, Any]:
     }
 
     from app.services.llm import Purpose, chat
-    res = await chat(purpose=Purpose.PARSE_SPEC, messages=payload["messages"],
-                     tools=payload["tools"], tool_choice=payload["tool_choice"])
+    async with AsyncSessionLocal() as session, session.begin():
+        res = await chat(session, purpose=Purpose.PARSE_SPEC, messages=payload["messages"],
+                         tools=payload["tools"], tool_choice=payload["tool_choice"])
     tool_call = (res.tool_calls or [{}])[0]
     args_raw = tool_call.get("function", {}).get("arguments")
     if not args_raw:

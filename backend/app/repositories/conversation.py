@@ -1,46 +1,54 @@
 from __future__ import annotations
 
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models.conversation import Conversation
 
 
-async def by_id(conversation_id, *, exclude_deleted: bool = False) -> Conversation | None:
-    filters: dict = {"id": conversation_id}
-    if exclude_deleted:
-        filters["deleted_at"] = None
-    return await Conversation.get_or_none(**filters)
+async def by_id(session: AsyncSession, conversation_id, *, exclude_deleted: bool = False) -> Conversation | None:
+    if not exclude_deleted:
+        return await session.get(Conversation, conversation_id)
+    stmt = select(Conversation).where(
+        Conversation.id == conversation_id, Conversation.deleted_at.is_(None))
+    return (await session.execute(stmt)).scalars().first()
 
 
 async def list_and_count(
-    *, user_id, title_contains: str | None, agency_contains: str | None,
+    session: AsyncSession, *, user_id, title_contains: str | None, agency_contains: str | None,
     created_from, created_to, offset: int | None, limit: int | None,
 ) -> tuple[list[Conversation], int]:
-    qs = Conversation.filter(deleted_at=None)
+    stmt = select(Conversation).where(Conversation.deleted_at.is_(None))
     if user_id is not None:
-        qs = qs.filter(user_id=user_id)
+        stmt = stmt.where(Conversation.user_id == user_id)
     if title_contains:
-        qs = qs.filter(title__icontains=title_contains)
+        stmt = stmt.where(Conversation.title.ilike(f"%{title_contains}%"))
     if agency_contains:
-        # JSONB containment (Postgres). Not supported on the SQLite test DB,
-        # so this branch is covered only in a Postgres-backed environment.
-        qs = qs.filter(agencies__contains=agency_contains)
+        stmt = stmt.where(Conversation.agencies.contains([agency_contains]))
     if created_from is not None:
-        qs = qs.filter(created_at__gte=created_from)
+        stmt = stmt.where(Conversation.created_at >= created_from)
     if created_to is not None:
-        qs = qs.filter(created_at__lt=created_to)
-    total = await qs.count()
-    page_qs = qs.order_by("-created_at")
+        stmt = stmt.where(Conversation.created_at < created_to)
+    total = (await session.execute(
+        select(func.count()).select_from(stmt.order_by(None).subquery())
+    )).scalar_one()
+    page_stmt = stmt.order_by(Conversation.created_at.desc())
     if limit is not None:
-        page_qs = page_qs.offset(offset or 0).limit(limit)
-    return await page_qs, total
+        page_stmt = page_stmt.offset(offset or 0).limit(limit)
+    rows = (await session.execute(page_stmt)).scalars().all()
+    return list(rows), total
 
 
-async def create(**fields) -> Conversation:
-    return await Conversation.create(**fields)
+async def create(session: AsyncSession, **fields) -> Conversation:
+    obj = Conversation(**fields)
+    session.add(obj)
+    await session.flush()
+    return obj
 
 
-async def save(conv: Conversation, *, update_fields: list[str] | None = None) -> None:
-    await conv.save(update_fields=update_fields)
+async def save(session: AsyncSession, conv: Conversation, *, update_fields: list[str] | None = None) -> None:
+    await session.flush()
 
 
-async def delete(conv: Conversation) -> None:
-    await conv.delete()
+async def delete(session: AsyncSession, conv: Conversation) -> None:
+    await session.delete(conv)

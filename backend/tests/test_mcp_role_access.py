@@ -16,6 +16,24 @@ import pytest
 from app.mcp import server
 
 
+class _FakeSession:
+    """`_fetch_agencies` opens its own session; list_for_mcp is mocked so the
+    session body never touches the DB — only the async-context-manager shape matters."""
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    def begin(self):
+        return self
+
+
+def _fake_session_local() -> _FakeSession:
+    return _FakeSession()
+
+
 async def _run_auth_middleware(authorization: str | None):
     """Drive AuthMiddleware.on_request with an in-memory fastmcp state dict."""
     state = {}
@@ -84,12 +102,12 @@ async def _fetch_with_headers(user_is_admin: bool | None) -> list[dict]:
     ctx = MagicMock()
     ctx.get_state = AsyncMock(side_effect=lambda key: {"user_is_admin": user_is_admin}.get(key))
 
-    with patch.object(server.Agency, "all", return_value=MagicMock(
-        values=AsyncMock(return_value=[agency])
-    )), patch.object(server, "get_http_request", return_value=MagicMock(
-        headers={"X-Forwarded-Host": "example.test"},
-        url=MagicMock(scheme="https"),
-    )):
+    with patch.object(server.agency_repo, "list_for_mcp", AsyncMock(return_value=[agency])), \
+         patch.object(server, "AsyncSessionLocal", _fake_session_local), \
+         patch.object(server, "get_http_request", return_value=MagicMock(
+             headers={"X-Forwarded-Host": "example.test"},
+             url=MagicMock(scheme="https"),
+         )):
         return await server._fetch_agencies(ctx)
 
 
@@ -119,11 +137,11 @@ async def _fetch_agency_with(headers: list[dict], user_is_admin: bool | None) ->
     }
     ctx = MagicMock()
     ctx.get_state = AsyncMock(side_effect=lambda key: {"user_is_admin": user_is_admin}.get(key))
-    with patch.object(server.Agency, "all", return_value=MagicMock(
-        values=AsyncMock(return_value=[agency])
-    )), patch.object(server, "get_http_request", return_value=MagicMock(
-        headers={"X-Forwarded-Host": "example.test"}, url=MagicMock(scheme="https"),
-    )):
+    with patch.object(server.agency_repo, "list_for_mcp", AsyncMock(return_value=[agency])), \
+         patch.object(server, "AsyncSessionLocal", _fake_session_local), \
+         patch.object(server, "get_http_request", return_value=MagicMock(
+             headers={"X-Forwarded-Host": "example.test"}, url=MagicMock(scheme="https"),
+         )):
         return (await server._fetch_agencies(ctx))[0]
 
 
@@ -174,12 +192,12 @@ async def test_fetch_agencies_stable_ids_across_payload_keys():
         "api_headers": [],
     }
 
-    with patch.object(server.Agency, "all", return_value=MagicMock(
-        values=AsyncMock(return_value=[agency])
-    )), patch.object(server, "get_http_request", return_value=MagicMock(
-        headers={"X-Forwarded-Host": "example.test"},
-        url=MagicMock(scheme="https"),
-    )):
+    with patch.object(server.agency_repo, "list_for_mcp", AsyncMock(return_value=[agency])), \
+         patch.object(server, "AsyncSessionLocal", _fake_session_local), \
+         patch.object(server, "get_http_request", return_value=MagicMock(
+             headers={"X-Forwarded-Host": "example.test"},
+             url=MagicMock(scheme="https"),
+         )):
         agencies = await server._fetch_agencies(ctx)
 
     payload = agencies[0]["expected_payload"]
@@ -204,11 +222,11 @@ async def test_fetch_agencies_tolerates_null_expected_payload():
         "connection_type": "MCP", "data_scope": [], "endpoint_url": "http://e/",
         "expected_payload": None, "api_headers": [],
     }
-    with patch.object(server.Agency, "all", return_value=MagicMock(
-        values=AsyncMock(return_value=[agency])
-    )), patch.object(server, "get_http_request", return_value=MagicMock(
-        headers={"X-Forwarded-Host": "example.test"}, url=MagicMock(scheme="https"),
-    )):
+    with patch.object(server.agency_repo, "list_for_mcp", AsyncMock(return_value=[agency])), \
+         patch.object(server, "AsyncSessionLocal", _fake_session_local), \
+         patch.object(server, "get_http_request", return_value=MagicMock(
+             headers={"X-Forwarded-Host": "example.test"}, url=MagicMock(scheme="https"),
+         )):
         result = await server._fetch_agencies(ctx)
     assert result[0]["expected_payload"] == {}
 
@@ -223,11 +241,11 @@ async def test_fetch_agencies_resolves_both_placeholders_in_one_value():
         "connection_type": "API", "data_scope": [], "endpoint_url": "http://e/",
         "expected_payload": {"both": "u=__user_id__;c=__conversation_id__"}, "api_headers": [],
     }
-    with patch.object(server.Agency, "all", return_value=MagicMock(
-        values=AsyncMock(return_value=[agency])
-    )), patch.object(server, "get_http_request", return_value=MagicMock(
-        headers={"X-Forwarded-Host": "example.test"}, url=MagicMock(scheme="https"),
-    )):
+    with patch.object(server.agency_repo, "list_for_mcp", AsyncMock(return_value=[agency])), \
+         patch.object(server, "AsyncSessionLocal", _fake_session_local), \
+         patch.object(server, "get_http_request", return_value=MagicMock(
+             headers={"X-Forwarded-Host": "example.test"}, url=MagicMock(scheme="https"),
+         )):
         result = await server._fetch_agencies(ctx)
     assert result[0]["expected_payload"]["both"] == "u=U;c=C"
 

@@ -4,6 +4,7 @@ Kept out of the router so the seed operations can be reused by app startup and a
 future management command, and unit-tested directly.
 """
 
+from app.db import AsyncSessionLocal
 from app.repositories import agency as agency_repo
 
 
@@ -59,13 +60,14 @@ DEFAULT_AGENCIES = [
 ]
 
 async def run_seed_agencies() -> dict:
-    existing = await agency_repo.count_all()
-    if existing > 0:
-        return {"status": "skipped", "message": f"{existing} agencies already exist"}
+    async with AsyncSessionLocal() as session, session.begin():
+        existing = await agency_repo.count_all(session)
+        if existing > 0:
+            return {"status": "skipped", "message": f"{existing} agencies already exist"}
 
-    created = []
-    for data in DEFAULT_AGENCIES:
-        await agency_repo.create(**data)
-        created.append(data["name"])
+        created = []
+        for data in DEFAULT_AGENCIES:
+            await agency_repo.create(session, **data)
+            created.append(data["name"])
 
     return {"status": "created", "message": f"{len(created)} agencies created", "agencies": created}

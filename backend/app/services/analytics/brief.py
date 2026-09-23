@@ -1,11 +1,13 @@
 import logging
 from datetime import timedelta
 
-from tortoise.expressions import RawSQL
-from tortoise.transactions import in_transaction
+from sqlalchemy import func, select, text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models import Conversation, ExecutiveBrief, Message
+from app.models.conversation import Conversation, Message
+from app.repositories import analytics as analytics_repo
+from app.repositories import executive_brief as brief_repo
 from app.schemas.executive_summary import ExecutiveData, ExecutiveKPIs
 from app.utils import now
 
@@ -17,87 +19,85 @@ _BRIEF_PLACEHOLDER = "ยังไม่มีรายงานสรุปป�
 _BRIEF_FALLBACK = "ไม่สามารถสร้างสรุปประจำสัปดาห์ได้ในขณะนี้"
 
 
-async def _generate_brief_content(prompt: str) -> tuple[str, str]:
+async def _generate_brief_content(session: AsyncSession, prompt: str) -> tuple[str, str]:
     """Call the LLM for the brief. Returns (content, status) where status is 'ok' | 'error'."""
     from app.services.llm import Purpose, chat
     try:
-        res = await chat(purpose=Purpose.BRIEF, messages=[{"role": "user", "content": prompt}])
+        res = await chat(session, purpose=Purpose.BRIEF, messages=[{"role": "user", "content": prompt}])
         return res.content, "ok"
     except Exception as e:
         logger.error("Error generating weekly brief: %s", e)
         return _BRIEF_FALLBACK, "error"
 
 
-async def regenerate_weekly_brief() -> ExecutiveBrief:
+async def regenerate_weekly_brief(session: AsyncSession):
     """Compute metrics, generate the brief via the LLM, and persist it as a new row.
 
     Called by the daily scheduler job and the admin force-regenerate endpoint.
     """
-    metrics = await _compute_executive_metrics()
+    metrics = await _compute_executive_metrics(session)
     prompt = _build_brief_prompt(metrics)
-    content, status = await _generate_brief_content(prompt)
-    return await ExecutiveBrief.create(content=content, status=status)
+    content, status = await _generate_brief_content(session, prompt)
+    return await brief_repo.create(session, content=content, status=status)
 
 
-async def _latest_brief() -> str:
+async def _latest_brief(session: AsyncSession) -> str:
     """Return the most recent stored brief, or a placeholder if none exists yet."""
-    row = await ExecutiveBrief.all().order_by("-generated_at").first()
+    row = await brief_repo.latest(session)
     return row.content if row else _BRIEF_PLACEHOLDER
 
 
-async def _compute_executive_metrics() -> dict:
+async def _count_by_calendar_part(session: AsyncSession, model, unit: str, value: int, *extra) -> int:
+    """COUNT(*) WHERE EXTRACT(unit FROM created_at) = value, ignoring the other calendar part."""
+    stmt = select(func.count()).select_from(model).where(func.extract(unit, model.created_at) == value, *extra)
+    return await session.scalar(stmt)
+
+
+async def _compute_executive_metrics(session: AsyncSession) -> dict:
     """Compute the executive KPIs and monthly trend. Shared by the GET path and regen."""
-    async with in_transaction() as conn:
-        await conn.execute_query(f"SET TIME ZONE '{settings.TIMEZONE}';")
+    await session.execute(text(f"SET LOCAL TIME ZONE '{settings.TIMEZONE}'"))
 
-        # (now().month - 1) is 0 in January, which is an invalid month value.
-        # Use modular arithmetic so January wraps to December (month 12).
-        prev_month = (now().month - 2) % 12 + 1
+    # (now().month - 1) is 0 in January, which is an invalid month value.
+    # Use modular arithmetic so January wraps to December (month 12).
+    prev_month = (now().month - 2) % 12 + 1
 
-        thisMonthQuestions = await Message.filter(role="user", created_at__month=now().month).count()
-        lastMonthQuestions = await Message.filter(role="user", created_at__month=prev_month).count()
-        thisYearQuestions = await Message.filter(role="user", created_at__year=now().year).count()
-        lastYearQuestions = await Message.filter(role="user", created_at__year=now().year - 1).count()
+    thisMonthQuestions = await _count_by_calendar_part(session, Message, "month", now().month, Message.role == "user")
+    lastMonthQuestions = await _count_by_calendar_part(session, Message, "month", prev_month, Message.role == "user")
+    thisYearQuestions = await _count_by_calendar_part(session, Message, "year", now().year, Message.role == "user")
+    lastYearQuestions = await _count_by_calendar_part(session, Message, "year", now().year - 1, Message.role == "user")
 
-        momGrowthQuestions = ((thisMonthQuestions - lastMonthQuestions) / lastMonthQuestions * 100) if lastMonthQuestions > 0 else thisMonthQuestions * 100.0
-        yoyGrowthQuestions = ((thisYearQuestions - lastYearQuestions) / lastYearQuestions * 100) if lastYearQuestions > 0 else thisYearQuestions * 100.0
+    momGrowthQuestions = ((thisMonthQuestions - lastMonthQuestions) / lastMonthQuestions * 100) if lastMonthQuestions > 0 else thisMonthQuestions * 100.0
+    yoyGrowthQuestions = ((thisYearQuestions - lastYearQuestions) / lastYearQuestions * 100) if lastYearQuestions > 0 else thisYearQuestions * 100.0
 
-        thisMonthCitizens = await Conversation.filter(created_at__month=now().month).count()
-        lastMonthCitizens = await Conversation.filter(created_at__month=prev_month).count()
-        thisYearCitizens = await Conversation.filter(created_at__year=now().year).count()
-        lastYearCitizens = await Conversation.filter(created_at__year=now().year - 1).count()
+    thisMonthCitizens = await _count_by_calendar_part(session, Conversation, "month", now().month)
+    lastMonthCitizens = await _count_by_calendar_part(session, Conversation, "month", prev_month)
+    thisYearCitizens = await _count_by_calendar_part(session, Conversation, "year", now().year)
+    lastYearCitizens = await _count_by_calendar_part(session, Conversation, "year", now().year - 1)
 
-        momGrowthCitizens = ((thisMonthCitizens - lastMonthCitizens) / lastMonthCitizens * 100) if lastMonthCitizens > 0 else thisMonthCitizens * 100.0
-        yoyGrowthCitizens = ((thisYearCitizens - lastYearCitizens) / lastYearCitizens * 100) if lastYearCitizens > 0 else thisYearCitizens * 100.0
+    momGrowthCitizens = ((thisMonthCitizens - lastMonthCitizens) / lastMonthCitizens * 100) if lastMonthCitizens > 0 else thisMonthCitizens * 100.0
+    yoyGrowthCitizens = ((thisYearCitizens - lastYearCitizens) / lastYearCitizens * 100) if lastYearCitizens > 0 else thisYearCitizens * 100.0
 
-        monthlyTrend = await Message \
-            .annotate(month=RawSQL("TO_CHAR(created_at, 'YYYY-MM')")) \
-            .filter(created_at__gte=now() - timedelta(days=365)) \
-            .group_by("month") \
-            .annotate(questions=RawSQL("SUM(CASE WHEN role = 'user' THEN 1 ELSE 0 END)")) \
-            .annotate(rating_up=RawSQL("SUM(CASE WHEN rating = 'up' THEN 1 ELSE 0 END)")) \
-            .annotate(rating_down=RawSQL("SUM(CASE WHEN rating = 'down' THEN 1 ELSE 0 END)")) \
-            .values("month", "questions", "rating_up", "rating_down")
+    monthlyTrend = await analytics_repo.message_monthly_trend(session, since=now() - timedelta(days=365))
+    for entry in monthlyTrend:
+        up, down = entry["rating_up"], entry["rating_down"]
+        satisfaction = (up / (up + down) * 100) if (up + down) > 0 else 0.0
+        entry["satisfaction"] = round(satisfaction, 2)
 
-        for index, entry in enumerate(monthlyTrend):
-            satisfaction = (entry["rating_up"] / (entry["rating_up"] + entry["rating_down"]) * 100) if (entry["rating_up"] + entry["rating_down"]) > 0 else 0.0
-            monthlyTrend[index]["satisfaction"] = round(satisfaction, 2)
-
-        return {
-            "thisMonthQuestions": thisMonthQuestions,
-            "lastMonthQuestions": lastMonthQuestions,
-            "thisYearQuestions": thisYearQuestions,
-            "lastYearQuestions": lastYearQuestions,
-            "momGrowthQuestions": momGrowthQuestions,
-            "yoyGrowthQuestions": yoyGrowthQuestions,
-            "thisMonthCitizens": thisMonthCitizens,
-            "lastMonthCitizens": lastMonthCitizens,
-            "thisYearCitizens": thisYearCitizens,
-            "lastYearCitizens": lastYearCitizens,
-            "momGrowthCitizens": momGrowthCitizens,
-            "yoyGrowthCitizens": yoyGrowthCitizens,
-            "monthlyTrend": monthlyTrend,
-        }
+    return {
+        "thisMonthQuestions": thisMonthQuestions,
+        "lastMonthQuestions": lastMonthQuestions,
+        "thisYearQuestions": thisYearQuestions,
+        "lastYearQuestions": lastYearQuestions,
+        "momGrowthQuestions": momGrowthQuestions,
+        "yoyGrowthQuestions": yoyGrowthQuestions,
+        "thisMonthCitizens": thisMonthCitizens,
+        "lastMonthCitizens": lastMonthCitizens,
+        "thisYearCitizens": thisYearCitizens,
+        "lastYearCitizens": lastYearCitizens,
+        "momGrowthCitizens": momGrowthCitizens,
+        "yoyGrowthCitizens": yoyGrowthCitizens,
+        "monthlyTrend": monthlyTrend,
+    }
 
 
 def _build_brief_prompt(m: dict) -> str:
@@ -114,9 +114,9 @@ def _build_brief_prompt(m: dict) -> str:
     ใช้ภาษาทางการ กระชับ ชัดเจน มี emoji ประกอบเล็กน้อย"""
 
 
-async def get_executive_summary() -> ExecutiveData:
-    m = await _compute_executive_metrics()
-    weeklyBrief = await _latest_brief()
+async def get_executive_summary(session: AsyncSession) -> ExecutiveData:
+    m = await _compute_executive_metrics(session)
+    weeklyBrief = await _latest_brief(session)
 
     return ExecutiveData(
         kpis=ExecutiveKPIs(

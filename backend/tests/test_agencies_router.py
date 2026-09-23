@@ -20,7 +20,7 @@ async def _admin(email="admin@example.com"):
 
 
 @pytest.mark.asyncio
-async def test_create_agency_with_draft_status(db):
+async def test_create_agency_with_draft_status(db_session):
     admin = await _admin()
     res = await agencies_router.create_agency(
         body=AgencyCreate(
@@ -30,17 +30,19 @@ async def test_create_agency_with_draft_status(db):
             status="draft",
             endpoint_url="https://usecase.example/dopa/chat",
         ),
+        session=db_session,
         _=admin,
     )
     assert res.status == "draft"
 
 
 @pytest.mark.asyncio
-async def test_create_agency_accepts_all_lifecycle_states(db):
+async def test_create_agency_accepts_all_lifecycle_states(db_session):
     admin = await _admin()
     for i, st in enumerate(("draft", "active", "maintenance", "disabled")):
         res = await agencies_router.create_agency(
             body=AgencyCreate(name=f"agency-{i}", short_name="a", status=st),
+            session=db_session,
             _=admin,
         )
         assert res.status == st

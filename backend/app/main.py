@@ -1,8 +1,8 @@
 """
 AI Chatbot Portal — FastAPI Backend
 =====================================
-Stack:  FastAPI · Tortoise ORM · FastMCP
-DB:     PostgreSQL
+Stack:  FastAPI · SQLAlchemy 2 (async) · Alembic · FastMCP
+DB:     PostgreSQL + PGroonga
 
 Entry-point:
     uvicorn app.main:app --reload
@@ -38,7 +38,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings, load_settings_from_db
 from app.errors import register_error_handlers
-from app.database import init_db, close_db
+from app.db import init_db, close_db
 from app.mcp.server import mcp
 from app.routers import agencies, audit_log, conversations, messages, dashboard, feedback, auth, chat, connection_logs, executive_summary, insight, popular_questions, public_status, users, settings as settings_router
 from app.routers import agent_proxy

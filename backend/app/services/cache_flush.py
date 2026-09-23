@@ -4,21 +4,22 @@ find_similar_question ignores any cached Q/A created before the last flush.
 """
 from datetime import datetime
 
-from app.models.setting import Setting
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.repositories import setting as setting_repo
 from app.utils import now
 
 _KEY = "SIMILARITY_CACHE_FLUSHED_AT"
 
 
-async def flush_similarity_cache() -> None:
-    await Setting.update_or_create(
-        defaults={"value": now().isoformat(), "field_type": "str", "group": "Cache"},
-        key=_KEY,
+async def flush_similarity_cache(session: AsyncSession) -> None:
+    await setting_repo.upsert(
+        session, _KEY, now().isoformat(), updated_by="system", group="Cache", field_type="str",
     )
 
 
-async def effective_cutoff(window_cutoff: datetime) -> datetime:
-    row = await Setting.filter(key=_KEY).first()
+async def effective_cutoff(session: AsyncSession, window_cutoff: datetime) -> datetime:
+    row = await setting_repo.get(session, _KEY)
     if row is None:
         return window_cutoff
     flushed_at = datetime.fromisoformat(row.value)

@@ -1,24 +1,37 @@
 """Service-layer tests for public status/directory queries (moved out of the router)."""
-from app.models import Agency, ConnectionLog
+import pytest
+
+from app.models.agency import Agency, AgencyStatus, ConnectionType
+from app.models.connection_log import ConnectionLog
 from app.services import public_status as public_status_service
 
+pytestmark = pytest.mark.asyncio
 
-async def test_public_status_uptime(db):
-    ag = await Agency.create(name="A", status="active")
-    for ok in (True, True, True, False):
-        await ConnectionLog.create(agency=ag, connection_type="API",
-                                    status="success" if ok else "error", action="test")
 
-    rows = await public_status_service.public_status()
+async def test_public_status_uptime(db_session):
+    ag = Agency(name="A", status=AgencyStatus.active)
+    db_session.add(ag)
+    await db_session.flush()
+    db_session.add_all([
+        ConnectionLog(agency_id=ag.id, connection_type="API",
+                       status="success" if ok else "error", action="test")
+        for ok in (True, True, True, False)
+    ])
+    await db_session.flush()
+
+    rows = await public_status_service.public_status(db_session)
 
     assert rows == [{"name": "A", "status": "active", "uptime_24h_pct": 75.0}]
 
 
-async def test_public_agencies_hides_draft(db):
-    await Agency.create(name="Visible", short_name="V", connection_type="API", status="active")
-    await Agency.create(name="Hidden", short_name="H", connection_type="API", status="draft")
+async def test_public_agencies_hides_draft(db_session):
+    db_session.add_all([
+        Agency(name="Visible", short_name="V", connection_type=ConnectionType.API, status=AgencyStatus.active),
+        Agency(name="Hidden", short_name="H", connection_type=ConnectionType.API, status=AgencyStatus.draft),
+    ])
+    await db_session.flush()
 
-    rows = await public_status_service.public_agencies()
+    rows = await public_status_service.public_agencies(db_session)
 
     assert [r["name"] for r in rows] == ["Visible"]
     assert set(rows[0]) == {"id", "name", "short_name", "logo", "description", "connection_type", "status"}

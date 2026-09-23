@@ -4,7 +4,8 @@ import math
 import time
 from typing import NamedTuple, Protocol
 
-from app.models.rate_limit_counter import RateLimitCounter
+from app.db import AsyncSessionLocal
+from app.repositories import rate_limit as rate_limit_repo
 
 
 class RateLimitResult(NamedTuple):
@@ -56,17 +57,10 @@ class LimiterHealth:
 _limiter_health = LimiterHealth()
 
 
-# withinlazy: read-modify-write, not atomic; concurrent workers can lose
-# increments. Upgrade to a raw ON CONFLICT upsert if rate-limit precision under
-# load matters. (get_or_create, not update_or_create: the latter reapplies
-# defaults on update and would reset count to 0 every call.)
 async def _upsert_and_count(key: str, window_start: int) -> int:
-    counter, _ = await RateLimitCounter.get_or_create(
-        key=key, window_start=window_start, defaults={"count": 0}
-    )
-    counter.count += 1
-    await counter.save(update_fields=["count"])
-    return counter.count
+    async with AsyncSessionLocal() as session, session.begin():
+        await rate_limit_repo.delete_expired(session, key, window_start)
+        return await rate_limit_repo.increment_and_count(session, key, window_start)
 
 
 class PostgresFixedWindowLimiter:
@@ -85,9 +79,6 @@ class PostgresFixedWindowLimiter:
         now_us = int(time.time() * 1_000_000)
         window_start = now_us - (now_us % window_us)
         try:
-            await RateLimitCounter.filter(
-                key=key, window_start__lt=window_start
-            ).delete()
             count = await _upsert_and_count(key, window_start)
         except Exception as exc:  # noqa: BLE001 — fail-closed on any DB error
             if _limiter_health.record_failure():

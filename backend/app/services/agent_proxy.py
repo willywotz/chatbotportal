@@ -17,8 +17,10 @@ from opentelemetry import trace
 from opentelemetry.propagate import inject
 
 from app.config import settings
+from app.db import AsyncSessionLocal
 from app.errors import ApiError, ErrorCode
-from app.models import Agency, ConnectionLog
+from app.models import Agency
+from app.repositories import connection_log as connection_log_repo
 from app.services import agency as agency_service
 
 
@@ -69,16 +71,19 @@ def _truncate(text: str) -> str:
 
 
 async def _log(agency: Agency, log_status: str, latency_ms: int, request_body: bytes, answer: str, detail: str) -> None:
-    await ConnectionLog.create(
-        agency=agency,
-        action="proxy",
-        connection_type="API",
-        status=log_status,
-        latency_ms=latency_ms,
-        detail=_truncate(detail),
-        request_body=_truncate(request_body.decode(errors="replace")),
-        response_body=_truncate(answer),
-    )
+    """Telemetry write: its own short-lived session, independent of any request rollback."""
+    async with AsyncSessionLocal() as session, session.begin():
+        await connection_log_repo.create(
+            session,
+            agency_id=agency.id,
+            action="proxy",
+            connection_type="API",
+            status=log_status,
+            latency_ms=latency_ms,
+            detail=_truncate(detail),
+            request_body=_truncate(request_body.decode(errors="replace")),
+            response_body=_truncate(answer),
+        )
 
 
 async def proxy(
@@ -91,7 +96,8 @@ async def proxy(
 ) -> tuple[int, httpx.Headers, AsyncIterator[bytes]]:
     if not _is_uuid(agency_id):
         raise ApiError(ErrorCode.INVALID_REQUEST, "invalid id format", status=400)
-    agency = await agency_service.get_agency_or_404(uuid.UUID(agency_id))
+    async with AsyncSessionLocal() as session, session.begin():
+        agency = await agency_service.get_agency_or_404(session, uuid.UUID(agency_id))
 
     body_json = _safe_json(body)
     conversation_id = _conversation_id(agency.expected_payload, body_json)
@@ -128,7 +134,11 @@ async def proxy(
             answer = captured.decode(errors="replace")
             ok = 200 <= response.status_code < 300
             if ok:
-                await agency_service.increment_calls(agency)
+                # `agency` was loaded in the (now closed) lookup session above;
+                # merge re-attaches it to this short session before the update.
+                async with AsyncSessionLocal() as session, session.begin():
+                    merged = await session.merge(agency)
+                    await agency_service.increment_calls(session, merged)
             query = body_json.get("query", "")
             await _log(
                 agency, "success" if ok else "error", latency_ms, body, answer,

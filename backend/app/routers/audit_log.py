@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Query, Security
+from fastapi import APIRouter, Depends, Query, Security
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import require_scope
 from app.auth.keycloak import Principal
+from app.db import get_db
 from app.models import AuditLog
 from app.services import audit as audit_service
 
@@ -22,6 +24,7 @@ def _row(a: AuditLog) -> dict:
 
 
 async def list_audit_log(
+    session: AsyncSession,
     action: str | None = None,
     object_type: str | None = None,
     actor: str | None = None,
@@ -30,7 +33,7 @@ async def list_audit_log(
     _admin: Principal | None = None,
 ) -> dict:
     rows, total = await audit_service.list_audit_log(
-        action=action, object_type=object_type, actor=actor, limit=limit, offset=offset,
+        session, action=action, object_type=object_type, actor=actor, limit=limit, offset=offset,
     )
     return {"data": [_row(a) for a in rows], "total": total}
 
@@ -42,9 +45,11 @@ async def get_audit_log(
     actor: str | None = Query(None, description="actor_email substring (case-insensitive)"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    session: AsyncSession = Depends(get_db),
     _admin: Principal = Security(require_scope, scopes=["audit:read"]),
 ) -> dict:
     return await list_audit_log(
+        session,
         action=action,
         object_type=object_type,
         actor=actor,

@@ -4,10 +4,12 @@ import uuid
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock
 
-import pytest
+from sqlalchemy import select
 
 from app.auth.keycloak import Principal
-from app.models import Agency, AuditLog
+from app.models.agency import AgencyStatus
+from app.models.audit import AuditLog
+from app.repositories import agency as agency_repo
 from app.routers import agencies as agencies_router
 from app.routers import users as users_router
 from app.schemas.agency import StatusUpdateRequest
@@ -15,19 +17,23 @@ from app.schemas.user import UserResponse
 from app.services import keycloak_admin
 
 
-async def _admin(email="admin@audit.com"):
+def _admin(email="admin@audit.com"):
     return Principal(id=str(uuid.uuid4()), email=email, display_name=None, role="admin", scopes=frozenset())
 
 
-@pytest.mark.asyncio
-async def test_update_agency_status_writes_audit(db):
-    admin = await _admin()
-    ag = await Agency.create(
-        name="A", short_name="A", connection_type="API", status="draft",
+async def _find(session, action: str) -> AuditLog | None:
+    stmt = select(AuditLog).where(AuditLog.action == action)
+    return (await session.execute(stmt)).scalars().first()
+
+
+async def test_update_agency_status_writes_audit(db_session):
+    admin = _admin()
+    ag = await agency_repo.create(
+        db_session, name="A", short_name="A", connection_type="API", status=AgencyStatus.draft,
         conformance_report={"passed": True, "checks": []},
     )
-    await agencies_router.update_agency_status(ag.id, StatusUpdateRequest(status="active"), user=admin)
-    row = await AuditLog.filter(action="agency.status_change").first()
+    await agencies_router.update_agency_status(ag.id, StatusUpdateRequest(status="active"), db_session, user=admin)
+    row = await _find(db_session, "agency.status_change")
     assert row is not None
     assert str(row.actor_id) == admin.id
     assert row.object_type == "agency"
@@ -35,8 +41,7 @@ async def test_update_agency_status_writes_audit(db):
     assert row.detail == {"from": "draft", "to": "active"}
 
 
-@pytest.mark.asyncio
-async def test_deactivate_user_writes_audit(db, monkeypatch):
+async def test_deactivate_user_writes_audit(db_session, monkeypatch):
     admin = Principal(id="00000000-0000-0000-0000-0000000000aa", email="admin@audit.com",
                        display_name="Admin", role="admin", scopes=frozenset({"user:manage"}))
     deactivated = UserResponse(
@@ -44,8 +49,8 @@ async def test_deactivate_user_writes_audit(db, monkeypatch):
         isActive=False, createdAt=datetime.now(timezone.utc),
     )
     monkeypatch.setattr(keycloak_admin, "set_enabled", AsyncMock(return_value=deactivated))
-    await users_router.deactivate_user("kc-1", admin=admin)
-    row = await AuditLog.filter(action="user.deactivate").first()
+    await users_router.deactivate_user("kc-1", db_session, admin=admin)
+    row = await _find(db_session, "user.deactivate")
     assert row is not None
     assert str(row.actor_id) == admin.id
     assert row.object_type == "user"
