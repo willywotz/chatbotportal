@@ -41,6 +41,14 @@ async def test_record_failure_marks_down(db_session):
     assert st.consecutive_failures == 1
 
 
+async def test_record_clears_lease(db_session):
+    a, st = await _fixture(db_session)
+    st.leased_until = now()
+    await db_session.flush()
+    await monitor.record_result(db_session, st, a, ok=True, latency_ms=10, detail="ok", ts=now())
+    assert st.leased_until is None
+
+
 async def test_success_recovers_maintenance_agency(db_session):
     a, st = await _fixture(db_session, status="maintenance", auto_maintenance=True)
     await monitor.record_result(db_session, st, a, ok=True, latency_ms=50, detail="ok", ts=now())

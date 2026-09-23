@@ -101,7 +101,7 @@ async def run_connection_test(session: AsyncSession, agency: Agency) -> dict[str
     await agency_repo.save(session, agency, update_fields=["stats_reset_at", "updated_at"])
 
     await cs_repo.ensure_states(session, settings.DEFAULT_CHECK_INTERVAL_SECONDS)
-    state = await cs_repo.get(session, agency.id)
+    state = await cs_repo.get_for_update(session, agency.id)
     ok = bool(raw.get("success"))
     latency_ms = int(str(raw.get("latency", "0")).replace("ms", "") or 0)
     status_code = raw.get("statusCode")

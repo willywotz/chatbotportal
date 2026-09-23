@@ -28,6 +28,7 @@ async def record_result(
     state.last_checked_at = ts
     state.last_status = CheckStatus.up if ok else CheckStatus.down
     state.last_latency_ms = latency_ms
+    state.leased_until = None
 
     await bucket_repo.record_check(session, state.agency_id, ts, ok)
     await incident_svc.apply_transition(
@@ -80,7 +81,7 @@ async def _record_one(agency_id) -> bool:
     detail = str(raw.get("error") or "ok")
 
     async with AsyncSessionLocal() as session, session.begin():
-        state = await cs_repo.get(session, agency_id)
+        state = await cs_repo.get_for_update(session, agency_id)
         agency = await agency_repo.by_id(session, agency_id)
         if state is None or agency is None:
             return False
@@ -94,6 +95,7 @@ async def run_tick() -> int:
     async with AsyncSessionLocal() as session, session.begin():
         claimed = await cs_repo.claim_due(
             session, batch=settings.MONITOR_CLAIM_BATCH, jitter_seconds=settings.CHECK_JITTER_SECONDS,
+            lease_seconds=settings.MONITOR_LEASE_SECONDS,
         )
         agency_ids = [c.agency_id for c in claimed]
 

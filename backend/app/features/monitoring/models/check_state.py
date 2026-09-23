@@ -31,6 +31,7 @@ class AgencyCheckState(Base):
     )
     last_latency_ms: Mapped[int] = mapped_column(Integer, default=0)
     consecutive_failures: Mapped[int] = mapped_column(Integer, default=0)
+    leased_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     current_incident_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("incidents.id", ondelete="SET NULL", use_alter=True,
                                        name="fk_check_state_incident"), nullable=True,

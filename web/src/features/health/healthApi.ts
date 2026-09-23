@@ -4,13 +4,14 @@ export interface AgencyHealthData {
   agencies: {
     id: string; name: string; shortName: string;
     status: 'healthy' | 'degraded' | 'down';
-    uptime: number; currentLatency: number; avgLatency: number;
+    uptime: number; uptime7d: number; uptime30d: number;
+    currentLatency: number; avgLatency: number;
     errorRate: number; requestsPerMin: number; lastCheckedAt: string;
   }[];
   historical: Array<Record<string, string | number>>;
   incidents: {
     agency: string; type: string; severity: 'info' | 'warning' | 'critical';
-    message: string; occurredAt: string; resolvedAt: string;
+    message: string; occurredAt: string; resolvedAt: string | null;
   }[];
   slaCompliance: { agency: string; uptime: number; target: number; met: boolean }[];
   generatedAt: string;

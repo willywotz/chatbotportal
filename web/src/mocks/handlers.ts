@@ -36,14 +36,16 @@ const MOCK_CONNECTION_LOGS = {
 
 const MOCK_AGENCY_HEALTH = {
   agencies: [
-    { id: "rd", name: "กรมสรรพากร", shortName: "RD", status: "healthy", uptime: 99.2, currentLatency: 320, avgLatency: 310, errorRate: 0.1, requestsPerMin: 42, lastCheckedAt: "2026-06-23T08:00:00Z" },
-    { id: "fda", name: "สำนักงานอาหารและยา", shortName: "อย.", status: "degraded", uptime: 71.0, currentLatency: 1230, avgLatency: 1100, errorRate: 2.4, requestsPerMin: 12, lastCheckedAt: "2026-06-23T08:00:00Z" },
+    { id: "rd", name: "กรมสรรพากร", shortName: "RD", status: "healthy", uptime: 99.2, uptime7d: 98.7, uptime30d: 97.5, currentLatency: 320, avgLatency: 310, errorRate: 0.1, requestsPerMin: 42, lastCheckedAt: "2026-06-23T08:00:00Z" },
+    { id: "fda", name: "สำนักงานอาหารและยา", shortName: "อย.", status: "degraded", uptime: 71.0, uptime7d: 85.3, uptime30d: 90.1, currentLatency: 1230, avgLatency: 1100, errorRate: 2.4, requestsPerMin: 12, lastCheckedAt: "2026-06-23T08:00:00Z" },
   ],
   historical: [
     { time: "00:00", rd_latency: 310, fda_latency: 1100 },
     { time: "01:00", rd_latency: 290, fda_latency: 1200 },
   ],
-  incidents: [],
+  incidents: [
+    { agency: "สำนักงานอาหารและยา", type: "downtime", severity: "critical", message: "Service unreachable", occurredAt: "2026-06-23T07:00:00Z", resolvedAt: null },
+  ],
   slaCompliance: [
     { agency: "กรมสรรพากร", uptime: 99.2, target: 99.0, met: true },
   ],

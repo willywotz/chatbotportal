@@ -11,6 +11,14 @@ async def test_monitoring_tables_exist(db_session):
     assert {"agency_check_state", "uptime_bucket", "incidents"} <= set(rows)
 
 
+async def test_check_state_has_leased_until_column(db_session):
+    cols = (await db_session.execute(text(
+        "select column_name from information_schema.columns "
+        "where table_name='agency_check_state'"
+    ))).scalars().all()
+    assert "leased_until" in set(cols)
+
+
 async def test_partial_unique_open_incident(db_session):
     idx = (await db_session.execute(text(
         "select indexname from pg_indexes where tablename='incidents'"
