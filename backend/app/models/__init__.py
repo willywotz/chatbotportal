@@ -9,6 +9,9 @@ from app.models.executive_brief import ExecutiveBrief  # noqa: F401
 from app.models.llm_provider import LlmProvider  # noqa: F401
 from app.models.llm_route import LlmRoute  # noqa: F401
 from app.models.llm_usage import LlmUsage  # noqa: F401
+from app.models.oauth import OAuthAuthCode, OAuthRefreshToken  # noqa: F401
 from app.models.popular_question import PopularQuestion, PopularQuestionSource  # noqa: F401
 from app.models.rate_limit_counter import RateLimitCounter  # noqa: F401
 from app.models.setting import Setting  # noqa: F401
+from app.models.signing_key import SigningKey  # noqa: F401
+from app.models.user import User, UserRole  # noqa: F401

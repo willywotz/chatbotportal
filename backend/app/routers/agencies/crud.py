@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, Query, Security, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import require_scope
-from app.auth.keycloak import Principal
+from app.auth.principal import Principal
 from app.db import get_db
 from app.routers.agencies._utils import _with_health
 from app.routers.agencies.logo import sweep_agency_logo_files

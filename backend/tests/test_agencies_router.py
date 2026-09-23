@@ -10,7 +10,7 @@ import uuid
 
 import pytest
 
-from app.auth.keycloak import Principal
+from app.auth.principal import Principal
 from app.routers import agencies as agencies_router
 from app.schemas.agency import AgencyCreate
 

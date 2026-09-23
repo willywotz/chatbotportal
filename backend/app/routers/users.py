@@ -9,14 +9,14 @@ from app.auth.dependencies import require_scope
 from app.db import get_db
 from app.errors import ApiError, ErrorCode
 from app.schemas.user import Role, UserCreate, UserCreateResponse, UserListResponse, UserResponse, UserUpdate
-from app.services import keycloak_admin
+from app.services import user_admin
 from app.services.audit import record_audit
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
 
-def _map_error(exc: keycloak_admin.KeycloakAdminError) -> ApiError:
-    if isinstance(exc, keycloak_admin.NotFound):
+def _map_error(exc: user_admin.UserAdminError) -> ApiError:
+    if isinstance(exc, user_admin.NotFound):
         return ApiError(ErrorCode.NOT_FOUND, str(exc), status=404)
     code = ErrorCode.CONFLICT if exc.status == 409 else ErrorCode.INVALID_REQUEST
     return ApiError(code, str(exc), status=exc.status if exc.status in (400, 409) else 400)
@@ -29,12 +29,13 @@ async def list_users(
     status_filter: Literal["active", "inactive", "all"] = Query(
         "all", alias="status", description="Filter by active status"
     ),
+    session: AsyncSession = Depends(get_db),
     admin=Security(require_scope, scopes=["user:manage"]),
 ) -> UserListResponse:
     is_active = None if status_filter == "all" else (status_filter == "active")
     try:
-        rows, total = await keycloak_admin.list_users(search=search, role=role, is_active=is_active)
-    except keycloak_admin.KeycloakAdminError as exc:
+        rows, total = await user_admin.list_users(session, search=search, role=role, is_active=is_active)
+    except user_admin.UserAdminError as exc:
         raise _map_error(exc) from exc
     return UserListResponse(data=rows, total=total)
 
@@ -46,18 +47,22 @@ async def create_user(
     admin=Security(require_scope, scopes=["user:manage"]),
 ) -> dict:
     try:
-        new_user = await keycloak_admin.create_user(body)
-    except keycloak_admin.KeycloakAdminError as exc:
+        new_user = await user_admin.create_user(session, body)
+    except user_admin.UserAdminError as exc:
         raise _map_error(exc) from exc
     await record_audit(session, admin, "user.create", object_type="user", object_id=new_user.id, detail={"email": new_user.email, "role": new_user.role})
     return {"user": new_user.model_dump()}
 
 
 @router.get("/{user_id}", response_model=UserResponse, summary="Get user by ID")
-async def get_user(user_id: str, admin=Security(require_scope, scopes=["user:manage"])) -> UserResponse:
+async def get_user(
+    user_id: str,
+    session: AsyncSession = Depends(get_db),
+    admin=Security(require_scope, scopes=["user:manage"]),
+) -> UserResponse:
     try:
-        return await keycloak_admin.get_user(user_id)
-    except keycloak_admin.KeycloakAdminError as exc:
+        return await user_admin.get_user(session, user_id)
+    except user_admin.UserAdminError as exc:
         raise _map_error(exc) from exc
 
 
@@ -69,8 +74,8 @@ async def update_user(
     admin=Security(require_scope, scopes=["user:manage"]),
 ) -> UserResponse:
     try:
-        user = await keycloak_admin.update_user(user_id, body)
-    except keycloak_admin.KeycloakAdminError as exc:
+        user = await user_admin.update_user(session, user_id, body)
+    except user_admin.UserAdminError as exc:
         raise _map_error(exc) from exc
     changed = [f for f in ("role", "display_name", "password") if getattr(body, f) is not None]
     if changed:
@@ -90,8 +95,8 @@ async def delete_user(
     if user_id == admin.id:
         raise ApiError(ErrorCode.FORBIDDEN, "You cannot delete your own account", status=403)
     try:
-        await keycloak_admin.delete_user(user_id)
-    except keycloak_admin.KeycloakAdminError as exc:
+        await user_admin.delete_user(session, user_id)
+    except user_admin.UserAdminError as exc:
         raise _map_error(exc) from exc
     await record_audit(session, admin, "user.delete", object_type="user", object_id=user_id)
 
@@ -103,8 +108,8 @@ async def deactivate_user(
     admin=Security(require_scope, scopes=["user:manage"]),
 ) -> UserResponse:
     try:
-        user = await keycloak_admin.set_enabled(user_id, False)
-    except keycloak_admin.KeycloakAdminError as exc:
+        user = await user_admin.set_enabled(session, user_id, False)
+    except user_admin.UserAdminError as exc:
         raise _map_error(exc) from exc
     await record_audit(session, admin, "user.deactivate", object_type="user", object_id=user.id)
     return user
@@ -117,8 +122,8 @@ async def activate_user(
     admin=Security(require_scope, scopes=["user:manage"]),
 ) -> UserResponse:
     try:
-        user = await keycloak_admin.set_enabled(user_id, True)
-    except keycloak_admin.KeycloakAdminError as exc:
+        user = await user_admin.set_enabled(session, user_id, True)
+    except user_admin.UserAdminError as exc:
         raise _map_error(exc) from exc
     await record_audit(session, admin, "user.activate", object_type="user", object_id=user.id)
     return user

@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import require_scope
-from app.auth.keycloak import Principal
+from app.auth.principal import Principal
 from app.config import settings
 from app.db import get_db
 from app.routers.agencies._utils import _with_health

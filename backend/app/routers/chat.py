@@ -14,7 +14,7 @@ from opentelemetry import trace
 from opentelemetry.trace import StatusCode
 
 from app.auth.dependencies import get_current_user_optional
-from app.auth.keycloak import Principal
+from app.auth.principal import Principal
 from app.schemas.chat import ChatRequest
 from app.services.chat.aggregate import collect_turn
 from app.services.chat.model import resolve_model_version

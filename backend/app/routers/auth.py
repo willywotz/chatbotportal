@@ -10,7 +10,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 
 from app.auth.dependencies import get_current_user
-from app.auth.keycloak import Principal
+from app.auth.principal import Principal
 
 router = APIRouter(prefix="/authentication", tags=["Authentication"])
 

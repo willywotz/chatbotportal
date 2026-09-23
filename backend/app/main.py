@@ -43,6 +43,7 @@ from app.mcp.server import mcp
 from app.routers import agencies, audit_log, conversations, messages, dashboard, feedback, auth, chat, connection_logs, executive_summary, insight, popular_questions, public_status, users, settings as settings_router
 from app.routers import agent_proxy
 from app.routers import llm as llm_router
+from app.auth.oidc.router import router as oidc_router
 from app.services.seed import run_seed_agencies
 from app.services.popular_questions import seed_popular_questions
 from app.scheduler import start_scheduler, stop_scheduler
@@ -146,6 +147,11 @@ app.include_router(settings_router.router, prefix="/api/v1")
 app.include_router(audit_log.router, prefix="/api/v1")
 app.include_router(llm_router.router, prefix="/api/v1")
 app.include_router(agent_proxy.router, prefix="/api/v1")
+
+# OIDC provider — mounted at the issuer root (/oidc), NOT under /api/v1, so its
+# discovery, authorize, token, jwks and userinfo endpoints sit where the SPA's
+# OIDC client and the token `iss` expect them.
+app.include_router(oidc_router)
 
 # ---------------------------------------------------------------------------
 # MCP transport — its own auth, independent of the REST routers above.

@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Security, status
 from pydantic import BaseModel
 
 from app.auth.dependencies import require_scope
-from app.auth.keycloak import Principal
+from app.auth.principal import Principal
 from app.schemas.agency import McpDiscoverRequest, McpDiscoverResponse, McpToolInfo
 from app.services.agency import parse_spec
 from app.services.llm import LlmError

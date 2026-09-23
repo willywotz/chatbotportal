@@ -5,7 +5,7 @@ Auth is mocked via the as_principal fixture.
 import uuid
 from datetime import timedelta
 
-from app.auth.keycloak import Principal
+from app.auth.principal import Principal
 from app.repositories import conversation as conversation_repo
 from app.repositories import message as message_repo
 from app.routers.conversations import get_conversation_messages

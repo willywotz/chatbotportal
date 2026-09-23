@@ -3,7 +3,7 @@ from fastapi import Depends, FastAPI, Security
 from httpx import ASGITransport, AsyncClient
 
 from app.auth.dependencies import get_current_user, require_scope
-from app.auth.keycloak import Principal
+from app.auth.principal import Principal
 
 
 def _mini_app():

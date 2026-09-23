@@ -2,7 +2,7 @@ import uuid
 
 import pytest
 
-from app.auth.keycloak import Principal
+from app.auth.principal import Principal
 from app.errors import ApiError
 from app.models import Agency
 from app.models.agency import AgencyStatus

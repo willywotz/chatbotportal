@@ -5,7 +5,7 @@ import uuid
 import pytest
 from sqlalchemy import select
 
-from app.auth.keycloak import Principal
+from app.auth.principal import Principal
 from app.errors import ApiError
 from app.models.conversation import Conversation, Message
 from app.repositories import conversation as conversation_repo

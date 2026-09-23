@@ -8,7 +8,7 @@ import uuid
 
 import pytest
 
-from app.auth.keycloak import Principal
+from app.auth.principal import Principal
 from app.errors import ApiError
 from app.repositories import conversation as conversation_repo
 from app.routers.conversations import (

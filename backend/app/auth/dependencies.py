@@ -20,7 +20,8 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import SecurityScopes
 from starlette.requests import HTTPConnection
 
-from app.auth.keycloak import InvalidToken, Principal, verify_token
+from app.auth.oidc.tokens import verify_token
+from app.auth.principal import InvalidToken, Principal
 from app.services.usage_context import current_user_id
 
 _invalid_credentials = HTTPException(

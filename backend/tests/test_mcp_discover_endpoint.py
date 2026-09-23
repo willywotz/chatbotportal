@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import HTTPException
 
-from app.auth.keycloak import Principal
+from app.auth.principal import Principal
 from app.routers.agencies import spec as spec_router
 from app.schemas.agency import McpDiscoverRequest
 

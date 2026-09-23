@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Security
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import require_scope
-from app.auth.keycloak import Principal
+from app.auth.principal import Principal
 from app.db import get_db
 from app.services.analytics import get_dashboard_stats
 

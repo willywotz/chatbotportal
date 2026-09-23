@@ -26,7 +26,7 @@ from sqlalchemy.pool import NullPool
 from testcontainers.postgres import PostgresContainer
 
 from app.auth.dependencies import get_current_user
-from app.auth.keycloak import Principal
+from app.auth.principal import Principal
 from app.config import settings
 
 _KID = "test-key"
@@ -162,18 +162,18 @@ def make_token(rsa_keypair):
     private_pem, _ = rsa_keypair
 
     def _make(scopes=(), *, role="user", sub=None, email="u@example.com",
-              aud="backend", exp_delta=300, kid=_KID):
+              aud=None, iss=None, exp_delta=300, kid=_KID):
         now = int(time.time())
         claims = {
-            "iss": "http://keycloak:8080/realms/chatbotportal",
-            "aud": aud,
+            "iss": iss if iss is not None else settings.OIDC_ISSUER,
+            "aud": aud if aud is not None else settings.OIDC_AUDIENCE,
             "sub": sub or str(uuid.uuid4()),
             "email": email,
-            "preferred_username": email,
+            "name": email,
             "iat": now,
             "exp": now + exp_delta,
-            "realm_access": {"roles": [role]},
-            "resource_access": {"backend": {"roles": list(scopes)}},
+            "role": role,
+            "scope": " ".join(scopes),
         }
         return jwt.encode(claims, private_pem, algorithm="RS256", headers={"kid": kid})
 
@@ -181,7 +181,13 @@ def make_token(rsa_keypair):
 
 
 @pytest.fixture(autouse=True)
-def patch_jwks(rsa_keypair, monkeypatch):
-    from app.auth import keycloak
-    _, public_jwk = rsa_keypair
-    monkeypatch.setattr(keycloak, "_jwk_for_kid", lambda kid: public_jwk)
+def oidc_signing_key(rsa_keypair):
+    """Register a deterministic RS256 key in the OIDC key cache so token
+    mint/verify work without hitting the database."""
+    from app.auth.oidc import keys
+
+    private_pem, public_jwk = rsa_keypair
+    keys.reset_cache()
+    keys._register(_KID, private_pem.decode("ascii"), public_jwk, active=True)
+    yield
+    keys.reset_cache()

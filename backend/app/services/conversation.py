@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.keycloak import Principal
+from app.auth.principal import Principal
 from app.errors import ApiError, ErrorCode
 from app.models.conversation import Conversation, Message
 from app.repositories import conversation as conversation_repo

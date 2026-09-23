@@ -1,11 +1,11 @@
-"""Guard test: MCP `AuthMiddleware` resolves identity from a Keycloak bearer
-token (or admits an anonymous caller) and strips agency `Authorization`
+"""Guard test: MCP `AuthMiddleware` resolves identity from a self-hosted OIDC
+bearer token (or admits an anonymous caller) and strips agency `Authorization`
 headers from every response except an admin's.
 
 The MCP transport (/mcp) is mounted outside FastAPI's dependency injection, so
 the REST routers' `require_scope` never runs for it. The only auth gate is
 AuthMiddleware in app/mcp/server.py, which verifies the bearer via
-`app.auth.keycloak.verify_token` — no DB lookup, no role check beyond
+`app.auth.oidc.tokens.verify_token` — no DB lookup, no role check beyond
 admin/non-admin for the header-stripping trust boundary in `_fetch_agencies`.
 """
 

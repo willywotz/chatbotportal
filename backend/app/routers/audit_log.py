@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query, Security
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import require_scope
-from app.auth.keycloak import Principal
+from app.auth.principal import Principal
 from app.db import get_db
 from app.models import AuditLog
 from app.services import audit as audit_service

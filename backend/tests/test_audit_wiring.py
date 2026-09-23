@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 
 from sqlalchemy import select
 
-from app.auth.keycloak import Principal
+from app.auth.principal import Principal
 from app.models.agency import AgencyStatus
 from app.models.audit import AuditLog
 from app.repositories import agency as agency_repo
@@ -14,7 +14,7 @@ from app.routers import agencies as agencies_router
 from app.routers import users as users_router
 from app.schemas.agency import StatusUpdateRequest
 from app.schemas.user import UserResponse
-from app.services import keycloak_admin
+from app.services import user_admin
 
 
 def _admin(email="admin@audit.com"):
@@ -44,14 +44,15 @@ async def test_update_agency_status_writes_audit(db_session):
 async def test_deactivate_user_writes_audit(db_session, monkeypatch):
     admin = Principal(id="00000000-0000-0000-0000-0000000000aa", email="admin@audit.com",
                        display_name="Admin", role="admin", scopes=frozenset({"user:manage"}))
+    target_id = "00000000-0000-0000-0000-0000000000bb"
     deactivated = UserResponse(
-        id="kc-1", email="target@audit.com", displayName="target", role="user",
+        id=target_id, email="target@audit.com", displayName="target", role="user",
         isActive=False, createdAt=datetime.now(timezone.utc),
     )
-    monkeypatch.setattr(keycloak_admin, "set_enabled", AsyncMock(return_value=deactivated))
-    await users_router.deactivate_user("kc-1", db_session, admin=admin)
+    monkeypatch.setattr(user_admin, "set_enabled", AsyncMock(return_value=deactivated))
+    await users_router.deactivate_user(target_id, db_session, admin=admin)
     row = await _find(db_session, "user.deactivate")
     assert row is not None
     assert str(row.actor_id) == admin.id
     assert row.object_type == "user"
-    assert row.object_id == "kc-1"
+    assert row.object_id == target_id

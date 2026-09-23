@@ -1,8 +1,12 @@
+"""RS256 access-token verification maps flat role/scope claims onto a Principal."""
 import time
 
 import jwt
 import pytest
-from app.auth.keycloak import verify_token, InvalidToken, Principal
+
+from app.auth.oidc.tokens import verify_token
+from app.auth.principal import InvalidToken, Principal
+from app.config import settings
 
 
 def test_valid_token_yields_principal(make_token):
@@ -23,6 +27,11 @@ def test_wrong_audience_rejected(make_token):
         verify_token(make_token(aud="someone-else"))
 
 
+def test_wrong_issuer_rejected(make_token):
+    with pytest.raises(InvalidToken):
+        verify_token(make_token(iss="https://evil.example/oidc"))
+
+
 def test_expired_token_rejected(make_token):
     with pytest.raises(InvalidToken):
         verify_token(make_token(exp_delta=-10))
@@ -34,18 +43,23 @@ def test_bad_signature_rejected(make_token):
         verify_token(tok[:-3] + ("aaa" if not tok.endswith("aaa") else "bbb"))
 
 
+def test_unknown_kid_rejected(make_token):
+    with pytest.raises(InvalidToken):
+        verify_token(make_token(kid="no-such-kid"))
+
+
 def test_missing_sub_rejected(rsa_keypair):
     private_pem, _ = rsa_keypair
     now = int(time.time())
     claims = {
-        "iss": "http://keycloak:8080/realms/chatbotportal",
-        "aud": "backend",
+        "iss": settings.OIDC_ISSUER,
+        "aud": settings.OIDC_AUDIENCE,
         "email": "u@example.com",
-        "preferred_username": "u@example.com",
+        "name": "u@example.com",
         "iat": now,
         "exp": now + 300,
-        "realm_access": {"roles": ["user"]},
-        "resource_access": {"backend": {"roles": []}},
+        "role": "user",
+        "scope": "",
     }
     tok = jwt.encode(claims, private_pem, algorithm="RS256", headers={"kid": "test-key"})
     with pytest.raises(InvalidToken):

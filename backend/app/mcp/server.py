@@ -11,7 +11,8 @@ from opentelemetry import trace
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse
 
-from app.auth.keycloak import InvalidToken, verify_token
+from app.auth.oidc.tokens import verify_token
+from app.auth.principal import InvalidToken
 from app.config import settings
 from app.db import AsyncSessionLocal
 from app.repositories import agency as agency_repo

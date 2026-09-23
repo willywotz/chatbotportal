@@ -1,7 +1,7 @@
 import uuid
 from datetime import timedelta
 
-from app.auth.keycloak import Principal
+from app.auth.principal import Principal
 from app.repositories import audit as audit_repo
 from app.routers.audit_log import list_audit_log
 from app.utils import now

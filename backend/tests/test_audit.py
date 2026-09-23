@@ -3,7 +3,7 @@ import uuid
 import pytest
 from sqlalchemy import select
 
-from app.auth.keycloak import Principal
+from app.auth.principal import Principal
 from app.models.audit import AuditLog
 from app.services.audit import record_audit
 

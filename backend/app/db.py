@@ -67,7 +67,12 @@ async def run_migrations() -> None:
 async def init_db() -> None:
     await run_migrations()
 
+    from app.auth.oidc.keys import ensure_signing_key
     from app.services.llm.seed import seed_llm_defaults
+    from app.services.user_seed import seed_admin_user
+
+    await ensure_signing_key()
 
     async with AsyncSessionLocal() as session, session.begin():
         await seed_llm_defaults(session)
+        await seed_admin_user(session)

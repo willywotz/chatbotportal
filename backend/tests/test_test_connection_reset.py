@@ -3,7 +3,7 @@ import uuid
 import pytest
 from sqlalchemy import select
 
-from app.auth.keycloak import Principal
+from app.auth.principal import Principal
 from app.models import Agency, ConnectionLog
 from app.repositories import agency as agency_repo
 from app.routers.agencies import lifecycle

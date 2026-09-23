@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Security
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import require_scope
-from app.auth.keycloak import Principal
+from app.auth.principal import Principal
 from app.config import (
     SETTINGS_GROUPS,
     SECRET_FIELD_NAMES,

@@ -18,7 +18,7 @@ from typing import Any, AsyncIterator, Callable, Coroutine, NamedTuple
 from opentelemetry import trace
 from opentelemetry.trace import StatusCode
 
-from app.auth.keycloak import Principal
+from app.auth.principal import Principal
 from app.config import settings
 from app.db import AsyncSessionLocal
 from app.models.conversation import Message

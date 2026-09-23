@@ -41,42 +41,30 @@ class Settings(BaseSettings):
     # ── CORS ─────────────────────────────────────────────────────────────────
     CORS_ORIGINS: list[str] = ["*"]
 
-    # ── Keycloak ─────────────────────────────────────────────────────────────
-    # KEYCLOAK_URL is the PUBLIC, browser-facing base (through Caddy, e.g.
-    # https://<domain>/auth). It defines the token ISSUER, so it must equal the
-    # `iss` the SPA's tokens carry. KEYCLOAK_INTERNAL_URL is the server-side base
-    # the backend uses to reach Keycloak directly on the compose network (JWKS,
-    # token, admin API) — like the backend talks to jaeger directly. It falls back
-    # to KEYCLOAK_URL when Keycloak is not behind a proxy (e.g. tests).
-    KEYCLOAK_URL: str = "http://keycloak:8080"
-    KEYCLOAK_INTERNAL_URL: str = ""
-    KEYCLOAK_REALM: str = "chatbotportal"
-    KEYCLOAK_CLIENT_ID: str = "portal-spa"
-    KEYCLOAK_AUDIENCE: str = "backend"
-    KEYCLOAK_ADMIN_CLIENT_ID: str = "portal-admin"
-    KEYCLOAK_ADMIN_CLIENT_SECRET: str = ""
+    # ── OIDC provider (self-hosted) ──────────────────────────────────────────
+    # The backend is its own OpenID Provider / IdP. OIDC_ISSUER is the PUBLIC,
+    # browser-facing issuer base (through Caddy, e.g. https://<domain>/oidc). It
+    # is the `iss` every token carries and the `authority` the SPA discovers, so
+    # the same value drives discovery, token signing and token verification.
+    # OIDC_AUDIENCE is the access-token `aud`; OIDC_CLIENT_ID is the sole
+    # first-party SPA client. Lifetimes are seconds. OIDC_PRIVATE_KEY is an
+    # optional PEM override; when empty the signing key is generated once and
+    # persisted in the database (shared across uvicorn workers).
+    OIDC_ISSUER: str = "http://localhost:8080/oidc"
+    OIDC_CLIENT_ID: str = "portal-spa"
+    OIDC_AUDIENCE: str = "backend"
+    OIDC_ALLOWED_REDIRECT_URIS: list[str] = [
+        "http://localhost:8080/auth/callback",
+        "http://localhost:5173/auth/callback",
+    ]
+    OIDC_ACCESS_TOKEN_TTL: int = 900          # 15 minutes
+    OIDC_REFRESH_TOKEN_TTL: int = 30 * 24 * 3600  # 30 days
+    OIDC_CODE_TTL: int = 60                    # 1 minute
+    OIDC_PRIVATE_KEY: str = ""
 
-    @property
-    def _keycloak_internal_base(self) -> str:
-        return self.KEYCLOAK_INTERNAL_URL or self.KEYCLOAK_URL
-
-    @property
-    def keycloak_issuer(self) -> str:
-        # PUBLIC — must match the token's `iss` claim.
-        return f"{self.KEYCLOAK_URL}/realms/{self.KEYCLOAK_REALM}"
-
-    @property
-    def keycloak_jwks_url(self) -> str:
-        # Server-side fetch — reach Keycloak internally; the keys are the same.
-        return f"{self._keycloak_internal_base}/realms/{self.KEYCLOAK_REALM}/protocol/openid-connect/certs"
-
-    @property
-    def keycloak_token_url(self) -> str:
-        return f"{self._keycloak_internal_base}/realms/{self.KEYCLOAK_REALM}/protocol/openid-connect/token"
-
-    @property
-    def keycloak_admin_base(self) -> str:
-        return f"{self._keycloak_internal_base}/admin/realms/{self.KEYCLOAK_REALM}"
+    # Startup seed for the first administrator (created only if no admin exists).
+    SEED_ADMIN_EMAIL: str = "admin@chatbotportal.local"
+    SEED_ADMIN_PASSWORD: str = "admin"
 
     # ── LLM / OpenRouter ────────────────────────────────────────────────────
     OPENROUTER_API_KEY: str = ""
