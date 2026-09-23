@@ -3,8 +3,9 @@
  *
  * Base URL:  VITE_API_BASE_URL  (default: http://localhost:8000)
  *
- * A request interceptor silently renews and attaches the OIDC access token
- * as `Authorization: Bearer <token>`; no session cookie is sent.
+ * A request interceptor attaches the current OIDC access token (kept fresh by
+ * AuthTokenSync / react-oidc-context) as `Authorization: Bearer <token>`; no
+ * session cookie is sent.
  *
  * A response interceptor unwraps Axios errors and surfaces the FastAPI
  * `detail` field as a plain Error message, and re-triggers OIDC login
@@ -18,7 +19,7 @@
 
 import axios, { type AxiosInstance, type AxiosResponse } from 'axios';
 
-import { ensureToken, isAuthenticated, login } from '@/shared/lib/oidc';
+import { getAccessToken, notifyUnauthenticated } from '@/shared/lib/authToken';
 
 const appConfig = (window as any).__APP_CONFIG__;
 
@@ -29,11 +30,11 @@ const axiosInstance: AxiosInstance = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// -- Request interceptor: refresh and attach the OIDC bearer token ----------
-axiosInstance.interceptors.request.use(async (config) => {
-  // ensureToken silently renews an expired access token via the refresh token,
-  // returning undefined when there is no session (guest / public pages).
-  const token = await ensureToken();
+// -- Request interceptor: attach the OIDC bearer token ----------------------
+axiosInstance.interceptors.request.use((config) => {
+  // Token is kept current by AuthTokenSync (react-oidc-context handles silent
+  // renew); undefined when there is no session (guest / public pages).
+  const token = getAccessToken();
   if (token) {
     // config.headers is always defined here (axios sets it before running
     // interceptors); a direct property assignment works whether it's a
@@ -49,8 +50,8 @@ axiosInstance.interceptors.response.use(
   (error) => {
     // Only re-login when a previously-authenticated session got a 401;
     // an anonymous 401 must not trigger a redirect loop.
-    if (error?.response?.status === 401 && isAuthenticated()) {
-      login();
+    if (error?.response?.status === 401 && getAccessToken()) {
+      notifyUnauthenticated();
     }
     const data = error?.response?.data;
     // New envelope shape: {"error": {"code", "message", "retryable"}}

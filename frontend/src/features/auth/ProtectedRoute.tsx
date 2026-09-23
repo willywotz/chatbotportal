@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/features/auth/useAuth";
-import { login } from "@/shared/lib/oidc";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import type { Role } from "@/features/auth/roles";
 
@@ -24,15 +23,15 @@ function LoadingSkeleton() {
 }
 
 export function ProtectedRoute({ children, requireAdmin = false, allowedRoles }: ProtectedRouteProps) {
-  const { user, isAdmin, isLoading } = useAuth();
+  const { user, isAdmin, isLoading, signIn } = useAuth();
   const loginTriggered = useRef(false);
 
   useEffect(() => {
     if (!isLoading && !user && !loginTriggered.current) {
       loginTriggered.current = true;
-      login(window.location.pathname + window.location.search);
+      signIn(window.location.pathname + window.location.search);
     }
-  }, [isLoading, user]);
+  }, [isLoading, user, signIn]);
 
   if (isLoading) {
     return <LoadingSkeleton />;

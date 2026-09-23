@@ -113,6 +113,11 @@ async def test_full_code_flow_then_userinfo(client, db_session):
     assert body["token_type"] == "Bearer"
     principal = verify_token(body["access_token"])
     assert principal.role == "admin"
+    # id token carries role so the SPA reads it from the OIDC profile (no /me).
+    import jwt as _jwt
+    id_claims = _jwt.decode(body["id_token"], options={"verify_signature": False})
+    assert id_claims["role"] == "admin"
+    assert id_claims["aud"] == settings.OIDC_CLIENT_ID
 
     info = await client.get("/oauth2/userinfo", headers={"Authorization": f"Bearer {body['access_token']}"})
     assert info.status_code == 200

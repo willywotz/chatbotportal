@@ -40,7 +40,7 @@ def mint_access_token(*, sub: str, email: str | None, display_name: str | None, 
     return jwt.encode(claims, private_pem, algorithm="RS256", headers={"kid": kid})
 
 
-def mint_id_token(*, sub: str, email: str | None, display_name: str | None, nonce: str | None = None) -> str:
+def mint_id_token(*, sub: str, email: str | None, display_name: str | None, role: str, nonce: str | None = None) -> str:
     kid, private_pem = keys.active_signing()
     now = _now()
     claims: dict = {
@@ -49,6 +49,9 @@ def mint_id_token(*, sub: str, email: str | None, display_name: str | None, nonc
         "sub": sub,
         "email": email,
         "name": display_name,
+        # `role` rides the id token so the SPA reads it from the OIDC profile
+        # (no separate /me call). The access token carries role + scope for the API.
+        "role": role,
         "iat": now,
         "exp": now + settings.OIDC_ACCESS_TOKEN_TTL,
     }

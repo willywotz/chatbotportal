@@ -13,7 +13,7 @@ import { useChat } from '@/features/chat/useChat';
 import { usePublicPopularQuestions } from '@/features/popular-questions/popularQuestionsApi';
 import { usePublicAgencies } from '@/features/public/publicAgenciesApi';
 import { useState } from 'react';
-import { login } from '@/shared/lib/oidc';
+import { useAuth } from '@/features/auth/useAuth';
 
 export default function PublicPortal() {
   const {
@@ -22,6 +22,7 @@ export default function PublicPortal() {
   } = useChat();
   const { data: popularQuestions } = usePublicPopularQuestions();
   const { data: publicAgencies } = usePublicAgencies();
+  const { signIn } = useAuth();
   const [chatMode, setChatMode] = useState(false);
 
   const isStreaming = isTyping && streamingState.pipelineSteps.length > 0 && !streamingState.done;
@@ -41,7 +42,7 @@ export default function PublicPortal() {
       variant="outline"
       size="sm"
       className="rounded-full bg-white"
-      onClick={() => login('/chat')}
+      onClick={() => signIn('/chat')}
     >
       เข้าสู่ระบบ <ArrowRight className="w-3 h-3" />
     </Button>

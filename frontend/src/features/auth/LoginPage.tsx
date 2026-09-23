@@ -1,14 +1,13 @@
 import { useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/features/auth/useAuth";
-import { login } from "@/shared/lib/oidc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { Button } from "@/shared/components/ui/button";
 import { ArrowLeft, LogIn } from "lucide-react";
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, signIn } = useAuth();
 
   // Redirect if already logged in
   useEffect(() => {
@@ -29,7 +28,7 @@ export default function LoginPage() {
           </p>
         </CardHeader>
         <CardContent>
-          <Button className="w-full" onClick={() => login()}>
+          <Button className="w-full" onClick={() => signIn("/chat")}>
             <LogIn className="h-4 w-4 mr-2" />
             เข้าสู่ระบบ
           </Button>

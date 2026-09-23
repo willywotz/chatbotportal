@@ -1,7 +1,8 @@
 import { createRoot } from "react-dom/client";
+import { AuthProvider } from "react-oidc-context";
 
 import App from "./App.tsx";
-import { initAuth } from "@/shared/lib/oidc";
+import { oidcConfig } from "@/shared/lib/oidc";
 import "./index.css";
 
 async function enableMocking(): Promise<void> {
@@ -10,13 +11,16 @@ async function enableMocking(): Promise<void> {
 }
 
 async function bootstrap(): Promise<void> {
-  // Mock mode has no real OIDC provider to talk to; MSW stands in for it.
+  // Mock mode has no real OIDC provider to talk to; MSW stands in for it and the
+  // auth hook returns a fixed admin (see useAuth).
   if (import.meta.env.VITE_USE_MOCKS === "true") {
     await enableMocking();
-  } else {
-    await initAuth();
   }
-  createRoot(document.getElementById("root")!).render(<App />);
+  createRoot(document.getElementById("root")!).render(
+    <AuthProvider {...oidcConfig}>
+      <App />
+    </AuthProvider>,
+  );
 }
 
 bootstrap();

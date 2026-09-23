@@ -6,21 +6,13 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { server } from "@/mocks/server";
-import { login } from "@/shared/lib/oidc";
 import PublicPortal from "./PublicPortal";
 
-const { resetMock } = vi.hoisted(() => ({ resetMock: vi.fn() }));
+const { resetMock, signInMock } = vi.hoisted(() => ({ resetMock: vi.fn(), signInMock: vi.fn() }));
 
-// Stub the OIDC wrapper: login is asserted, ensureToken/isAuthenticated keep
-// the axios client working without a real provider.
-vi.mock("@/shared/lib/oidc", () => ({
-  login: vi.fn(),
-  logout: vi.fn(),
-  ensureToken: vi.fn().mockResolvedValue(undefined),
-  isAuthenticated: vi.fn().mockReturnValue(false),
-  getToken: vi.fn(),
-  initAuth: vi.fn().mockResolvedValue(false),
-  completeLogin: vi.fn(),
+// Stub the auth adapter: signIn is asserted; the SPA stays anonymous here.
+vi.mock("@/features/auth/useAuth", () => ({
+  useAuth: () => ({ user: null, isAdmin: false, isLoading: false, signIn: signInMock, signOut: vi.fn() }),
 }));
 
 vi.mock("@/features/chat/useChat", () => ({
@@ -71,12 +63,12 @@ describe("PublicPortal popular questions", () => {
 });
 
 describe("PublicPortal login button", () => {
-  it("redirects straight to Keycloak when an anon user clicks login", async () => {
-    vi.mocked(login).mockClear();
+  it("redirects to the OIDC provider when an anon user clicks login", async () => {
+    signInMock.mockClear();
     renderPortal();
     const button = await screen.findByRole("button", { name: /เข้าสู่ระบบ/ });
     await userEvent.click(button);
-    expect(login).toHaveBeenCalledTimes(1);
+    expect(signInMock).toHaveBeenCalledTimes(1);
   });
 });
 

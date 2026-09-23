@@ -1,15 +1,13 @@
 import { http, HttpResponse } from 'msw';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-vi.mock('@/shared/lib/oidc', () => ({
-  ensureToken: vi.fn().mockResolvedValue(undefined),
-}));
-
 import { server } from '@/mocks/server';
 import { STREAM_IDLE_TIMEOUT_MS } from '@/shared/constants/query';
-import { ensureToken } from '@/shared/lib/oidc';
+import { setAccessToken } from '@/shared/lib/authToken';
 
 import { sendChatQuery, sendChatQuerySSE } from './chatApi';
+
+afterEach(() => setAccessToken(undefined));
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -162,7 +160,7 @@ describe('sendChatQuerySSE — idle timeout', () => {
   });
 
   it('attaches the bearer token when authenticated', async () => {
-    vi.mocked(ensureToken).mockResolvedValueOnce('tok123');
+    setAccessToken('tok123');
     server.use(makeCompletingSSEHandler());
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
 

@@ -6,7 +6,7 @@ import { Skeleton } from "@/shared/components/ui/skeleton";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { ThemeProvider } from "@/shared/components/ThemeProvider";
-import { AuthProvider } from "@/features/auth/useAuth";
+import { AuthTokenSync } from "@/features/auth/useAuth";
 import { ProtectedRoute } from "@/features/auth/ProtectedRoute";
 import { AppLayout } from "@/shared/components/layout/AppLayout";
 import { TextScaleProvider } from "@/shared/hooks/useTextScale";
@@ -58,8 +58,8 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-      <AuthProvider>
-        <TooltipProvider>
+      <TooltipProvider>
+          <AuthTokenSync />
           <Toaster />
           <Sonner />
           <BrowserRouter>
@@ -128,8 +128,7 @@ const App = () => (
             </Suspense>
             </TextScaleProvider>
           </BrowserRouter>
-        </TooltipProvider>
-      </AuthProvider>
+      </TooltipProvider>
     </ThemeProvider>
   </QueryClientProvider>
 );

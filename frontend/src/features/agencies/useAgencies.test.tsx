@@ -5,10 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { resetMockData } from "@/mocks/fixtures";
 
-vi.mock("@/shared/lib/oidc", () => ({
-  ensureToken: vi.fn().mockResolvedValue(undefined),
-}));
-import { ensureToken } from "@/shared/lib/oidc";
+import { setAccessToken } from "@/shared/lib/authToken";
 
 import {
   useAgencies,
@@ -71,7 +68,7 @@ describe("useUpdateAgencyStatus", () => {
 
 describe("useUploadAgencyLogo", () => {
   afterEach(() => {
-    vi.mocked(ensureToken).mockResolvedValue(undefined);
+    setAccessToken(undefined);
   });
 
   it("sends the logo upload with no credentials and no Authorization header when unauthenticated", async () => {
@@ -92,7 +89,7 @@ describe("useUploadAgencyLogo", () => {
   });
 
   it("attaches the OIDC bearer token when authenticated", async () => {
-    vi.mocked(ensureToken).mockResolvedValue("tok123");
+    setAccessToken("tok123");
     const agency = { id: ACTIVE_ID, name: "n", logo: "l" };
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify(agency), { status: 200 }),

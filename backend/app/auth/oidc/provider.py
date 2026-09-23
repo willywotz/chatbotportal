@@ -71,7 +71,7 @@ def _token_response(user: User, refresh_token: str) -> dict:
         sub=str(user.id), email=user.email, display_name=user.display_name, role=user.role.value,
     )
     id_token = tokens.mint_id_token(
-        sub=str(user.id), email=user.email, display_name=user.display_name,
+        sub=str(user.id), email=user.email, display_name=user.display_name, role=user.role.value,
     )
     return {
         "access_token": access,

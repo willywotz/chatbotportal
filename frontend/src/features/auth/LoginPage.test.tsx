@@ -2,37 +2,38 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-import { login } from "@/shared/lib/oidc";
 import LoginPage from "./LoginPage";
 
 const mockNavigate = vi.fn();
-let mockUser: unknown = null;
-vi.mock("@/features/auth/useAuth", () => ({
-  useAuth: () => ({ user: mockUser, isAdmin: false, isLoading: false }),
-}));
-vi.mock("@/shared/lib/oidc", () => ({
-  login: vi.fn(),
-}));
+const auth: {
+  user: unknown;
+  isAdmin: boolean;
+  isLoading: boolean;
+  signIn: ReturnType<typeof vi.fn>;
+  signOut: ReturnType<typeof vi.fn>;
+} = { user: null, isAdmin: false, isLoading: false, signIn: vi.fn(), signOut: vi.fn() };
+
+vi.mock("@/features/auth/useAuth", () => ({ useAuth: () => auth }));
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
   return { ...actual, useNavigate: () => mockNavigate };
 });
 
 beforeEach(() => {
-  mockUser = null;
+  auth.user = null;
   mockNavigate.mockClear();
-  vi.mocked(login).mockClear();
+  auth.signIn.mockClear();
 });
 
 describe("LoginPage", () => {
-  it("calls login() when the button is clicked", () => {
+  it("calls signIn() when the button is clicked", () => {
     render(
       <MemoryRouter>
         <LoginPage />
       </MemoryRouter>,
     );
     fireEvent.click(screen.getByRole("button", { name: /เข้าสู่ระบบ/ }));
-    expect(login).toHaveBeenCalledTimes(1);
+    expect(auth.signIn).toHaveBeenCalledTimes(1);
   });
 
   it("does not link to the removed signup page", () => {

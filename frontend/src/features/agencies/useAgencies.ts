@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, axiosInstance } from '@/shared/lib/apiClient';
-import { ensureToken } from '@/shared/lib/oidc';
+import { getAccessToken } from '@/shared/lib/authToken';
 import { REFETCH, STALE_TIME } from '@/shared/constants/query';
 import { connectionLogKeys } from '@/features/connection-logs/useConnectionLogs';
 import type { Agency } from '@/shared/types';
@@ -123,7 +123,7 @@ export function useUploadAgencyLogo() {
     mutationFn: async ({ id, file }: { id: string; file: File }): Promise<Agency> => {
       const formData = new FormData();
       formData.append('file', file);
-      const token = await ensureToken();
+      const token = getAccessToken();
       const headers: Record<string, string> = {};
       if (token) {
         headers.Authorization = `Bearer ${token}`;
