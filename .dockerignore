@@ -4,8 +4,8 @@
 !/backend/**
 !/frontend
 !/frontend/**
-!/caddy
-!/caddy/**
+!/deploy/caddy
+!/deploy/caddy/**
 !/deploy/keycloak
 !/deploy/keycloak/**
 

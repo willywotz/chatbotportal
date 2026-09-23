@@ -96,7 +96,7 @@ services:
       SITE_ADDRESS: ${CERT_DOMAIN:-:80}
       CERT_EMAIL: ${CERT_EMAIL:-}
     volumes:
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
