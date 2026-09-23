@@ -112,7 +112,7 @@ services:
     restart: unless-stopped
     command:
       - "--set=extensions.jaeger_query.base_path=/jaeger"
-      - "--set=storage.memory.max_traces=1000"
+      - "--set=extensions.jaeger_storage.backends.some_storage.memory.max_traces=1000"
 
 volumes:
   postgres_data:
