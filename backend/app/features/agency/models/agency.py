@@ -61,7 +61,6 @@ class Agency(Base):
     router_hint: Mapped[str] = mapped_column(Text, default="")
     dispatch_timeout_s: Mapped[int | None] = mapped_column(Integer, nullable=True)
     mcp_tool_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    conformance_report: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     total_calls: Mapped[int] = mapped_column(Integer, default=0)
     rating_up: Mapped[int] = mapped_column(Integer, default=0)
     rating_down: Mapped[int] = mapped_column(Integer, default=0)

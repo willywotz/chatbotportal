@@ -29,14 +29,14 @@ async def test_transition_status_rejects_illegal_transition(db_session):
     assert exc.value.status == 422
 
 
-async def test_transition_status_blocks_draft_to_active_without_passing_conformance(db_session):
+async def test_transition_status_allows_draft_to_active(db_session):
     agency = await agency_repo.create(
         db_session, name="A", short_name="A", connection_type="API", status=AgencyStatus.draft,
     )
     await db_session.flush()
-    with pytest.raises(ApiError) as exc:
-        await transition_status(db_session, agency, "active")
-    assert exc.value.code == "invalid_request"
+    old_status = await transition_status(db_session, agency, "active")
+    assert old_status == "draft"
+    assert agency.status == "active"
 
 
 async def test_transition_status_saves_and_clears_auto_maintenance(db_session):

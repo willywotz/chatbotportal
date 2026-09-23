@@ -23,7 +23,6 @@ import { StepConnection } from "./StepConnection";
 import { StepGeneral } from "./StepGeneral";
 import { StepReview } from "./StepReview";
 import { StepRouting } from "./StepRouting";
-import { StepTest } from "./StepTest";
 
 function stepIndex(id: WizardStepId): number {
   return WIZARD_STEPS.findIndex((s) => s.id === id);
@@ -40,7 +39,6 @@ export default function AgencyWizardPage() {
   const [form, setForm] = useState<AgencyFormState>(DEFAULT_FORM_STATE);
   const [step, setStep] = useState<WizardStepId>("general");
   const [agencyId, setAgencyId] = useState<string | null>(null);
-  const [conformancePassed, setConformancePassed] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   // Resume mode: hydrate form from the existing draft, jump to first incomplete step.
@@ -52,7 +50,6 @@ export default function AgencyWizardPage() {
       setForm(state);
       setStep(firstIncompleteStep(state));
       setAgencyId(agency.id);
-      setConformancePassed(Boolean(agency.conformanceReport?.passed));
       setLoaded(true);
     } else {
       toast.error("ไม่พบหน่วยงาน");
@@ -68,7 +65,6 @@ export default function AgencyWizardPage() {
   const stepValid: Record<WizardStepId, boolean> = {
     general: isStepGeneralValid(form),
     connection: isStepConnectionValid(form),
-    test: true,
     routing: true,
     review: true,
   };
@@ -89,7 +85,7 @@ export default function AgencyWizardPage() {
 
   const goNext = async () => {
     const idx = stepIndex(step);
-    // Leaving the connection step persists the draft so the test step has an id.
+    // Leaving the connection step persists the draft so later steps have an id.
     if (step === "connection") {
       try {
         await persistDraft();
@@ -161,14 +157,8 @@ export default function AgencyWizardPage() {
         <div className="flex-1 min-w-0">
           {step === "general" && <StepGeneral form={form} patch={patch} />}
           {step === "connection" && <StepConnection form={form} patch={patch} />}
-          {step === "test" && agencyId && <StepTest agencyId={agencyId} onResult={setConformancePassed} />}
           {step === "routing" && <StepRouting form={form} patch={patch} />}
           {step === "review" && <StepReview form={form} />}
-          {step === "review" && !conformancePassed && (
-            <p className="text-sm text-amber-600 mt-2">
-              ต้องรันชุดทดสอบ Conformance ให้ผ่านในขั้นตอน “ทดสอบ” ก่อนจึงจะเปิดใช้งานได้
-            </p>
-          )}
 
           <div className="flex items-center justify-between mt-8 max-w-lg">
             <Button variant="ghost" onClick={goBack}>
@@ -190,7 +180,7 @@ export default function AgencyWizardPage() {
                   <Button variant="outline" onClick={() => finish(false)} disabled={saving}>
                     บันทึกเป็น Draft
                   </Button>
-                  <Button onClick={() => finish(true)} disabled={!canActivate(form) || !conformancePassed || saving}>
+                  <Button onClick={() => finish(true)} disabled={!canActivate(form) || saving}>
                     เปิดใช้งาน
                   </Button>
                 </>

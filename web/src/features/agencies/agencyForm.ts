@@ -89,12 +89,11 @@ export function agencyToFormState(agency: Agency): AgencyFormState {
   };
 }
 
-export type WizardStepId = "general" | "connection" | "test" | "routing" | "review";
+export type WizardStepId = "general" | "connection" | "routing" | "review";
 
 export const WIZARD_STEPS: { id: WizardStepId; label: string }[] = [
   { id: "general", label: "ข้อมูลทั่วไป" },
   { id: "connection", label: "การเชื่อมต่อ" },
-  { id: "test", label: "ทดสอบ" },
   { id: "routing", label: "Routing" },
   { id: "review", label: "สรุป" },
 ];
@@ -153,7 +152,7 @@ export function canActivate(s: AgencyFormState): boolean {
 export function firstIncompleteStep(s: AgencyFormState): WizardStepId {
   if (!isStepGeneralValid(s)) return "general";
   if (!isStepConnectionValid(s)) return "connection";
-  return "test";
+  return "routing";
 }
 
 export function parseIntOrNull(raw: string): number | null {

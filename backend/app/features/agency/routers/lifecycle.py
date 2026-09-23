@@ -75,17 +75,6 @@ async def update_agency_status(
     return await _with_health(session, agency)
 
 
-@router.post("/{agency_id}/conformance", summary="Run the conformance battery (admin)")
-async def run_agency_conformance(
-    agency_id: str,
-    session: AsyncSession = Depends(get_db),
-    _: Principal = Security(require_scope, scopes=["agency:write"]),
-):
-    agency = await agency_service.get_agency_or_404(session, agency_id)
-    from app.features.agency.services.conformance import run_conformance
-    return await run_conformance(session, agency)
-
-
 @router.get(
     "/{agency_id}/health/history",
     response_model=HealthHistoryResponse,

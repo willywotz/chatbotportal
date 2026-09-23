@@ -19,12 +19,11 @@ def is_legal_transition(current: str, target: str) -> bool:
     return target in LEGAL_TRANSITIONS.get(current, [])
 
 
-def assert_legal_transition(current: str, target: str, conformance_report: dict | None) -> None:
+def assert_legal_transition(current: str, target: str) -> None:
     """Guard a status change against the lifecycle state machine.
 
     A no-op change (current == target) is allowed. Any other change must be
-    listed in LEGAL_TRANSITIONS, and a draft -> active change also requires a
-    passed conformance report. This is the single gate for every write path.
+    listed in LEGAL_TRANSITIONS. This is the single gate for every write path.
     """
     if current == target:
         return
@@ -34,12 +33,10 @@ def assert_legal_transition(current: str, target: str, conformance_report: dict 
             f"Illegal status transition: {current} → {target}",
             status=422,
         )
-    if current == "draft" and target == "active" and not (conformance_report or {}).get("passed"):
-        raise ApiError(ErrorCode.INVALID_REQUEST, "conformance test must pass before activation", status=400)
 
 
 async def transition_status(session: AsyncSession, agency: Agency, new_status: str) -> str:
-    assert_legal_transition(agency.status.value, new_status, agency.conformance_report)
+    assert_legal_transition(agency.status.value, new_status)
     old_status = agency.status.value
     agency.status = new_status
     agency.auto_maintenance = False

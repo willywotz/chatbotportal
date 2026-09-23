@@ -5,8 +5,6 @@ from app.features.agency.repositories import agency as agency_repo
 from app.features.agency.schemas.agency import AgencyCreate
 from app.features.agency.services import agency as agency_service
 
-_PASSED_REPORT = {"ran_at": "2026-01-01T00:00:00+00:00", "passed": True, "checks": []}
-
 
 async def _active_agency(db_session, **overrides):
     fields = {
@@ -15,7 +13,6 @@ async def _active_agency(db_session, **overrides):
         "connection_type": "API",
         "status": "active",
         "endpoint_url": "https://usecase.example/agency/chat",
-        "conformance_report": _PASSED_REPORT,
     }
     fields.update(overrides)
     return await agency_repo.create(db_session, **fields)
@@ -38,12 +35,11 @@ async def test_create_allows_disabled(db_session):
 
 
 @pytest.mark.asyncio
-async def test_create_rejects_active_without_conformance(db_session):
-    with pytest.raises(ApiError) as exc:
-        await agency_service.create_agency(
-            db_session, AgencyCreate(name="A", short_name="A", status="active")
-        )
-    assert exc.value.status == 400
+async def test_create_allows_active(db_session):
+    agency = await agency_service.create_agency(
+        db_session, AgencyCreate(name="A", short_name="A", status="active")
+    )
+    assert agency.status == "active"
 
 
 @pytest.mark.asyncio
@@ -87,31 +83,13 @@ async def test_replace_demotes_on_connection_identity_change(db_session):
                      status="active", endpoint_url="https://usecase.example/agency/CHANGED"),
     )
     assert replaced.status == "draft"
-    assert replaced.conformance_report is None
 
 
 @pytest.mark.asyncio
-async def test_replace_rejects_activation_without_conformance(db_session):
+async def test_replace_activates_draft(db_session):
     agency = await agency_repo.create(
         db_session, name="Draft", short_name="DR", connection_type="API",
         status="draft", endpoint_url="https://usecase.example/agency/chat",
-    )
-    with pytest.raises(ApiError) as exc:
-        await agency_service.replace_agency(
-            db_session,
-            agency,
-            AgencyCreate(name="Draft", short_name="DR", connection_type="API",
-                         status="active", endpoint_url="https://usecase.example/agency/chat"),
-        )
-    assert exc.value.status == 400
-
-
-@pytest.mark.asyncio
-async def test_replace_activates_draft_when_conformance_passed(db_session):
-    agency = await agency_repo.create(
-        db_session, name="Draft", short_name="DR", connection_type="API",
-        status="draft", endpoint_url="https://usecase.example/agency/chat",
-        conformance_report=_PASSED_REPORT,
     )
     replaced = await agency_service.replace_agency(
         db_session,

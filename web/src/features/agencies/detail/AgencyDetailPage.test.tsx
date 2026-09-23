@@ -54,14 +54,13 @@ describe("AgencyDetailPage", () => {
     );
   });
 
-  it("does not offer direct activation for a draft — activation goes through setup", async () => {
+  it("offers direct activation for a draft", async () => {
     const user = userEvent.setup();
     renderDetail(DRAFT_ID);
     await waitFor(() => expect(screen.getByText("กรมที่ดิน")).toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: /สถานะ/ }));
     const menu = await screen.findByRole("menu");
-    // Draft → active requires the conformance battery, which only the setup wizard runs.
-    expect(within(menu).queryByText("เปิดใช้งาน")).not.toBeInTheDocument();
+    expect(within(menu).getByText("เปิดใช้งาน")).toBeInTheDocument();
     expect(within(menu).getByText("ปิดการใช้งาน")).toBeInTheDocument();
   });
 
