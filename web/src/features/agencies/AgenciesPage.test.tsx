@@ -47,7 +47,7 @@ describe("AgenciesPage", () => {
     expect(screen.queryByText("กรมสรรพากร")).not.toBeInTheDocument();
   });
 
-  it("links the add button to the wizard", async () => {
+  it("links the add button to the agency form", async () => {
     renderPage();
     await waitFor(() => expect(screen.getByText("กรมสรรพากร")).toBeInTheDocument());
     expect(screen.getByRole("link", { name: /เพิ่มหน่วยงาน/ })).toHaveAttribute("href", "/agencies/new");

@@ -1,5 +1,5 @@
-import { ArrowLeft, ArrowRight, ChevronDown } from "lucide-react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { ArrowLeft, ArrowRight, ChevronDown, Pencil } from "lucide-react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import { Badge } from "@/shared/components/ui/badge";
@@ -23,7 +23,6 @@ import {
   TRANSITION_LABEL,
 } from "../lifecycle";
 import { useAgencies, useUpdateAgencyStatus } from "../useAgencies";
-import { EditTab } from "./EditTab";
 import { HealthTab } from "./HealthTab";
 import { LogsTab } from "./LogsTab";
 import { OverviewTab } from "./OverviewTab";
@@ -31,7 +30,6 @@ import { OverviewTab } from "./OverviewTab";
 export default function AgencyDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const { data: agencies = [], isLoading } = useAgencies();
   const statusMutation = useUpdateAgencyStatus();
 
@@ -67,8 +65,6 @@ export default function AgencyDetailPage() {
   };
 
   const showHealthDot = agency.status === "active" || agency.status === "maintenance";
-  const requestedTab = searchParams.get("tab");
-  const defaultTab = requestedTab === "edit" ? "edit" : "overview";
 
   return (
     <div className="p-4 md:p-6 space-y-6">
@@ -98,20 +94,27 @@ export default function AgencyDetailPage() {
             </div>
           </div>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm">
-              สถานะ <ChevronDown className="h-3.5 w-3.5 ml-1" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {legalTransitions(agency.status).map((to) => (
-              <DropdownMenuItem key={to} onClick={() => changeStatus(to)}>
-                {TRANSITION_LABEL[to]}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link to={`/agencies/${agency.id}/edit`}>
+              <Pencil className="h-3.5 w-3.5 mr-1" /> แก้ไข
+            </Link>
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                สถานะ <ChevronDown className="h-3.5 w-3.5 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {legalTransitions(agency.status).map((to) => (
+                <DropdownMenuItem key={to} onClick={() => changeStatus(to)}>
+                  {TRANSITION_LABEL[to]}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       {agency.status === "draft" && (
@@ -126,11 +129,10 @@ export default function AgencyDetailPage() {
         </div>
       )}
 
-      <Tabs defaultValue={defaultTab} className="space-y-4">
+      <Tabs defaultValue="overview" className="space-y-4">
         <TabsList>
           <TabsTrigger value="overview">ภาพรวม</TabsTrigger>
           <TabsTrigger value="health">Health</TabsTrigger>
-          <TabsTrigger value="edit">แก้ไข</TabsTrigger>
           <TabsTrigger value="logs">Logs</TabsTrigger>
         </TabsList>
         <TabsContent value="overview">
@@ -138,9 +140,6 @@ export default function AgencyDetailPage() {
         </TabsContent>
         <TabsContent value="health">
           <HealthTab agencyId={agency.id} />
-        </TabsContent>
-        <TabsContent value="edit">
-          <EditTab agency={agency} />
         </TabsContent>
         <TabsContent value="logs">
           <LogsTab agencyId={agency.id} />

@@ -20,7 +20,7 @@ const HealthPage = lazy(() => import("@/features/health/HealthPage"));
 const HeatmapPage = lazy(() => import("@/features/heatmap/HeatmapPage"));
 const AgenciesPage = lazy(() => import("@/features/agencies/AgenciesPage"));
 const AgencyDetailPage = lazy(() => import("@/features/agencies/detail/AgencyDetailPage"));
-const AgencyWizardPage = lazy(() => import("@/features/agencies/wizard/AgencyWizardPage"));
+const AgencyFormPage = lazy(() => import("@/features/agencies/form/AgencyFormPage"));
 const HistoryPage = lazy(() => import("@/features/history/HistoryPage"));
 const ArchitecturePage = lazy(() => import("@/features/architecture/ArchitecturePage"));
 const ConnectionLogsPage = lazy(() => import("@/features/connection-logs/ConnectionLogsPage"));
@@ -94,8 +94,9 @@ const App = () => (
                 <Route element={<ProtectedRoute allowedRoles={["admin"]}><Outlet /></ProtectedRoute>}>
                   <Route path="/agencies" element={<AgenciesPage />} />
                   <Route path="/agencies/:id" element={<AgencyDetailPage />} />
-                  <Route path="/agencies/new" element={<AgencyWizardPage />} />
-                  <Route path="/agencies/:id/setup" element={<AgencyWizardPage />} />
+                  <Route path="/agencies/new" element={<AgencyFormPage />} />
+                  <Route path="/agencies/:id/setup" element={<AgencyFormPage />} />
+                  <Route path="/agencies/:id/edit" element={<AgencyFormPage />} />
                 </Route>
 
                 {/* Merged Settings area — nested tabs. /settings is authenticated-only

@@ -22,7 +22,8 @@ function renderDetail(id: string, search = "") {
       <MemoryRouter initialEntries={[`/agencies/${id}${search}`]}>
         <Routes>
           <Route path="/agencies/:id" element={<AgencyDetailPage />} />
-          <Route path="/agencies/:id/setup" element={<div>wizard</div>} />
+          <Route path="/agencies/:id/setup" element={<div>agency-form</div>} />
+          <Route path="/agencies/:id/edit" element={<div>agency-form</div>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -30,13 +31,23 @@ function renderDetail(id: string, search = "") {
 }
 
 describe("AgencyDetailPage", () => {
-  it("renders header with status badge and the four tabs", async () => {
+  it("renders header with status badge and the three tabs (no edit tab)", async () => {
     renderDetail(ACTIVE_ID);
     await waitFor(() => expect(screen.getByText("กรมสรรพากร")).toBeInTheDocument());
     expect(screen.getByText("Active")).toBeInTheDocument();
-    for (const tab of ["ภาพรวม", "Health", "แก้ไข", "Logs"]) {
+    for (const tab of ["ภาพรวม", "Health", "Logs"]) {
       expect(screen.getByRole("tab", { name: new RegExp(tab) })).toBeInTheDocument();
     }
+    expect(screen.queryByRole("tab", { name: "แก้ไข" })).not.toBeInTheDocument();
+  });
+
+  it("links the แก้ไข button to the agency form", async () => {
+    renderDetail(ACTIVE_ID);
+    await waitFor(() => expect(screen.getByText("กรมสรรพากร")).toBeInTheDocument());
+    expect(screen.getByRole("link", { name: /แก้ไข/ })).toHaveAttribute(
+      "href",
+      `/agencies/${ACTIVE_ID}/edit`,
+    );
   });
 
   it("offers only legal transitions in the status dropdown and applies one", async () => {
@@ -71,12 +82,6 @@ describe("AgencyDetailPage", () => {
       "href",
       `/agencies/${DRAFT_ID}/setup`,
     );
-  });
-
-  it("opens the edit tab when the URL requests it", async () => {
-    renderDetail(ACTIVE_ID, "?tab=edit");
-    await waitFor(() => expect(screen.getByText("กรมสรรพากร")).toBeInTheDocument());
-    expect(screen.getByRole("tab", { name: "แก้ไข" })).toHaveAttribute("aria-selected", "true");
   });
 
   it("shows overview stat cards", async () => {

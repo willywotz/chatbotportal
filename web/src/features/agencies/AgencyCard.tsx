@@ -88,7 +88,7 @@ export const AgencyCard = memo(function AgencyCard({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/agencies/${agency.id}?tab=edit`); }}>
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/agencies/${agency.id}/edit`); }}>
                 <Pencil className="h-3.5 w-3.5 mr-2" /> แก้ไข
               </DropdownMenuItem>
               <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onTest(agency); }}>
