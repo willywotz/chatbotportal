@@ -1,6 +1,6 @@
 """The chat stream must never pin one DB transaction for the whole SSE/WS
-turn: the similarity-cache read, the conversation lookup, and the end-of-turn
-persistence each open their own short-lived session (app.core.db.AsyncSessionLocal).
+turn: the conversation lookup and the end-of-turn persistence each open their
+own short-lived session (app.core.db.AsyncSessionLocal).
 
 These tests bind that short-lived session factory to the test's own connection
 (same pattern as test_rate_limit.py/test_outbox_transactional.py) so writes are
@@ -45,15 +45,15 @@ def _plan(conv_id: str, query: str = "q") -> TurnPlan:
     )
 
 
-async def test_prepare_turn_similarity_read_runs_in_its_own_session(db_session, monkeypatch):
-    """Non-continuation prepare_turn opens a short read session for
-    find_similar_question and never touches it again."""
+async def test_prepare_turn_non_continuation_needs_no_db(db_session, monkeypatch):
+    """Non-continuation prepare_turn resolves a plan without touching the DB."""
     await _bind_own_session(db_session, monkeypatch)
 
     plan = await prepare_turn(
         query="hello", conversation_id=str(uuid.uuid4()), user=None, is_continuation=False,
     )
-    assert plan.cached is None  # empty DB: no similarity match, no error
+    assert plan.conversation_id is not None
+    assert plan.stream_version == "v5"
 
 
 async def test_prepare_turn_continuation_looks_up_conversation_in_its_own_session(

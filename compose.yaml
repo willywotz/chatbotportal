@@ -1,7 +1,7 @@
 services:
 
   postgres:
-    image: groonga/pgroonga:4.0.8-debian-17
+    image: postgres:18
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-chatbot}

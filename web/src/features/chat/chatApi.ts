@@ -26,7 +26,6 @@ export interface ChatApiResponse {
   success: boolean;
   data: {
     message_id: string;
-    cached: boolean;
     agentSteps: AgentStep[];
     answer?: string;
     summary?: string;

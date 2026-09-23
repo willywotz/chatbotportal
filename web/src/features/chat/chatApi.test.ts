@@ -187,7 +187,6 @@ describe('sendChatQuery', () => {
           success: true,
           data: {
             message_id: 'msg-1',
-            cached: false,
             agentSteps: [{ name: 'discover', status: 'done' }],
             answer: 'Hello!',
           },

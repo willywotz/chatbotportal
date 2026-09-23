@@ -62,9 +62,6 @@ async def chat(
             span.set_status(StatusCode.ERROR, "Conversation not found")
             raise HTTPException(status_code=404, detail="Conversation not found")
 
-        if plan.cached is not None:
-            span.set_attribute("cache_hit", True)
-
         def schedule(coro: Coroutine[Any, Any, None]) -> None:
             background_tasks.add_task(_run_coro, coro)
 
@@ -94,7 +91,6 @@ async def chat(
             "success": True,
             "data": {
                 "message_id": result.message_id,
-                "cached": result.cached,
                 "agentSteps": result.agent_steps,
                 **result.answer_data,
             },

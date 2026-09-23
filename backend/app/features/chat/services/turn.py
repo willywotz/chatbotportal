@@ -39,8 +39,7 @@ async def save_turn(
 ) -> SavedTurn:
     """Create/extend a conversation and write the user+assistant messages atomically.
 
-    `succeeded=False` records the conversation as status="failed" so it never
-    seeds the similarity cache (find_similar_question filters status="success").
+    `succeeded=False` records the conversation as status="failed".
     `title` overrides the query-derived conversation title, but only when the
     conversation is created (the first turn) — see the v5 `thread_name` rule.
     `summary`/`summary_references` are the v5 executive summary and its

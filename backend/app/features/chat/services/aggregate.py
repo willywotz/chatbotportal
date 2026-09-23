@@ -1,7 +1,7 @@
 """Drain the streaming turn pipeline into a single JSON result.
 
-The sync transport reuses run_turn (so persistence, caching, and classification
-stay identical to the stream path) and folds its events into a version-faithful
+The sync transport reuses run_turn (so persistence and classification stay
+identical to the stream path) and folds its events into a version-faithful
 payload.
 """
 from dataclasses import dataclass
@@ -18,7 +18,6 @@ class TurnResult:
     agent_steps: dict | list
     message_id: str
     total_ms: int
-    cached: bool
     error: dict | None
 
 
@@ -47,6 +46,5 @@ async def collect_turn(
         agent_steps=build_pipeline_snapshot(pipeline_events, answer_data.get("errors", [])),
         message_id=message_id,
         total_ms=total_ms,
-        cached=plan.cached is not None,
         error=error,
     )

@@ -1,11 +1,10 @@
 """Transport-free chat-turn pipeline, shared by /chat and /responses.
 
 Split in two on purpose. `prepare_turn()` does everything that must be able to
-fail before any bytes are committed to the client — conversation lookup,
-similarity-cache probe, session warm-up — so a transport can still return a
-plain HTTP error. `run_turn()` is the generator: it streams the upstream,
-persists the turn, and yields the terminal `done` event carrying the real
-message id.
+fail before any bytes are committed to the client — conversation lookup and
+session warm-up — so a transport can still return a plain HTTP error.
+`run_turn()` is the generator: it streams the upstream, persists the turn, and
+yields the terminal `done` event carrying the real message id.
 """
 import asyncio
 import json
@@ -21,7 +20,6 @@ from opentelemetry.trace import StatusCode
 from app.core.security.principal import Principal
 from app.core.config import settings
 from app.core.db import AsyncSessionLocal
-from app.features.chat.models.conversation import Message
 from app.core.repositories import connection_log as connection_log_repo
 from app.features.chat.repositories import conversation as conversation_repo
 from app.features.chat.services.llm import classify_message_category
@@ -30,7 +28,6 @@ from app.features.chat.services.turn import save_turn
 from app.core.log_sanitize import sanitize_body
 from app.features.onechat.services import OneChatError, get_client, resolve_version
 from app.features.onechat.services.session import ensure_session_warmed
-from app.features.chat.services.similarity import find_similar_question
 from app.core.trace_util import with_trace_query
 from app.core.utils import generate_uuid
 
@@ -65,7 +62,6 @@ class TurnPlan:
     user: Principal | None
     stream_version: str
     assistant_message_id: uuid.UUID
-    cached: tuple[Message, Message, Any] | None = None
 
 
 def _stream_version() -> str:
@@ -91,8 +87,6 @@ async def prepare_turn(
     )
 
     if not is_continuation:
-        async with AsyncSessionLocal() as session, session.begin():
-            plan.cached = await find_similar_question(session, query)
         return plan
 
     async with AsyncSessionLocal() as session, session.begin():
@@ -110,37 +104,8 @@ async def run_turn(
     plan: TurnPlan, *, schedule: Scheduler | None = None
 ) -> AsyncIterator[ChatEvent]:
     """Stream one turn to completion, persisting it before the terminal `done`."""
-    if plan.cached is not None:
-        async for event in _replay_cached(plan, schedule):
-            yield event
-        return
     async for event in _stream_live(plan, schedule):
         yield event
-
-
-async def _replay_cached(
-    plan: TurnPlan, schedule: Scheduler | None
-) -> AsyncIterator[ChatEvent]:
-    user_msg, asst_msg, conn_log = plan.cached
-    await asyncio.sleep(0.01)
-    try:
-        answer_data = json.loads(conn_log.response_body)
-    except Exception:
-        answer_data = {"answer": asst_msg.content}
-
-    assistant_id = await _persist(
-        plan, answer_data=answer_data, session_id=None,
-        total_ms=0, latency_ms=0, thread_name=None,
-        schedule=schedule, pipeline_events=[],
-    )
-    yield ChatEvent("answer", {
-        "answer": asst_msg.content,
-        "summary": answer_data.get("summary") or asst_msg.summary or "",
-        "references": answer_data.get("references") or asst_msg.summary_references or [],
-    })
-    yield ChatEvent("done", {
-        "session_id": plan.conversation_id, "total_ms": 0, "message_id": str(assistant_id),
-    })
 
 
 async def _stream_live(

@@ -92,8 +92,7 @@ Source: `backend/app/schemas/chat.py` — `ChatRequest`.
     "references": [ { } ],
     "agentSteps": [ { } ],
     "agencies": [ { } ],
-    "confidence": 0.0,
-    "cached": false
+    "confidence": 0.0
   },
   "conversation_id": "<uuid>",
   "responseTime": 1234
@@ -108,8 +107,7 @@ Source: `backend/app/schemas/chat.py` — `ChatRequest`.
 | `data.references` | `array` | Source references (array of objects; contents vary by upstream) |
 | `data.agentSteps` | `array` | Intermediate agent steps (may be empty) |
 | `data.agencies` | `array` | Agencies that contributed to the answer (may be empty) |
-| `data.confidence` | `float` | Similarity confidence score (0.0 when not from cache) |
-| `data.cached` | `boolean` | `true` when served from the similarity cache |
+| `data.confidence` | `float` | Confidence score for the answer (currently always 0.0) |
 | `conversation_id` | `string` | The conversation UUID (new or existing) |
 | `responseTime` | `integer` | Total response time in milliseconds |
 
@@ -285,8 +283,7 @@ Example response:
     "references": [],
     "agentSteps": [],
     "agencies": [],
-    "confidence": 0.0,
-    "cached": false
+    "confidence": 0.0
   },
   "conversation_id": "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed",
   "responseTime": 2341
@@ -446,7 +443,7 @@ time; connections are closed after 60 minutes. `{"generate": false}` warms a con
 without generating.
 
 **Portal extras:** each response carries a non-standard top-level `portal` object with
-`conversation_id`, the v5 `summary`, its `references`, `agency_ids`, and `cached`.
+`conversation_id`, the v5 `summary`, its `references`, and `agency_ids`.
 
 **Three things to know:** `store` is accepted but ignored — every turn is persisted for
 analytics and audit. `usage` is always zero — the orchestrator does not report token counts.

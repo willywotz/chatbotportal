@@ -6,6 +6,3 @@ export const getSettings = (): Promise<SettingsResponse> =>
 
 export const updateSettings = (settings: SettingUpdate[]): Promise<{ detail: string }> =>
   api.put<{ detail: string }>("/api/v1/settings", { settings });
-
-export const flushCache = (): Promise<{ detail: string }> =>
-  api.post<{ detail: string }>("/api/v1/settings/cache/flush", {});

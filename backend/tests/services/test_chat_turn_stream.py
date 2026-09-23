@@ -1,16 +1,13 @@
 """The turn pipeline is transport-free: prepare_turn/run_turn own the whole
 turn, and /chat/stream is only an SSE formatter over it."""
 
-import json
 import uuid
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.features.chat.models.conversation import Conversation, Message
-from app.features.chat.repositories import conversation as conversation_repo
-from app.features.chat.repositories import message as message_repo
+from app.features.chat.models.conversation import Message
 from app.features.chat.services import stream as turn_stream
 from app.features.chat.services.stream import ConversationNotFound, prepare_turn, run_turn
 from app.features.chat.services.turn import save_turn
@@ -36,12 +33,10 @@ async def _bind_own_session(db_session, monkeypatch):
 
 
 async def test_prepare_turn_allocates_assistant_message_id(db_session):
-    with patch.object(turn_stream, "find_similar_question", new=AsyncMock(return_value=None)):
-        plan = await prepare_turn(
-            query="q", conversation_id=str(uuid.uuid4()), user=None, is_continuation=False
-        )
+    plan = await prepare_turn(
+        query="q", conversation_id=str(uuid.uuid4()), user=None, is_continuation=False
+    )
     assert isinstance(plan.assistant_message_id, uuid.UUID)
-    assert plan.cached is None
     assert plan.stream_version == "v5"
 
 
@@ -54,10 +49,9 @@ async def test_prepare_turn_raises_for_unknown_conversation(db_session):
 
 async def test_run_turn_persists_with_the_preallocated_id(db_session):
     conv_id = str(uuid.uuid4())
-    with patch.object(turn_stream, "find_similar_question", new=AsyncMock(return_value=None)):
-        plan = await prepare_turn(
-            query="q", conversation_id=conv_id, user=None, is_continuation=False
-        )
+    plan = await prepare_turn(
+        query="q", conversation_id=conv_id, user=None, is_continuation=False
+    )
 
     async def fake_stream(plan_arg, schedule):
         yield turn_stream.ChatEvent("step", {"name": "summarize"})
@@ -68,36 +62,6 @@ async def test_run_turn_persists_with_the_preallocated_id(db_session):
         names = [ev.name async for ev in run_turn(plan, schedule=_inert_schedule)]
 
     assert names == ["step", "answer", "done"]
-
-
-async def test_run_turn_replays_a_cache_hit(db_session):
-    conv = await conversation_repo.create(
-        db_session, id=str(uuid.uuid4()), title="t", preview="p", agencies=[],
-        status="success", message_count=0, response_time="0",
-    )
-    user_msg = await message_repo.create(
-        db_session, conversation_id=conv.id, role="user", content="q",
-    )
-    asst_msg = await message_repo.create(
-        db_session, parent_id=user_msg.id, conversation_id=conv.id, role="assistant",
-        content="cached answer",
-    )
-    await db_session.flush()
-    conn_log = MagicMock(response_body=json.dumps({"answer": "cached answer"}))
-
-    with patch.object(
-        turn_stream, "find_similar_question",
-        new=AsyncMock(return_value=(user_msg, asst_msg, conn_log)),
-    ):
-        plan = await prepare_turn(
-            query="q", conversation_id=str(uuid.uuid4()), user=None, is_continuation=False
-        )
-    assert plan.cached is not None
-
-    events = [ev async for ev in run_turn(plan, schedule=_inert_schedule)]
-    assert [e.name for e in events] == ["answer", "done"]
-    assert events[0].data["answer"] == "cached answer"
-    assert events[1].data["message_id"] == str(plan.assistant_message_id)
 
 
 async def test_save_turn_honours_an_explicit_assistant_message_id(db_session):

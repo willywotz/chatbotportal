@@ -4,20 +4,13 @@
 its legacy section-derived meaning and stays empty on the stream path.
 """
 
-import json
 import uuid
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi import BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import settings
 from app.features.chat.models.conversation import Conversation, Message
-from app.features.chat.repositories import conversation as conversation_repo
-from app.features.chat.repositories import message as message_repo
-from app.features.chat.routers import chat as chat_router
-from app.features.chat.schemas.chat import ChatRequest
 from app.features.chat.services import stream as turn_stream
 from app.features.chat.services.stream import TurnPlan, _persist
 from app.core.utils import generate_uuid
@@ -151,30 +144,3 @@ async def test_long_thread_name_is_truncated(db_session):
     assert len(conv.title) == settings.TITLE_MAX_LENGTH
 
 
-async def test_cached_replay_emits_summary_and_references(db_session):
-    conv = await conversation_repo.create(
-        db_session, id=str(uuid.uuid4()), title="t", preview="p", agencies=[],
-        status="success", message_count=0, response_time="0",
-    )
-    user_msg = await message_repo.create(
-        db_session, conversation_id=conv.id, role="user", content="q",
-    )
-    asst_msg = await message_repo.create(
-        db_session, parent_id=user_msg.id, conversation_id=conv.id, role="assistant",
-        content=V5_ANSWER["answer"],
-        summary=V5_ANSWER["summary"],
-        summary_references=V5_ANSWER["references"],
-    )
-    await db_session.flush()
-    conn_log = MagicMock(response_body=json.dumps(V5_ANSWER, ensure_ascii=False))
-
-    with patch.object(turn_stream, "find_similar_question",
-                      new=AsyncMock(return_value=(user_msg, asst_msg, conn_log))):
-        resp = await chat_router.chat(ChatRequest(query="q", stream=True), BackgroundTasks(), None)
-        chunks = [c async for c in resp.body_iterator]
-
-    text = "".join(c if isinstance(c, str) else c.decode() for c in chunks)
-    answer_block = next(b for b in text.split("\n\n") if b.startswith("event: answer"))
-    payload = json.loads(answer_block.split("data: ", 1)[1])
-    assert payload["summary"] == V5_ANSWER["summary"]
-    assert payload["references"] == V5_ANSWER["references"]
