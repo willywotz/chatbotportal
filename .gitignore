@@ -2,7 +2,9 @@
 .superpowers/
 
 # Python build artifacts
-__pycache__/
+__pycache__
+.pytest_cache
+.venv
 *.pyc
 
 # Test suites
