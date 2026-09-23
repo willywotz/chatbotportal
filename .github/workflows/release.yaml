@@ -34,10 +34,10 @@ jobs:
           tags: |
             ghcr.io/willywotz/chatbotportal:${{ github.ref_name }}
             ghcr.io/willywotz/chatbotportal:${{ github.sha }}
-      - name: Build and push frontend
+      - name: Build and push web
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
-          context: ./frontend
+          context: ./web
           target: production
           push: true
           tags: |
