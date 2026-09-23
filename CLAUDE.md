@@ -5,6 +5,8 @@
 - use Branching Mandatory : Always branch (git checkout -b <type>/<desc>) before multi-task work; never commit directly to main.
 - Worktree Off : git worktree is disabled/denied — never create or enter a worktree; use a plain branch (git checkout -b) only.
 - must strictly comply with the 15-Factor App methodology
+- for backend must strictly comply with the clean architecture, feature-based
+- for backend must strictly comply with event driven architecture
 - API endpoint routes use full English words — no short forms or aliases.
 - Code style: write self-documenting code. Use clear, descriptive names for variables and functions so the code explains itself. Do not write comments. The only allowed comments are Swagger/OpenAPI documentation.
 
