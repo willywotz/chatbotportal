@@ -1,8 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, Security
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.dependencies import get_current_user, require_admin
-from app.models import ConnectionLog, User
+from app.auth.dependencies import require_scope
+from app.auth.principal import Principal
+from app.db import get_db
+from app.models import ConnectionLog
 from app.services import connection_log as connection_log_service
 
 router = APIRouter(prefix="/connection-logs", tags=["Connection Logs"])
@@ -59,13 +62,12 @@ async def list_connection_logs(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     page_size: int | None = Query(None, ge=1, le=100),
-    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+    _: Principal = Security(require_scope, scopes=["connlog:read"]),
 ) -> ListConnectionLogResponse:
-    if not user.is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
-
     effective_limit = page_size if page_size is not None else limit
     logs, stats = await connection_log_service.list_logs(
+        session,
         search=search,
         agency_id=agency_id,
         status_filter=status_filter,
@@ -84,8 +86,12 @@ async def list_connection_logs(
 
 
 @router.get("/items/{id}", summary="Get connection log detail", response_model=ConnectionLogItem)
-async def get_connection_log_detail(id: str, _: User = Depends(require_admin)) -> ConnectionLogItem:
-    log = await connection_log_service.get_log(id)
+async def get_connection_log_detail(
+    id: str,
+    session: AsyncSession = Depends(get_db),
+    _: Principal = Security(require_scope, scopes=["connlog:read"]),
+) -> ConnectionLogItem:
+    log = await connection_log_service.get_log(session, id)
     return _to_item(log)
 
 
@@ -98,9 +104,8 @@ class ConnectionLogInfoResponse(BaseModel):
 @router.get("/information", summary="Get connection log info", response_model=ConnectionLogInfoResponse)
 async def get_connection_log_info(
     include_test: bool = Query(False, description="Include action=test logs"),
-    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+    _: Principal = Security(require_scope, scopes=["connlog:read"]),
 ) -> ConnectionLogInfoResponse:
-    if not user.is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
-    stats = await connection_log_service.get_stats(include_test)
+    stats = await connection_log_service.get_stats(session, include_test)
     return ConnectionLogInfoResponse(**stats)

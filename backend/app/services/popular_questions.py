@@ -11,13 +11,13 @@ import re
 import uuid
 from datetime import timedelta
 
-from tortoise.exceptions import DoesNotExist, IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.errors import ApiError, ErrorCode
-from app.models.agency import Agency
-from app.models.conversation import Message
 from app.models.popular_question import PopularQuestion, PopularQuestionSource
+from app.repositories import agency as agency_repo
+from app.repositories import popular_question as popular_question_repo
 from app.schemas.popular_question import (
     PopularQuestionAgency,
     PopularQuestionCreate,
@@ -70,9 +70,9 @@ def normalize_text_key(text: str) -> str:
     return stripped.casefold()
 
 
-async def published_questions() -> list[dict]:
+async def published_questions(session: AsyncSession) -> list[dict]:
     """Rows to show publicly: not hidden, pinned first, capped at the display count."""
-    rows = await PopularQuestion.filter(hidden=False).prefetch_related("agency")
+    rows = await popular_question_repo.visible_with_agency(session)
     rows.sort(key=lambda r: (
         0 if r.pinned else 1,
         r.sort_order,
@@ -91,16 +91,14 @@ async def published_questions() -> list[dict]:
     return out
 
 
-async def regenerate() -> int:
+async def regenerate(session: AsyncSession) -> int:
     """Regenerate ``source="auto"`` rows from recent successful chat turns.
 
     Cold-start guarantee: below ``POPULAR_QUESTIONS_MIN_TURNS`` recent
     successful turns, this is a no-op so the seed rows stay visible.
     """
     cutoff = now() - timedelta(days=settings.POPULAR_QUESTIONS_WINDOW_DAYS)
-    turn_count = await Message.filter(
-        role="user", created_at__gte=cutoff, conversation__status="success",
-    ).count()
+    turn_count = await popular_question_repo.recent_successful_turn_count(session, cutoff)
     if turn_count < settings.POPULAR_QUESTIONS_MIN_TURNS:
         logger.info(
             "popular questions: only %d successful turns in the last %d days, skipping regen",
@@ -108,23 +106,22 @@ async def regenerate() -> int:
         )
         return 0
 
-    user_rows = await Message.filter(
-        role="user", created_at__gte=cutoff, conversation__status="success",
-    ).order_by("-created_at").limit(_LLM_QUESTION_SAMPLE).values("id", "content")
+    user_rows = await popular_question_repo.recent_successful_user_messages(
+        session, cutoff, _LLM_QUESTION_SAMPLE)
 
-    samples = await _build_samples(list(user_rows))
-    candidates = await _ask_llm(samples)
+    samples = await _build_samples(session, user_rows)
+    candidates = await _ask_llm(session, samples)
     if not candidates:
         return 0
 
     # Churn: drop stale auto-generated rows that were never pinned or hidden.
-    await PopularQuestion.filter(source=PopularQuestionSource.auto, pinned=False, hidden=False).delete()
+    await popular_question_repo.delete_stale_auto(session)
 
     # Only agencies we actually fed the LLM are valid targets — blocks hallucinated ids.
     valid_ids = {a["id"] for s in samples for a in s["agencies"]}
-    agency_by_id: dict[str, Agency] = {}
+    agency_by_id: dict = {}
     if valid_ids:
-        for ag in await Agency.filter(id__in=valid_ids):
+        for ag in await agency_repo.by_ids(session, list(valid_ids)):
             agency_by_id[str(ag.id)] = ag
 
     created = 0
@@ -133,7 +130,7 @@ async def regenerate() -> int:
         if not text:
             continue
         key = normalize_text_key(text)
-        if await PopularQuestion.filter(text_key=key).exists():
+        if await popular_question_repo.text_key_exists(session, key):
             continue  # any existing row (incl. a hidden tombstone) blocks recreation
 
         agency = agency_by_id.get(str(cand.get("agency_id") or "").strip())
@@ -144,8 +141,8 @@ async def regenerate() -> int:
         except (TypeError, ValueError):
             score = None
 
-        await PopularQuestion.create(
-            text=text, text_key=key, agency=agency, source=PopularQuestionSource.auto, score=score,
+        await popular_question_repo.create(
+            session, text=text, text_key=key, agency=agency, source=PopularQuestionSource.auto, score=score,
         )
         created += 1
     return created
@@ -184,23 +181,21 @@ def _format_question(sample: dict) -> str:
     return f"- {sample['text']}  [หน่วยงาน: {names}]"
 
 
-async def _build_samples(user_rows: list[dict]) -> list[dict]:
+async def _build_samples(session: AsyncSession, user_rows: list[dict]) -> list[dict]:
     """Pair each question with the agencies its assistant reply resolved to."""
     user_ids = [r["id"] for r in user_rows]
     agency_ids_by_parent: dict = {}
     all_ids: set[str] = set()
     if user_ids:
-        replies = await Message.filter(
-            role="assistant", parent_id__in=user_ids,
-        ).values("parent_id", "agency_ids")
+        replies = await popular_question_repo.assistant_replies_for(session, user_ids)
         for reply in replies:
             ids = clean_agency_ids(reply["agency_ids"])
             agency_ids_by_parent[reply["parent_id"]] = ids
             all_ids.update(ids)
     name_by_id: dict[str, str] = {}
     if all_ids:
-        for ag in await Agency.filter(id__in=list(all_ids)).values("id", "name"):
-            name_by_id[str(ag["id"])] = ag["name"]
+        for ag in await agency_repo.by_ids(session, list(all_ids)):
+            name_by_id[str(ag.id)] = ag.name
     samples: list[dict] = []
     for r in user_rows:
         agencies = [
@@ -212,7 +207,7 @@ async def _build_samples(user_rows: list[dict]) -> list[dict]:
     return samples
 
 
-async def _ask_llm(samples: list[dict]) -> list[dict]:
+async def _ask_llm(session: AsyncSession, samples: list[dict]) -> list[dict]:
     from app.services.llm import LlmError, Purpose, chat
     prompt = _LLM_PROMPT.format(
         k=_LLM_MAX_QUESTIONS,
@@ -220,7 +215,7 @@ async def _ask_llm(samples: list[dict]) -> list[dict]:
         questions="\n".join(_format_question(s) for s in samples),
     )
     try:
-        res = await chat(purpose=Purpose.POPULAR_QUESTIONS, messages=[{"role": "user", "content": prompt}])
+        res = await chat(session, purpose=Purpose.POPULAR_QUESTIONS, messages=[{"role": "user", "content": prompt}])
         data = json.loads(_extract_json_payload(res.content))
         candidates = data.get("questions", [])
         return candidates if isinstance(candidates, list) else []
@@ -229,8 +224,8 @@ async def _ask_llm(samples: list[dict]) -> list[dict]:
         return []
 
 
-async def to_response(pq: PopularQuestion) -> PopularQuestionResponse:
-    agency = await pq.agency if pq.agency_id else None
+async def to_response(session: AsyncSession, pq: PopularQuestion) -> PopularQuestionResponse:
+    agency = await agency_repo.by_id(session, pq.agency_id) if pq.agency_id else None
     return PopularQuestionResponse(
         id=pq.id,
         text=pq.text,
@@ -245,40 +240,41 @@ async def to_response(pq: PopularQuestion) -> PopularQuestionResponse:
     )
 
 
-async def list_questions() -> list[PopularQuestion]:
-    return await PopularQuestion.all().prefetch_related("agency")
+async def list_questions(session: AsyncSession) -> list[PopularQuestion]:
+    return await popular_question_repo.all_with_agency(session)
 
 
-async def get_question_or_404(question_id: uuid.UUID) -> PopularQuestion:
-    try:
-        return await PopularQuestion.get(id=question_id)
-    except DoesNotExist:
+async def get_question_or_404(session: AsyncSession, question_id: uuid.UUID) -> PopularQuestion:
+    pq = await popular_question_repo.by_id(session, question_id)
+    if pq is None:
         raise ApiError(ErrorCode.NOT_FOUND, "Popular question not found", status=404)
+    return pq
 
 
-async def create_question(body: PopularQuestionCreate) -> PopularQuestion:
-    if body.agency_id is not None and not await Agency.filter(id=body.agency_id).exists():
+async def create_question(session: AsyncSession, body: PopularQuestionCreate) -> PopularQuestion:
+    if body.agency_id is not None and await agency_repo.by_id(session, body.agency_id) is None:
         raise ApiError(ErrorCode.NOT_FOUND, "Agency not found", status=404)
 
     text = body.text.strip()
-    try:
-        return await PopularQuestion.create(
-            text=text,
-            text_key=normalize_text_key(text),
-            agency_id=body.agency_id,
-            source=PopularQuestionSource.manual,
-            pinned=body.pinned,
-            hidden=body.hidden,
-            sort_order=body.sort_order,
-        )
-    except IntegrityError:
+    key = normalize_text_key(text)
+    if await popular_question_repo.text_key_exists(session, key):
         raise ApiError(ErrorCode.CONFLICT, "a question with this text already exists", status=409)
+    return await popular_question_repo.create(
+        session,
+        text=text,
+        text_key=key,
+        agency_id=body.agency_id,
+        source=PopularQuestionSource.manual,
+        pinned=body.pinned,
+        hidden=body.hidden,
+        sort_order=body.sort_order,
+    )
 
 
-async def update_question(question_id: uuid.UUID, body: PopularQuestionUpdate) -> PopularQuestion:
-    pq = await get_question_or_404(question_id)
+async def update_question(session: AsyncSession, question_id: uuid.UUID, body: PopularQuestionUpdate) -> PopularQuestion:
+    pq = await get_question_or_404(session, question_id)
 
-    if body.agency_id is not None and not await Agency.filter(id=body.agency_id).exists():
+    if body.agency_id is not None and await agency_repo.by_id(session, body.agency_id) is None:
         raise ApiError(ErrorCode.NOT_FOUND, "Agency not found", status=404)
 
     update_data = body.model_dump(exclude_unset=True)
@@ -286,30 +282,31 @@ async def update_question(question_id: uuid.UUID, body: PopularQuestionUpdate) -
         new_text = update_data["text"].strip()
         update_data["text"] = new_text
         if new_text != pq.text:
-            update_data["text_key"] = normalize_text_key(new_text)
+            new_key = normalize_text_key(new_text)
+            if await popular_question_repo.text_key_exists(session, new_key, exclude_id=pq.id):
+                raise ApiError(ErrorCode.CONFLICT, "a question with this text already exists", status=409)
+            update_data["text_key"] = new_key
             if pq.source == PopularQuestionSource.auto:
                 update_data["source"] = PopularQuestionSource.manual
 
-    try:
-        await pq.update_from_dict(update_data).save()
-    except IntegrityError:
-        raise ApiError(ErrorCode.CONFLICT, "a question with this text already exists", status=409)
-    return pq
+    return await popular_question_repo.update(session, pq, update_data)
 
 
-async def delete_question(question_id: uuid.UUID) -> None:
-    pq = await get_question_or_404(question_id)
-    await pq.delete()
+async def delete_question(session: AsyncSession, question_id: uuid.UUID) -> None:
+    pq = await get_question_or_404(session, question_id)
+    await popular_question_repo.delete(session, pq)
 
 
-async def seed_popular_questions() -> int:
+async def seed_popular_questions(session: AsyncSession) -> int:
     """Idempotent seed of natural citizen questions, 2 per seeded agency."""
     created = 0
     for agency_name, text in _SEED_QUESTIONS:
-        agency = await Agency.filter(name=agency_name).first()
-        _, was_created = await PopularQuestion.get_or_create(
-            text_key=normalize_text_key(text),
-            defaults={"text": text, "agency": agency, "source": PopularQuestionSource.seed},
+        key = normalize_text_key(text)
+        if await popular_question_repo.text_key_exists(session, key):
+            continue
+        agency = await agency_repo.by_name(session, agency_name)
+        await popular_question_repo.create(
+            session, text=text, text_key=key, agency=agency, source=PopularQuestionSource.seed,
         )
-        created += int(was_created)
+        created += 1
     return created

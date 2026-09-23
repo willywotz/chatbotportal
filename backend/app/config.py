@@ -2,7 +2,7 @@ import json
 import logging
 from dataclasses import dataclass, field
 from typing import get_origin
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, urlparse, urlunparse
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -41,15 +41,31 @@ class Settings(BaseSettings):
     # ── CORS ─────────────────────────────────────────────────────────────────
     CORS_ORIGINS: list[str] = ["*"]
 
-    # ── Auth ─────────────────────────────────────────────────────────────────
-    MIN_PASSWORD_LENGTH: int = 6
+    # ── OIDC provider (self-hosted) ──────────────────────────────────────────
+    # The backend is its own OpenID Provider / IdP. OIDC_ISSUER is the PUBLIC,
+    # browser-facing issuer base (through Caddy, the root origin, e.g.
+    # https://<domain>). It is the `iss` every token carries and the `authority`
+    # the SPA discovers, so the same value drives discovery
+    # (`{issuer}/.well-known/openid-configuration`), token signing and token
+    # verification, and is the access-token `aud` (single-issuer convention — no
+    # separate audience knob). Flow endpoints live under `{issuer}/oauth2/*`.
+    # OIDC_CLIENT_ID is the sole first-party SPA client. Lifetimes are seconds.
+    # OIDC_PRIVATE_KEY is an optional PEM override; when empty the signing key is
+    # generated once and persisted in the database (shared across uvicorn workers).
+    OIDC_ISSUER: str = "http://localhost:8080"
+    OIDC_CLIENT_ID: str = "chatbotportal-web"
+    OIDC_ALLOWED_REDIRECT_URIS: list[str] = [
+        "http://localhost:8080/auth/callback",
+        "http://localhost:5173/auth/callback",
+    ]
+    OIDC_ACCESS_TOKEN_TTL: int = 900          # 15 minutes
+    OIDC_REFRESH_TOKEN_TTL: int = 30 * 24 * 3600  # 30 days
+    OIDC_CODE_TTL: int = 60                    # 1 minute
+    OIDC_PRIVATE_KEY: str = ""
 
-    # ── Session cookie auth ──────────────────────────────────────────────────
-    SESSION_COOKIE_NAME: str = "session_id"
-    AUTH_COOKIE_SECURE: bool = True
-    SESSION_TTL_MINUTES: int = 60 * 24 * 7
-    SESSION_REFRESH_BELOW_MINUTES: int = 60 * 24 * 3  # re-rotate below ~half TTL
-    SESSION_ROTATE_GRACE_SECONDS: int = 60
+    # Startup seed for the first administrator (created only if no admin exists).
+    SEED_ADMIN_EMAIL: str = "admin@chatbotportal.local"
+    SEED_ADMIN_PASSWORD: str = "admin"
 
     # ── LLM / OpenRouter ────────────────────────────────────────────────────
     OPENROUTER_API_KEY: str = ""
@@ -77,8 +93,6 @@ class Settings(BaseSettings):
     TITLE_MAX_LENGTH: int = 50
     PREVIEW_MAX_LENGTH: int = 100
     SPEC_TEXT_MAX_CHARS: int = 30000
-    RESPONSES_WS_MAX_CONNECTIONS: int = 1024
-    RESPONSES_WS_MAX_DURATION_SECONDS: int = 900
     CHAT_WS_MAX_CONNECTIONS: int = 1024
     CHAT_WS_MAX_DURATION_SECONDS: int = 900
 
@@ -159,55 +173,30 @@ settings = Settings()
 
 
 async def load_settings_from_db() -> None:
-    from app.models.setting import Setting as SettingModel
-    rows = await SettingModel.all()
+    from app.db import AsyncSessionLocal
+    from app.repositories import setting as setting_repo
+
+    async with AsyncSessionLocal() as session, session.begin():
+        rows = await setting_repo.all(session)
     overrides = {row.key: row.value for row in rows}
     settings.apply_overrides(overrides)
 
 
-def _build_tortoise_orm(s: "Settings") -> dict:
-    """Build Tortoise ORM config with asyncpg pool sizing for Postgres connections."""
-    _parsed = urlparse(s.DATABASE_URL)
-
-    if not _parsed.hostname:
-        raise ValueError(
-            f"DATABASE_URL is malformed (no hostname): {s.DATABASE_URL!r}"
-        )
-
-    # Parse query string; map sslmode -> ssl (asyncpg connect() accepts ssl="require" etc.).
-    # All other params (e.g. sslcert, sslrootcert) are forwarded as-is.
-    query_params: dict = {}
-    for key, values in parse_qs(_parsed.query).items():
-        val = values[-1]
-        query_params["ssl" if key == "sslmode" else key] = val
-
-    credentials: dict = {
-        "host": _parsed.hostname,
-        "port": _parsed.port or 5432,
-        "user": unquote(_parsed.username or ""),
-        "password": unquote(_parsed.password or ""),
-        "database": _parsed.path.lstrip("/"),
-        "minsize": s.DB_POOL_MIN,
-        "maxsize": s.DB_POOL_MAX,
-        **query_params,
-    }
-    return {
-        "connections": {
-            "default": {
-                "engine": "tortoise.backends.asyncpg",
-                "credentials": credentials,
-            }
-        },
-        "apps": {
-            "models": {
-                "models": [
-                    "app.models",
-                    "aerich.models",
-                ],
-                "default_connection": "default",
-            },
-        },
-    }
+def database_url(s: "Settings") -> str:
+    parsed = urlparse(s.DATABASE_URL)
+    if not parsed.hostname:
+        raise ValueError(f"DATABASE_URL is malformed: {s.DATABASE_URL!r}")
+    return urlunparse(("postgresql+asyncpg", parsed.netloc, parsed.path, "", "", ""))
 
 
-TORTOISE_ORM = _build_tortoise_orm(settings)
+def connect_args(s: "Settings") -> dict:
+    parsed = urlparse(s.DATABASE_URL)
+    query = {k: v[-1] for k, v in parse_qs(parsed.query).items()}
+    args: dict = {}
+    sslmode = query.get("sslmode")
+    if sslmode:
+        # withinlazy: pass libpq-style string through; asyncpg accepts
+        # "require"/"prefer"/"verify-full". Upgrade to an ssl.SSLContext if
+        # client-cert verification is ever required.
+        args["ssl"] = sslmode
+    return args

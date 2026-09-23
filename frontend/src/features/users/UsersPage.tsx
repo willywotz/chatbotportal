@@ -15,6 +15,8 @@ import type { ManagedUser, UserRole } from './userApi';
 import { ROLE_LABEL, ROLE_ORDER } from './roleLabels';
 import { UserFormDialog } from './UserFormDialog';
 import { DeactivateUserDialog } from './DeactivateUserDialog';
+import { DeleteUserDialog } from './DeleteUserDialog';
+import { useAuth } from '@/features/auth/useAuth';
 
 export default function UsersPage() {
   const [search, setSearch] = useState('');
@@ -24,9 +26,11 @@ export default function UsersPage() {
     role: roleFilter === 'all' ? undefined : roleFilter,
     status: 'all',
   });
+  const { user: currentUser } = useAuth();
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ManagedUser | null>(null);
   const [toggling, setToggling] = useState<ManagedUser | null>(null);
+  const [deleting, setDeleting] = useState<ManagedUser | null>(null);
 
   function openCreate() { setEditing(null); setFormOpen(true); }
   function openEdit(u: ManagedUser) { setEditing(u); setFormOpen(true); }
@@ -97,6 +101,16 @@ export default function UsersPage() {
                 <Button variant="ghost" size="sm" onClick={() => setToggling(u)}>
                   {u.isActive ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
                 </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:text-destructive"
+                  disabled={u.id === currentUser?.id}
+                  title={u.id === currentUser?.id ? 'ลบบัญชีตนเองไม่ได้' : undefined}
+                  onClick={() => setDeleting(u)}
+                >
+                  ลบ
+                </Button>
               </TableCell>
             </TableRow>
           ))}
@@ -105,6 +119,7 @@ export default function UsersPage() {
 
       <UserFormDialog open={formOpen} onOpenChange={setFormOpen} user={editing} />
       <DeactivateUserDialog user={toggling} onOpenChange={(open) => { if (!open) setToggling(null); }} />
+      <DeleteUserDialog user={deleting} onOpenChange={(open) => { if (!open) setDeleting(null); }} />
     </div>
   );
 }

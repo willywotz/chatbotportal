@@ -1,20 +1,12 @@
-"""Default-data seeding logic (admin account + government agencies).
+"""Default-data seeding logic (government agencies).
 
 Kept out of the router so the seed operations can be reused by app startup and a
 future management command, and unit-tested directly.
 """
 
-from app.auth.security import hash_password
-from app.models.agency import Agency
-from app.models.user import User
+from app.db import AsyncSessionLocal
+from app.repositories import agency as agency_repo
 
-
-DEFAULT_ADMIN = {
-    "email": "admin@example.com",
-    "display_name": "Admin",
-    "password": "admin1234",
-    "role": "admin",
-}
 
 DEFAULT_AGENCIES = [
     {
@@ -67,31 +59,15 @@ DEFAULT_AGENCIES = [
     },
 ]
 
-async def run_seed_admin() -> dict:
-    existing = await User.all().count()
-    if existing > 0:
-        return {"status": "skipped", "message": f"{existing} users already exist"}
-
-    if await User.filter(email=DEFAULT_ADMIN["email"]).exists():
-        return {"status": "skipped", "message": f"{DEFAULT_ADMIN['email']} already exists"}
-
-    await User.create(
-        email=DEFAULT_ADMIN["email"],
-        display_name=DEFAULT_ADMIN["display_name"],
-        hashed_password=hash_password(DEFAULT_ADMIN["password"]),
-        role=DEFAULT_ADMIN["role"],
-    )
-    return {"status": "created", "message": f"Admin {DEFAULT_ADMIN['email']} created"}
-
-
 async def run_seed_agencies() -> dict:
-    existing = await Agency.all().count()
-    if existing > 0:
-        return {"status": "skipped", "message": f"{existing} agencies already exist"}
+    async with AsyncSessionLocal() as session, session.begin():
+        existing = await agency_repo.count_all(session)
+        if existing > 0:
+            return {"status": "skipped", "message": f"{existing} agencies already exist"}
 
-    created = []
-    for data in DEFAULT_AGENCIES:
-        await Agency.create(**data)
-        created.append(data["name"])
+        created = []
+        for data in DEFAULT_AGENCIES:
+            await agency_repo.create(session, **data)
+            created.append(data["name"])
 
     return {"status": "created", "message": f"{len(created)} agencies created", "agencies": created}

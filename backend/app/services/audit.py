@@ -2,14 +2,20 @@
 the action being audited."""
 import logging
 
-from app.models import AuditLog
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.audit import AuditLog
+from app.repositories import audit as audit_repo
 
 logger = logging.getLogger(__name__)
 
 
-async def record_audit(actor, action: str, *, object_type=None, object_id=None, detail=None) -> None:
+async def record_audit(
+    session: AsyncSession, actor, action: str, *, object_type=None, object_id=None, detail=None,
+) -> None:
     try:
-        await AuditLog.create(
+        await audit_repo.create(
+            session,
             actor_id=getattr(actor, "id", None),
             actor_email=getattr(actor, "email", None),
             action=action,
@@ -22,6 +28,7 @@ async def record_audit(actor, action: str, *, object_type=None, object_id=None, 
 
 
 async def list_audit_log(
+    session: AsyncSession,
     *,
     action: str | None = None,
     object_type: str | None = None,
@@ -29,13 +36,6 @@ async def list_audit_log(
     limit: int = 50,
     offset: int = 0,
 ) -> tuple[list[AuditLog], int]:
-    qs = AuditLog.all()
-    if action:
-        qs = qs.filter(action=action)
-    if object_type:
-        qs = qs.filter(object_type=object_type)
-    if actor:
-        qs = qs.filter(actor_email__icontains=actor)
-    total = await qs.count()
-    rows = await qs.order_by("-created_at").offset(offset).limit(limit)
-    return rows, total
+    return await audit_repo.list_and_count(
+        session, action=action, object_type=object_type, actor=actor, offset=offset, limit=limit,
+    )

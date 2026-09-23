@@ -1,42 +1,22 @@
+import uuid
+
 import pytest
 
-from app.errors import ApiError
-from app.models.conversation import Conversation, Message
-from app.models.user import User
-from app.routers.conversations import get_conversation_messages
-from app.services.responses.continuity import resolve_conversation
-from app.services.responses.errors import ResponsesApiError
+from app.repositories import conversation as conversation_repo
 from app.utils import now
 
+pytestmark = pytest.mark.asyncio
 
-@pytest.mark.asyncio
-async def test_continuity_ignores_soft_deleted_assistant_message(db):
-    c = await Conversation.create(title="t")
-    m = await Message.create(
-        conversation_id=c.id, role="assistant", content="a", deleted_at=now()
+
+async def test_get_messages_404s_for_soft_deleted_conversation(client, db_session, as_principal):
+    owner_id = str(uuid.uuid4())
+    conv = await conversation_repo.create(
+        db_session, id=str(uuid.uuid4()), title="t", preview="p", agencies=[],
+        status="success", message_count=0, response_time="0",
+        user_id=owner_id, deleted_at=now(),
     )
-    with pytest.raises(ResponsesApiError):
-        await resolve_conversation(
-            previous_response_id=f"resp_{m.id}", conversation=None, cache=None
-        )
+    await db_session.flush()
 
-
-@pytest.mark.asyncio
-async def test_continuity_resolves_live_assistant_message(db):
-    c = await Conversation.create(title="t")
-    m = await Message.create(conversation_id=c.id, role="assistant", content="a")
-    conv_id, is_cont = await resolve_conversation(
-        previous_response_id=f"resp_{m.id}", conversation=None, cache=None
-    )
-    assert conv_id == str(c.id) and is_cont is True
-
-
-@pytest.mark.asyncio
-async def test_get_messages_404s_for_soft_deleted_conversation(db):
-    owner = await User.create(email="owner-soft-del@x.com", hashed_password="h", role="user")
-    conv = await Conversation.create(
-        title="t", status="active", user_id=owner.id, deleted_at=now()
-    )
-    with pytest.raises(ApiError) as exc:
-        await get_conversation_messages(conv.id, owner)
-    assert exc.value.status == 404
+    as_principal(scopes={"conversation:read:own"}, role="user", sub=owner_id)
+    resp = await client.get(f"/api/v1/history/{conv.id}/messages")
+    assert resp.status_code == 404

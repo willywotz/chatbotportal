@@ -1,25 +1,33 @@
 import uuid
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.errors import ApiError, ErrorCode
 from app.models.agency import Agency
 from app.models.evaluation import EvalResult, GoldenQuestion
+from app.repositories import evaluation as evaluation_repo
 
 
-async def create_golden_question(agency: Agency, question: str, expected_topics: list[str]) -> GoldenQuestion:
-    return await GoldenQuestion.create(agency=agency, question=question, expected_topics=expected_topics)
+async def create_golden_question(
+    session: AsyncSession, agency: Agency, question: str, expected_topics: list[str]
+) -> GoldenQuestion:
+    return await evaluation_repo.create_golden(
+        session, agency_id=agency.id, question=question, expected_topics=expected_topics
+    )
 
 
-async def list_golden_questions(agency: Agency) -> list[GoldenQuestion]:
-    return await GoldenQuestion.filter(agency=agency)
+async def list_golden_questions(session: AsyncSession, agency: Agency) -> list[GoldenQuestion]:
+    return await evaluation_repo.list_golden_by_agency(session, agency.id)
 
 
-async def delete_golden_question(agency: Agency, gq_id: uuid.UUID) -> None:
-    gq = await GoldenQuestion.get_or_none(id=gq_id, agency=agency)
+async def delete_golden_question(session: AsyncSession, agency: Agency, gq_id: uuid.UUID) -> None:
+    gq = await evaluation_repo.get_golden(session, gq_id, agency.id)
     if gq is None:
         raise ApiError(ErrorCode.NOT_FOUND, "Golden question not found", status=404)
-    await gq.delete()
+    await evaluation_repo.delete_golden(session, gq)
 
 
-async def list_eval_results(agency: Agency, limit: int) -> list[EvalResult]:
-    question_ids = await GoldenQuestion.filter(agency=agency).values_list("id", flat=True)
-    return await EvalResult.filter(golden_question_id__in=list(question_ids)).order_by("-created_at").limit(limit)
+async def list_eval_results(session: AsyncSession, agency: Agency, limit: int) -> list[EvalResult]:
+    questions = await evaluation_repo.list_golden_by_agency(session, agency.id)
+    question_ids = [q.id for q in questions]
+    return await evaluation_repo.list_eval_results(session, question_ids, limit)

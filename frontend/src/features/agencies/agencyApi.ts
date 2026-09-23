@@ -18,7 +18,7 @@ export interface AgencyApiResponse {
 type AgencyId = 'fda' | 'revenue' | 'dopa' | 'land';
 
 /**
- * Query a specific agency by routing to the unified /api/v1/chat endpoint
+ * Query a specific agency by routing to the unified /api/v1/public/chat endpoint
  * and requesting only that agency.
  *
  * NOTE: The FastAPI backend handles individual-agency queries the same way
@@ -27,7 +27,7 @@ type AgencyId = 'fda' | 'revenue' | 'dopa' | 'land';
  * app/routers/chat.py and update this function.
  */
 export async function queryAgency(agencyId: AgencyId, query: string): Promise<AgencyApiResponse> {
-  const res = await api.post<ChatApiResponse>('/api/v1/chat', { query, model: 'onechat' });
+  const res = await api.post<ChatApiResponse>('/api/v1/public/chat', { query, model: 'onechat' });
 
   const answer = res.data.answer ?? res.data.summary ?? '';
   const references = (res.data.references ?? []).map((r) => ({

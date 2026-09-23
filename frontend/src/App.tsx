@@ -6,7 +6,7 @@ import { Skeleton } from "@/shared/components/ui/skeleton";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { ThemeProvider } from "@/shared/components/ThemeProvider";
-import { AuthProvider } from "@/features/auth/useAuth";
+import { AuthTokenSync } from "@/features/auth/useAuth";
 import { ProtectedRoute } from "@/features/auth/ProtectedRoute";
 import { AppLayout } from "@/shared/components/layout/AppLayout";
 import { TextScaleProvider } from "@/shared/hooks/useTextScale";
@@ -28,7 +28,7 @@ const PublicPortal = lazy(() => import("@/features/public/PublicPortal"));
 const InfoPage = lazy(() => import("@/features/public/InfoPage"));
 const StatusPage = lazy(() => import("@/features/status/StatusPage"));
 const LoginPage = lazy(() => import("@/features/auth/LoginPage"));
-const ApiKeysPage = lazy(() => import("@/features/api-keys/ApiKeysPage"));
+const CallbackPage = lazy(() => import("@/features/auth/CallbackPage"));
 const SettingsPage = lazy(() => import("@/features/settings/SettingsPage"));
 const SettingsLayout = lazy(() => import("@/features/settings/SettingsLayout"));
 const LlmSettingsPage = lazy(() => import("@/features/llm/LlmSettingsPage"));
@@ -58,8 +58,8 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-      <AuthProvider>
-        <TooltipProvider>
+      <TooltipProvider>
+          <AuthTokenSync />
           <Toaster />
           <Sonner />
           <BrowserRouter>
@@ -72,6 +72,7 @@ const App = () => (
               <Route path="/contact" element={<InfoPage />} />
               <Route path="/status" element={<StatusPage />} />
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/auth/callback" element={<CallbackPage />} />
 
               <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
                 {/* Every authenticated role */}
@@ -104,7 +105,6 @@ const App = () => (
                   <Route index element={<SettingsIndexRedirect />} />
                   <Route path="system" element={<ProtectedRoute requireAdmin><SettingsPage /></ProtectedRoute>} />
                   <Route path="llm" element={<ProtectedRoute requireAdmin><LlmSettingsPage /></ProtectedRoute>} />
-                  <Route path="api-keys" element={<ProtectedRoute requireAdmin><ApiKeysPage /></ProtectedRoute>} />
                   <Route path="users" element={<ProtectedRoute requireAdmin><UsersPage /></ProtectedRoute>} />
                   <Route path="usage" element={<ProtectedRoute allowedRoles={["staff", "admin"]}><UsageAnalyticsPage /></ProtectedRoute>} />
                   <Route path="connections" element={<ProtectedRoute requireAdmin><ConnectionLogsPage /></ProtectedRoute>} />
@@ -112,7 +112,6 @@ const App = () => (
                 </Route>
 
                 {/* Redirect old top-level routes to their new tab */}
-                <Route path="/api-keys" element={<Navigate to="/settings/api-keys" replace />} />
                 <Route path="/users" element={<Navigate to="/settings/users" replace />} />
                 <Route path="/usage" element={<Navigate to="/settings/usage" replace />} />
                 <Route path="/connection-logs" element={<Navigate to="/settings/connections" replace />} />
@@ -129,8 +128,7 @@ const App = () => (
             </Suspense>
             </TextScaleProvider>
           </BrowserRouter>
-        </TooltipProvider>
-      </AuthProvider>
+      </TooltipProvider>
     </ThemeProvider>
   </QueryClientProvider>
 );

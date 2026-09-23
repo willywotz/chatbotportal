@@ -1,4 +1,4 @@
-"""Tests for the executive-summary regenerate endpoint (admin-gated, force regen)."""
+"""Tests for the executive-summary routes (OIDC scope-gated)."""
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -14,20 +14,23 @@ def _find_route(path: str, method: str):
     raise AssertionError(f"route {method} {path} not found")
 
 
-def test_regenerate_route_requires_admin():
-    from app.auth.dependencies import require_admin
+def _scopes(route) -> list[str]:
+    from app.auth.dependencies import require_scope
 
+    for d in route.dependant.dependencies:
+        if d.call is require_scope:
+            return d.own_oauth_scopes
+    raise AssertionError("route is not gated by require_scope")
+
+
+def test_regenerate_route_requires_executive_write_scope():
     route = _find_route("/executive-summary/regenerate", "POST")
-    calls = [d.call for d in route.dependant.dependencies]
-    assert require_admin in calls, "regenerate endpoint is not gated by require_admin"
+    assert _scopes(route) == ["executive:write"]
 
 
-def test_get_route_is_not_admin_gated():
-    from app.auth.dependencies import require_admin
-
+def test_get_route_requires_executive_read_scope():
     route = _find_route("/executive-summary", "GET")
-    calls = [d.call for d in route.dependant.dependencies]
-    assert require_admin not in calls
+    assert _scopes(route) == ["executive:read"]
 
 
 @pytest.mark.asyncio

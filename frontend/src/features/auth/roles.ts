@@ -6,8 +6,9 @@ const ADMIN: Role[] = ["admin"];
 
 /**
  * Roles permitted to view each route. Single source of truth shared by the
- * route guard (ProtectedRoute) and the sidebar. Keep in sync with the backend
- * allowlist in backend/app/auth/dependencies.py.
+ * route guard (ProtectedRoute) and the sidebar. The backend now enforces
+ * access via OIDC scopes; this map is UX-only (hides/shows nav and
+ * blocks deep links client-side).
  */
 export const ROUTE_ROLES: Record<string, Role[]> = {
   "/chat": ALL,
@@ -24,13 +25,11 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
   "/agencies/new": ADMIN,
   "/agencies/:id/setup": ADMIN,
   "/connection-logs": ADMIN,
-  "/api-keys": ADMIN,
   "/users": ADMIN,
   "/audit-log": ADMIN,
   "/settings": STAFF,
   "/settings/system": ADMIN,
   "/settings/llm": ADMIN,
-  "/settings/api-keys": ADMIN,
   "/settings/users": ADMIN,
   "/settings/usage": STAFF,
   "/settings/connections": ADMIN,

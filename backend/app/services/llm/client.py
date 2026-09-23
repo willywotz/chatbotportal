@@ -1,15 +1,14 @@
 import asyncio
-import logging
 import time
 from collections import defaultdict
 from dataclasses import dataclass
 
 import httpx
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.repositories import llm as llm_repo
 from app.services.llm.purpose import KNOWN_PURPOSES, Purpose
 from app.services.rate_limit import build_limiter
-
-logger = logging.getLogger(__name__)
 
 _CACHE_TTL_S = 30.0
 
@@ -61,15 +60,14 @@ def invalidate() -> None:
     _cache.clear()
 
 
-async def _resolve(purpose: str) -> _Resolved:
+async def _resolve(session: AsyncSession, purpose: str) -> _Resolved:
     entry = _cache.get(purpose)
     if entry is not None and time.monotonic() - entry[1] < _CACHE_TTL_S:
         return entry[0]
-    from app.models import LlmRoute
-    route = await LlmRoute.filter(purpose=purpose, enabled=True).first()
+    route = await llm_repo.enabled_route_for_purpose(session, purpose)
     if route is None:
         raise LlmError(f"no enabled route for purpose {purpose!r}", kind="config")
-    provider = await route.provider
+    provider = await llm_repo.get_provider(session, route.provider_id)
     if not provider.enabled:
         raise LlmError(f"provider {provider.name!r} is disabled", provider=provider.name, kind="config")
     resolved = _Resolved(
@@ -116,10 +114,9 @@ async def _acquire(name: str, rps: int | None, rpm: int | None, max_queue_size: 
         _queue_waiters[name] -= 1
 
 
-async def chat(*, purpose: Purpose, messages: list[dict], tools: list | None = None,
-               tool_choice=None, max_tokens: int | None = None,
-               user_id=None, agency_id=None, conversation_id=None) -> LlmResult:
-    r = await _resolve(purpose)
+async def chat(session: AsyncSession, *, purpose: Purpose, messages: list[dict], tools: list | None = None,
+               tool_choice=None, max_tokens: int | None = None) -> LlmResult:
+    r = await _resolve(session, purpose)
     await _acquire(r.provider_name, r.rate_limit_rps, r.rate_limit_rpm, r.max_queue_size)
 
     body: dict = {"model": r.model, "messages": messages}
@@ -151,7 +148,6 @@ async def chat(*, purpose: Purpose, messages: list[dict], tools: list | None = N
         completion_tokens=usage.get("completion_tokens", 0),
         cost_usd=usage.get("cost"),
     )
-    await _record_usage(purpose, info, user_id, agency_id, conversation_id)
     return LlmResult(content=(msg.get("content") or "").strip(),
                      tool_calls=msg.get("tool_calls"), usage=info, raw=data)
 
@@ -164,7 +160,7 @@ class LlmPingResult:
     error: str | None
 
 
-async def ping(purpose: str) -> LlmPingResult:
+async def ping(session: AsyncSession, purpose: str) -> LlmPingResult:
     """Fire a minimal completion through a purpose's route to prove it works end-to-end.
 
     Uses the production `chat()` path, so it resolves an enabled route + provider,
@@ -173,7 +169,7 @@ async def ping(purpose: str) -> LlmPingResult:
     """
     start = time.monotonic()
     try:
-        res = await chat(purpose=purpose, messages=[{"role": "user", "content": "ping"}], max_tokens=1)
+        res = await chat(session, purpose=purpose, messages=[{"role": "user", "content": "ping"}], max_tokens=1)
         return LlmPingResult(ok=True, latency_ms=_elapsed_ms(start), model=res.usage.model, error=None)
     except LlmError as exc:
         return LlmPingResult(ok=False, latency_ms=_elapsed_ms(start), model=None, error=str(exc))
@@ -181,19 +177,3 @@ async def ping(purpose: str) -> LlmPingResult:
 
 def _elapsed_ms(start: float) -> int:
     return int((time.monotonic() - start) * 1000)
-
-
-async def _record_usage(purpose, info: LlmUsageInfo, user_id, agency_id, conversation_id) -> None:
-    from app.models import LlmUsage
-    from app.services.usage_context import current_api_key_id, current_user_id
-    try:
-        await LlmUsage.create(
-            model=info.model, purpose=purpose,
-            prompt_tokens=info.prompt_tokens, completion_tokens=info.completion_tokens,
-            cost_usd=info.cost_usd,
-            user_id=user_id if user_id is not None else current_user_id.get(),
-            agency_id=agency_id, conversation_id=conversation_id,
-            api_key_id=current_api_key_id.get(),
-        )
-    except Exception:  # accounting must never break the call path
-        logger.exception("failed to record llm usage")

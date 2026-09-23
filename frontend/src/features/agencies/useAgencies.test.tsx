@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { resetMockData } from "@/mocks/fixtures";
 
+import { setAccessToken } from "@/shared/lib/authToken";
+
 import {
   useAgencies,
   useDiscoverMcpTools,
@@ -65,7 +67,11 @@ describe("useUpdateAgencyStatus", () => {
 });
 
 describe("useUploadAgencyLogo", () => {
-  it("sends the logo upload with credentials: include and no Authorization header", async () => {
+  afterEach(() => {
+    setAccessToken(undefined);
+  });
+
+  it("sends the logo upload with no credentials and no Authorization header when unauthenticated", async () => {
     const agency = { id: ACTIVE_ID, name: "n", logo: "l" };
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify(agency), { status: 200 }),
@@ -76,8 +82,27 @@ describe("useUploadAgencyLogo", () => {
     await result.current.mutateAsync({ id: ACTIVE_ID, file });
 
     const [, options] = fetchSpy.mock.calls[0];
-    expect(options?.credentials).toBe("include");
+    expect(options?.credentials).toBeUndefined();
     expect((options?.headers as Record<string, string> | undefined)?.Authorization).toBeUndefined();
+
+    fetchSpy.mockRestore();
+  });
+
+  it("attaches the OIDC bearer token when authenticated", async () => {
+    setAccessToken("tok123");
+    const agency = { id: ACTIVE_ID, name: "n", logo: "l" };
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(agency), { status: 200 }),
+    );
+    const { result } = renderHook(() => useUploadAgencyLogo(), { wrapper });
+    const file = new File(["x"], "logo.png", { type: "image/png" });
+
+    await result.current.mutateAsync({ id: ACTIVE_ID, file });
+
+    const [, options] = fetchSpy.mock.calls[0];
+    expect((options?.headers as Record<string, string> | undefined)?.Authorization).toBe(
+      "Bearer tok123",
+    );
 
     fetchSpy.mockRestore();
   });

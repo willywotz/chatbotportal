@@ -1,38 +1,35 @@
+import uuid
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import HTTPException
 
-from app.models.user import User
-from app.routers import agencies as r
+from app.auth.principal import Principal
+from app.routers.agencies import spec as spec_router
 from app.schemas.agency import McpDiscoverRequest
 
-
-async def _admin():
-    return await User.create(email="a@e.com", hashed_password="x", role="admin", is_active=True)
+pytestmark = pytest.mark.asyncio
 
 
-@pytest.mark.asyncio
-async def test_mcp_discover_requires_endpoint_url(db):
-    admin = await _admin()
+def _admin() -> Principal:
+    return Principal(id=str(uuid.uuid4()), email="a@e.com", display_name=None, role="admin", scopes=frozenset())
+
+
+async def test_mcp_discover_requires_endpoint_url():
     with pytest.raises(HTTPException) as exc:
-        await r.mcp_discover(McpDiscoverRequest(endpoint_url=""), _=admin)
+        await spec_router.mcp_discover(McpDiscoverRequest(endpoint_url=""), _=_admin())
     assert exc.value.status_code == 422
 
 
-@pytest.mark.asyncio
-async def test_mcp_discover_returns_tools(db):
-    admin = await _admin()
+async def test_mcp_discover_returns_tools():
     fake = [{"name": "chat", "description": "d", "input_schema": {}}]
-    with patch("app.routers.agencies.spec.discover_tools", AsyncMock(return_value=fake)):
-        res = await r.mcp_discover(McpDiscoverRequest(endpoint_url="https://mcp.example/sse"), _=admin)
+    with patch.object(spec_router, "discover_tools", AsyncMock(return_value=fake)):
+        res = await spec_router.mcp_discover(McpDiscoverRequest(endpoint_url="https://mcp.example/sse"), _=_admin())
     assert res.tools[0].name == "chat"
 
 
-@pytest.mark.asyncio
-async def test_mcp_discover_connection_error_502(db):
-    admin = await _admin()
-    with patch("app.routers.agencies.spec.discover_tools", AsyncMock(side_effect=RuntimeError("boom"))):
+async def test_mcp_discover_connection_error_502():
+    with patch.object(spec_router, "discover_tools", AsyncMock(side_effect=RuntimeError("boom"))):
         with pytest.raises(HTTPException) as exc:
-            await r.mcp_discover(McpDiscoverRequest(endpoint_url="https://x"), _=admin)
+            await spec_router.mcp_discover(McpDiscoverRequest(endpoint_url="https://x"), _=_admin())
     assert exc.value.status_code == 502

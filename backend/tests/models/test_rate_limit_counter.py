@@ -1,19 +1,23 @@
 import pytest
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from app.models.rate_limit_counter import RateLimitCounter
 
 
-@pytest.mark.asyncio
-async def test_counter_create_and_unique_constraint(db):
-    await RateLimitCounter.create(key="llm:openrouter:s", window_start=1000, count=1)
-    row = await RateLimitCounter.get(key="llm:openrouter:s", window_start=1000)
+async def test_counter_create_and_unique_constraint(db_session):
+    db_session.add(RateLimitCounter(key="llm:openrouter:s", window_start=1000, count=1))
+    await db_session.flush()
+    stmt = select(RateLimitCounter).where(
+        RateLimitCounter.key == "llm:openrouter:s", RateLimitCounter.window_start == 1000,
+    )
+    row = (await db_session.execute(stmt)).scalars().one()
     assert row.count == 1
 
 
-@pytest.mark.asyncio
-async def test_counter_unique_together_blocks_duplicate(db):
-    from tortoise.exceptions import IntegrityError
-
-    await RateLimitCounter.create(key="llm:openrouter:s", window_start=1000, count=1)
+async def test_counter_unique_together_blocks_duplicate(db_session):
+    db_session.add(RateLimitCounter(key="llm:openrouter:s", window_start=1000, count=1))
+    await db_session.flush()
+    db_session.add(RateLimitCounter(key="llm:openrouter:s", window_start=1000, count=1))
     with pytest.raises(IntegrityError):
-        await RateLimitCounter.create(key="llm:openrouter:s", window_start=1000, count=1)
+        await db_session.flush()

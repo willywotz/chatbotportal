@@ -1,81 +1,177 @@
-"""Guard test: read-only roles (viewer, auditor) are NOT rejected by MCP auth.
+"""Guard test: MCP `AuthMiddleware` resolves identity from a self-hosted OIDC
+bearer token (or admits an anonymous caller) and strips agency `Authorization`
+headers from every response except an admin's.
 
 The MCP transport (/mcp) is mounted outside FastAPI's dependency injection, so
-the role chokepoint (enforce_role_allowlist) never runs for it. The only auth
-gate is AuthMiddleware in app/mcp/server.py,
-which checks that the API key is usable and the user is active — no role
-check at all.
-
-These tests reproduce the exact DB lookups performed by AuthMiddleware to
-confirm that viewer and auditor keys resolve to a live User object and are
-not filtered out by any role condition.
+the REST routers' `require_scope` never runs for it. The only auth gate is
+AuthMiddleware in app/mcp/server.py, which verifies the bearer via
+`app.auth.oidc.tokens.verify_token` — no DB lookup, no role check beyond
+admin/non-admin for the header-stripping trust boundary in `_fetch_agencies`.
 """
+
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.auth.security import generate_api_key, hash_api_key
-from app.models.user import User, UserAPIKey
+from app.mcp import server
 
 
-async def _resolve_user_via_mcp_auth(raw_key: str) -> User | None:
-    """Mirror the AuthMiddleware lookup in app/mcp/server.py lines 52-56."""
-    api_key = await UserAPIKey.filter(key_hash=hash_api_key(raw_key)).first()
-    if api_key and api_key.is_usable():
-        return await User.filter(id=api_key.user_id, is_active=True).first()
-    return None
+class _FakeSession:
+    """`_fetch_agencies` opens its own session; list_for_mcp is mocked so the
+    session body never touches the DB — only the async-context-manager shape matters."""
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    def begin(self):
+        return self
 
 
-async def _make_user_with_key(email: str, role: str) -> tuple[User, str]:
-    user = await User.create(email=email, hashed_password="h", role=role)
-    raw = generate_api_key()
-    await UserAPIKey.create(
-        user_id=user.id, name="test", key_hash=hash_api_key(raw), key_prefix=raw[:12]
+def _fake_session_local() -> _FakeSession:
+    return _FakeSession()
+
+
+async def _run_auth_middleware(authorization: str | None):
+    """Drive AuthMiddleware.on_request with an in-memory fastmcp state dict."""
+    state = {}
+
+    async def get_state(key):
+        return state.get(key)
+
+    async def set_state(key, value):
+        state[key] = value
+
+    ctx = MagicMock()
+    ctx.fastmcp_context.get_state = AsyncMock(side_effect=get_state)
+    ctx.fastmcp_context.set_state = AsyncMock(side_effect=set_state)
+    call_next = AsyncMock(return_value="ok")
+
+    headers = {"Authorization": authorization} if authorization else {}
+    with patch.object(server, "get_http_request", return_value=MagicMock(headers=headers)):
+        await server.AuthMiddleware().on_request(ctx, call_next)
+
+    return state
+
+
+@pytest.mark.asyncio
+async def test_admin_bearer_resolves_admin_state(make_token):
+    token = make_token(role="admin")
+    state = await _run_auth_middleware(f"Bearer {token}")
+    assert state["user_is_admin"] is True
+    assert state["user_id"]
+
+
+@pytest.mark.asyncio
+async def test_non_admin_bearer_resolves_non_admin_state(make_token):
+    token = make_token(role="user")
+    state = await _run_auth_middleware(f"Bearer {token}")
+    assert state["user_is_admin"] is False
+    assert state["user_id"]
+
+
+@pytest.mark.asyncio
+async def test_invalid_bearer_is_anonymous():
+    state = await _run_auth_middleware("Bearer tcg_totallybogus")
+    assert "user_id" not in state
+    assert "user_is_admin" not in state
+
+
+@pytest.mark.asyncio
+async def test_no_header_is_anonymous():
+    state = await _run_auth_middleware(None)
+    assert "user_id" not in state
+    assert "user_is_admin" not in state
+
+
+async def _fetch_with_headers(user_is_admin: bool | None) -> list[dict]:
+    agency = {
+        "id": "a1",
+        "name": "A",
+        "status": "active",
+        "description": "d",
+        "connection_type": "MCP",
+        "data_scope": [],
+        "endpoint_url": "http://e/",
+        "expected_payload": {},
+        "api_headers": [{"name": "Authorization", "value": "secret"}],
+    }
+
+    ctx = MagicMock()
+    ctx.get_state = AsyncMock(side_effect=lambda key: {"user_is_admin": user_is_admin}.get(key))
+
+    with patch.object(server.agency_repo, "list_for_mcp", AsyncMock(return_value=[agency])), \
+         patch.object(server, "AsyncSessionLocal", _fake_session_local), \
+         patch.object(server, "get_http_request", return_value=MagicMock(
+             headers={"X-Forwarded-Host": "example.test"},
+             url=MagicMock(scheme="https"),
+         )):
+        return await server._fetch_agencies(ctx)
+
+
+@pytest.mark.asyncio
+async def test_admin_keeps_agency_auth_header():
+    agencies = await _fetch_with_headers(user_is_admin=True)
+    assert agencies[0]["api_headers"]
+
+
+@pytest.mark.asyncio
+async def test_non_admin_strips_agency_auth_header():
+    agencies = await _fetch_with_headers(user_is_admin=False)
+    assert agencies[0]["api_headers"] == []
+
+
+@pytest.mark.asyncio
+async def test_anonymous_strips_agency_auth_header():
+    agencies = await _fetch_with_headers(user_is_admin=None)
+    assert agencies[0]["api_headers"] == []
+
+
+async def _fetch_agency_with(headers: list[dict], user_is_admin: bool | None) -> dict:
+    agency = {
+        "id": "a1", "name": "A", "status": "active", "description": "d",
+        "connection_type": "MCP", "data_scope": [], "endpoint_url": "http://e/",
+        "expected_payload": {}, "api_headers": headers,
+    }
+    ctx = MagicMock()
+    ctx.get_state = AsyncMock(side_effect=lambda key: {"user_is_admin": user_is_admin}.get(key))
+    with patch.object(server.agency_repo, "list_for_mcp", AsyncMock(return_value=[agency])), \
+         patch.object(server, "AsyncSessionLocal", _fake_session_local), \
+         patch.object(server, "get_http_request", return_value=MagicMock(
+             headers={"X-Forwarded-Host": "example.test"}, url=MagicMock(scheme="https"),
+         )):
+        return (await server._fetch_agencies(ctx))[0]
+
+
+@pytest.mark.asyncio
+async def test_non_admin_strips_every_authorization_header():
+    """Two adjacent Authorization headers must both go for a non-admin caller.
+
+    A del-while-iterating loop skipped the header after each removal, leaking
+    the second credential.
+    """
+    agency = await _fetch_agency_with(
+        [{"name": "Authorization", "value": "s1"}, {"name": "Authorization", "value": "s2"}],
+        user_is_admin=False,
     )
-    return user, raw
+    assert agency["api_headers"] == []
 
 
 @pytest.mark.asyncio
-async def test_viewer_api_key_resolves_via_mcp_auth(db):
-    user, raw = await _make_user_with_key("viewer@x.com", "viewer")
-    resolved = await _resolve_user_via_mcp_auth(raw)
-    assert resolved is not None
-    assert resolved.id == user.id
-
-
-@pytest.mark.asyncio
-async def test_auditor_api_key_resolves_via_mcp_auth(db):
-    user, raw = await _make_user_with_key("auditor@x.com", "auditor")
-    resolved = await _resolve_user_via_mcp_auth(raw)
-    assert resolved is not None
-    assert resolved.id == user.id
-
-
-@pytest.mark.asyncio
-async def test_invalid_key_returns_none(db):
-    resolved = await _resolve_user_via_mcp_auth("tcg_totallybogus")
-    assert resolved is None
-
-
-@pytest.mark.asyncio
-async def test_inactive_user_returns_none(db):
-    user = await User.create(
-        email="inactive@x.com", hashed_password="h", role="viewer", is_active=False
+async def test_non_admin_keeps_non_authorization_headers():
+    agency = await _fetch_agency_with(
+        [{"name": "X-Api-Key", "value": "k"}, {"name": "Authorization", "value": "s"}],
+        user_is_admin=False,
     )
-    raw = generate_api_key()
-    await UserAPIKey.create(
-        user_id=user.id, name="test", key_hash=hash_api_key(raw), key_prefix=raw[:12]
-    )
-    resolved = await _resolve_user_via_mcp_auth(raw)
-    assert resolved is None
+    assert agency["api_headers"] == [{"name": "X-Api-Key", "value": "k"}]
 
 
 @pytest.mark.asyncio
 async def test_fetch_agencies_stable_ids_across_payload_keys():
     """Repeated __user_id__ / __conversation_id__ placeholders in one response
     must resolve to the SAME value (ids resolved once, not per key)."""
-    from unittest.mock import AsyncMock, MagicMock, patch
-    from app.mcp import server
-
     ctx = MagicMock()
     ctx.get_state = AsyncMock(return_value=None)
 
@@ -96,12 +192,12 @@ async def test_fetch_agencies_stable_ids_across_payload_keys():
         "api_headers": [],
     }
 
-    with patch.object(server.Agency, "all", return_value=MagicMock(
-        values=AsyncMock(return_value=[agency])
-    )), patch.object(server, "get_http_request", return_value=MagicMock(
-        headers={"X-Forwarded-Host": "example.test"},
-        url=MagicMock(scheme="https"),
-    )):
+    with patch.object(server.agency_repo, "list_for_mcp", AsyncMock(return_value=[agency])), \
+         patch.object(server, "AsyncSessionLocal", _fake_session_local), \
+         patch.object(server, "get_http_request", return_value=MagicMock(
+             headers={"X-Forwarded-Host": "example.test"},
+             url=MagicMock(scheme="https"),
+         )):
         agencies = await server._fetch_agencies(ctx)
 
     payload = agencies[0]["expected_payload"]
@@ -114,6 +210,44 @@ async def test_fetch_agencies_stable_ids_across_payload_keys():
     )
     assert "__user_id__" not in payload["uid1"]
     assert "__conversation_id__" not in payload["cid1"]
+
+
+@pytest.mark.asyncio
+async def test_fetch_agencies_tolerates_null_expected_payload():
+    """An agency row with expected_payload = NULL must not crash the tool."""
+    ctx = MagicMock()
+    ctx.get_state = AsyncMock(return_value=None)
+    agency = {
+        "id": "a1", "name": "A", "status": "active", "description": "d",
+        "connection_type": "MCP", "data_scope": [], "endpoint_url": "http://e/",
+        "expected_payload": None, "api_headers": [],
+    }
+    with patch.object(server.agency_repo, "list_for_mcp", AsyncMock(return_value=[agency])), \
+         patch.object(server, "AsyncSessionLocal", _fake_session_local), \
+         patch.object(server, "get_http_request", return_value=MagicMock(
+             headers={"X-Forwarded-Host": "example.test"}, url=MagicMock(scheme="https"),
+         )):
+        result = await server._fetch_agencies(ctx)
+    assert result[0]["expected_payload"] == {}
+
+
+@pytest.mark.asyncio
+async def test_fetch_agencies_resolves_both_placeholders_in_one_value():
+    """A single value with both placeholders must resolve both, not drop one."""
+    ctx = MagicMock()
+    ctx.get_state = AsyncMock(side_effect=lambda key: {"user_id": "U", "conversation_id": "C"}.get(key))
+    agency = {
+        "id": "a1", "name": "A", "status": "active", "description": "d",
+        "connection_type": "API", "data_scope": [], "endpoint_url": "http://e/",
+        "expected_payload": {"both": "u=__user_id__;c=__conversation_id__"}, "api_headers": [],
+    }
+    with patch.object(server.agency_repo, "list_for_mcp", AsyncMock(return_value=[agency])), \
+         patch.object(server, "AsyncSessionLocal", _fake_session_local), \
+         patch.object(server, "get_http_request", return_value=MagicMock(
+             headers={"X-Forwarded-Host": "example.test"}, url=MagicMock(scheme="https"),
+         )):
+        result = await server._fetch_agencies(ctx)
+    assert result[0]["expected_payload"]["both"] == "u=U;c=C"
 
 
 def test_mcp_server_module_has_no_role_check():

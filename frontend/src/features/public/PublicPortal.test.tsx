@@ -8,7 +8,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { server } from "@/mocks/server";
 import PublicPortal from "./PublicPortal";
 
-const { resetMock } = vi.hoisted(() => ({ resetMock: vi.fn() }));
+const { resetMock, signInMock } = vi.hoisted(() => ({ resetMock: vi.fn(), signInMock: vi.fn() }));
+
+// Stub the auth adapter: signIn is asserted; the SPA stays anonymous here.
+vi.mock("@/features/auth/useAuth", () => ({
+  useAuth: () => ({ user: null, isAdmin: false, isLoading: false, signIn: signInMock, signOut: vi.fn() }),
+}));
 
 vi.mock("@/features/chat/useChat", () => ({
   useChat: () => ({
@@ -58,10 +63,12 @@ describe("PublicPortal popular questions", () => {
 });
 
 describe("PublicPortal login button", () => {
-  it("links to the login form so an anon user can sign in as a real user", async () => {
+  it("redirects to the OIDC provider when an anon user clicks login", async () => {
+    signInMock.mockClear();
     renderPortal();
-    const login = await screen.findByRole("link", { name: /เข้าสู่ระบบ/ });
-    expect(login).toHaveAttribute("href", "/login");
+    const button = await screen.findByRole("button", { name: /เข้าสู่ระบบ/ });
+    await userEvent.click(button);
+    expect(signInMock).toHaveBeenCalledTimes(1);
   });
 });
 

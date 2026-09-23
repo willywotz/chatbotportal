@@ -2,31 +2,27 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from tortoise.expressions import RawSQL
-from tortoise.functions import Count
-from tortoise.transactions import in_transaction
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.errors import ApiError, ErrorCode
-from app.models.agency import Agency
 from app.models.conversation import Message
+from app.repositories import agency as agency_repo
+from app.repositories import feedback_read as feedback_repo
 from app.schemas.conversation import FeedbackStats
 from app.utils import clean_agency_ids, now
 
 
-async def agency_low_rated(agency_id: str, limit: int = 50) -> list[dict]:
+async def agency_low_rated(session: AsyncSession, agency_id: str, limit: int = 50) -> list[dict]:
     """Recent down-rated assistant answers involving an agency.
 
-    `agency_ids` is a JSON list; `__contains` on JSON is not portable to
-    SQLite, so we fetch down-rated assistant messages then filter membership
-    in Python. The `limit` caps the DB query BEFORE the Python membership
-    filter, so the result may contain fewer than `limit` rows for this agency.
-    That is acceptable for a "recent low-rated" view.
+    `agency_ids` is a JSON list; matching membership is filtered in Python
+    after fetching the most recent down-rated assistant messages. The
+    `limit` caps the DB query BEFORE the Python membership filter, so the
+    result may contain fewer than `limit` rows for this agency. That is
+    acceptable for a "recent low-rated" view.
     """
-    rows = (
-        await Message.filter(role="assistant", rating="down")
-        .order_by("-created_at").limit(limit)
-    )
+    rows = await feedback_repo.low_rated_assistant_messages(session, limit)
     out = [m for m in rows if agency_id in clean_agency_ids(m.agency_ids)]
     return [
         {"id": str(m.id), "content": m.content, "feedback_text": m.feedback_text,
@@ -35,10 +31,10 @@ async def agency_low_rated(agency_id: str, limit: int = 50) -> list[dict]:
     ]
 
 
-async def agency_low_rated_or_404(agency_id: str, limit: int = 50) -> list[dict]:
-    if not await Agency.filter(id=agency_id).exists():
+async def agency_low_rated_or_404(session: AsyncSession, agency_id: str, limit: int = 50) -> list[dict]:
+    if await agency_repo.by_id(session, agency_id) is None:
         raise ApiError(ErrorCode.NOT_FOUND, "Agency not found", status=404)
-    return await agency_low_rated(agency_id, limit)
+    return await agency_low_rated(session, agency_id, limit)
 
 
 def scalar_stats(message_state: list[dict]) -> tuple[int, int, int, int]:
@@ -56,94 +52,56 @@ def scalar_stats(message_state: list[dict]) -> tuple[int, int, int, int]:
     )
 
 
-async def get_feedback_stats() -> FeedbackStats:
-    async with in_transaction() as conn:
-        await conn.execute_query(f"SET TIME ZONE '{settings.TIMEZONE}';")
+async def get_feedback_stats(session: AsyncSession) -> FeedbackStats:
+    totals = await feedback_repo.rating_totals(session)
 
-        message_state = await Message \
-            .annotate(
-                total_rating=Count("rating"),
-                rating_up=RawSQL('SUM(CASE WHEN rating = \'up\' THEN 1 ELSE 0 END)'),
-                rating_down=RawSQL('SUM(CASE WHEN rating = \'down\' THEN 1 ELSE 0 END)'),
-                rate=RawSQL('AVG(CASE WHEN rating = \'up\' THEN 1 ELSE 0 END) * 100')
-            ) \
-            .filter(rating__isnull=False) \
-            .values("total_rating", "rating_up", "rating_down", "rate")
+    since = now() - timedelta(days=settings.FEEDBACK_TREND_DAYS)
+    daily_trend = await feedback_repo.rating_daily_trend(session, since)
+    for row in daily_trend:
+        # rating_daily_trend does not compute a per-day rate; DailyTrendItem requires the key.
+        row["rate"] = 0
 
-        daily_trend = await Message \
-            .annotate(
-                date=RawSQL("TO_CHAR(created_at, 'MM-DD')"),
-                up=RawSQL('SUM(CASE WHEN rating = \'up\' THEN 1 ELSE 0 END)'),
-                down=RawSQL('SUM(CASE WHEN rating = \'down\' THEN 1 ELSE 0 END)'),
-                rate=RawSQL('0'),
-            ) \
-            .filter(rating__isnull=False, created_at__gte=now() - timedelta(days=settings.FEEDBACK_TREND_DAYS)) \
-            .group_by("date") \
-            .order_by("date") \
-            .values("date", "up", "down", "rate")
+    agencies = await feedback_repo.list_agencies_short_names(session)
 
-        agency_breakdown = []
+    agency_breakdown = []
+    for ag in agencies:
+        counts = await feedback_repo.agency_rating_counts(session, ag["id"])
+        agency_breakdown.append({
+            "agency": ag["short_name"],
+            "up": counts.get("rating_up") or 0,
+            "down": counts.get("rating_down") or 0,
+            "rate": 0,
+        })
 
-        agencies = await Agency.all().values("id", "short_name")
+    raw_low_rated = await feedback_repo.low_rated_assistant_messages(session, 5)
 
-        for ag in agencies:
-            stats = await Message \
-                .annotate(
-                    rating_up=RawSQL('SUM(CASE WHEN rating = \'up\' THEN 1 ELSE 0 END)'),
-                    rating_down=RawSQL('SUM(CASE WHEN rating = \'down\' THEN 1 ELSE 0 END)'),
-                ) \
-                .filter(
-                    rating__isnull=False,
-                    agency_ids__contains=[str(ag["id"])],
-                ) \
-                .values("rating_up", "rating_down")
+    low_rated_questions = []
+    for m in raw_low_rated:
+        agency_names = []
+        for ag_id in clean_agency_ids(m.agency_ids):
+            ag = next((a for a in agencies if str(a["id"]) == ag_id), None)
+            if ag:
+                agency_names.append(ag["short_name"])
 
-            rating_up = stats[0]["rating_up"] if stats and stats[0]["rating_up"] is not None else 0
-            rating_down = stats[0]["rating_down"] if stats and stats[0]["rating_down"] is not None else 0
+        content = "ไม่ทราบคำถาม"
+        if m.parent_id:
+            parent_msg = await session.get(Message, m.parent_id)
+            content = parent_msg.content if parent_msg else "ไม่ทราบคำถาม"
 
-            agency_breakdown.append({
-                "agency": ag["short_name"],
-                "up": rating_up,
-                "down": rating_down,
-                "rate": 0,
-            })
+        low_rated_questions.append({
+            "content": content,
+            "feedback_text": m.feedback_text,
+            "agency": ", ".join(agency_names) if agency_names else "-",
+            "created_at": m.created_at.isoformat() if m.created_at else "",
+        })
 
-        raw_low_rated_questions = await Message \
-            .filter(role="assistant", rating="down") \
-            .order_by("-created_at") \
-            .limit(5) \
-            .values("feedback_text", "agency_ids", "created_at", "parent_id")
-
-        low_rated_questions = []
-
-        for entry in raw_low_rated_questions:
-            agency_names = []
-            for ag_id in clean_agency_ids(entry["agency_ids"]):
-                ag = next((a for a in agencies if str(a["id"]) == ag_id), None)
-                if ag:
-                    agency_names.append(ag["short_name"])
-
-            entry["agency"] = ", ".join(agency_names) if agency_names else "-"
-            entry["created_at"] = entry["created_at"].isoformat() if entry.get("created_at") else ""
-
-            if entry["parent_id"]:
-                parent_msg = await Message.filter(id=entry["parent_id"]).first()
-                entry["content"] = parent_msg.content if parent_msg else "ไม่ทราบคำถาม"
-
-            low_rated_questions.append({
-                "content": entry.get("content", "ไม่ทราบคำถาม"),
-                "feedback_text": entry["feedback_text"],
-                "agency": entry["agency"],
-                "created_at": entry["created_at"],
-            })
-
-        total_ratings, up_count, down_count, satisfaction_rate = scalar_stats(message_state)
-        return FeedbackStats(
-            total_ratings=total_ratings,
-            up_count=up_count,
-            down_count=down_count,
-            satisfaction_rate=satisfaction_rate,
-            daily_trend=daily_trend,
-            low_rated_questions=low_rated_questions,
-            agency_breakdown=agency_breakdown,
-        )
+    total_ratings, up_count, down_count, satisfaction_rate = scalar_stats([totals])
+    return FeedbackStats(
+        total_ratings=total_ratings,
+        up_count=up_count,
+        down_count=down_count,
+        satisfaction_rate=satisfaction_rate,
+        daily_trend=daily_trend,
+        low_rated_questions=low_rated_questions,
+        agency_breakdown=agency_breakdown,
+    )

@@ -3,8 +3,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import { server } from '@/mocks/server';
 import { STREAM_IDLE_TIMEOUT_MS } from '@/shared/constants/query';
+import { setAccessToken } from '@/shared/lib/authToken';
 
 import { sendChatQuery, sendChatQuerySSE } from './chatApi';
+
+afterEach(() => setAccessToken(undefined));
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -16,12 +19,12 @@ function sseChunk(event: string, data: unknown): Uint8Array {
 }
 
 /**
- * Returns an MSW handler for POST /api/v1/chat that:
+ * Returns an MSW handler for POST /api/v1/public/chat that:
  * 1. Immediately enqueues `initialChunk` into the stream.
  * 2. Never closes the stream (simulating a hung server).
  */
 function makeHangingSSEHandler(initialChunk: Uint8Array): ReturnType<typeof http.post> {
-  return http.post('*/api/v1/chat', () => {
+  return http.post('*/api/v1/public/chat', () => {
     const stream = new ReadableStream<Uint8Array>({
       start(c) {
         c.enqueue(initialChunk);
@@ -37,11 +40,11 @@ function makeHangingSSEHandler(initialChunk: Uint8Array): ReturnType<typeof http
 }
 
 /**
- * Returns an MSW handler for POST /api/v1/chat that emits one step
+ * Returns an MSW handler for POST /api/v1/public/chat that emits one step
  * event and then immediately closes the stream (normal happy path).
  */
 function makeCompletingSSEHandler(): ReturnType<typeof http.post> {
-  return http.post('*/api/v1/chat', () => {
+  return http.post('*/api/v1/public/chat', () => {
     const stream = new ReadableStream<Uint8Array>({
       start(c) {
         c.enqueue(sseChunk('step', { step: 'thinking' }));
@@ -120,10 +123,10 @@ describe('sendChatQuerySSE — idle timeout', () => {
     expect(onError).not.toHaveBeenCalled();
   });
 
-  it('posts to /api/v1/chat with stream: true in the request body', async () => {
+  it('posts to /api/v1/public/chat with stream: true in the request body', async () => {
     let capturedBody: unknown;
     server.use(
-      http.post('*/api/v1/chat', async ({ request }) => {
+      http.post('*/api/v1/public/chat', async ({ request }) => {
         capturedBody = await request.json();
         const stream = new ReadableStream<Uint8Array>({
           start(c) {
@@ -143,15 +146,28 @@ describe('sendChatQuerySSE — idle timeout', () => {
     expect(capturedBody).toEqual({ query: 'test', stream: true });
   });
 
-  it('sends credentials: include and no Authorization header', async () => {
+  it('sends no credentials and no Authorization header when a guest', async () => {
     server.use(makeCompletingSSEHandler());
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
     await sendChatQuerySSE({ query: 'test' }, {});
 
     const [, options] = fetchSpy.mock.calls[0];
-    expect(options?.credentials).toBe('include');
+    expect(options?.credentials).toBeUndefined();
     expect((options?.headers as Record<string, string> | undefined)?.Authorization).toBeUndefined();
+
+    fetchSpy.mockRestore();
+  });
+
+  it('attaches the bearer token when authenticated', async () => {
+    setAccessToken('tok123');
+    server.use(makeCompletingSSEHandler());
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+    await sendChatQuerySSE({ query: 'test' }, {});
+
+    const [, options] = fetchSpy.mock.calls[0];
+    expect((options?.headers as Record<string, string>).Authorization).toBe('Bearer tok123');
 
     fetchSpy.mockRestore();
   });
@@ -162,10 +178,10 @@ describe('sendChatQuerySSE — idle timeout', () => {
 // ---------------------------------------------------------------------------
 
 describe('sendChatQuery', () => {
-  it('posts to /api/v1/chat with no stream flag and parses the unified envelope', async () => {
+  it('posts to /api/v1/public/chat with no stream flag and parses the unified envelope', async () => {
     let capturedBody: unknown;
     server.use(
-      http.post('*/api/v1/chat', async ({ request }) => {
+      http.post('*/api/v1/public/chat', async ({ request }) => {
         capturedBody = await request.json();
         return HttpResponse.json({
           success: true,

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { StreamingState } from '@/shared/types';
-import { sendChatQuerySSE, sendChatQueryWS } from '@/features/chat/chatApi';
+import { sendChatQuerySSE } from '@/features/chat/chatApi';
 import type { ChatApiRequest } from '@/features/chat/chatApi';
 import {
   INITIAL_STREAMING_STATE,
@@ -74,8 +74,7 @@ export function useChatStream(): UseChatStreamResult {
       onError: applyAndSet(applyErrorEvent),
     };
 
-    const usedWS = await sendChatQueryWS(request, callbacks, abortController.signal);
-    const usedSSE = usedWS || await sendChatQuerySSE(request, callbacks, abortController.signal);
+    const usedSSE = await sendChatQuerySSE(request, callbacks, abortController.signal);
 
     if (abortController.signal.aborted) {
       return { usedSSE, aborted: true };

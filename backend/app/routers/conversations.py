@@ -12,10 +12,12 @@ Endpoints
 import time
 import uuid
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Security, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.dependencies import get_current_user, get_current_user_optional
-from app.models.user import User
+from app.auth.dependencies import require_scope
+from app.auth.principal import Principal
+from app.db import get_db
 from app.schemas.conversation import HistoryItem, HistoryResponse, SaveConversationRequest
 from app.services import conversation as conversation_service
 
@@ -27,8 +29,12 @@ router = APIRouter(prefix="/history", tags=["History"])
     summary="Save conversation with messages",
     status_code=status.HTTP_201_CREATED,
 )
-async def save_conversation(body: SaveConversationRequest, user: User | None = Depends(get_current_user_optional)) -> dict:
-    conv = await conversation_service.create_conversation(body, user)
+async def save_conversation(
+    body: SaveConversationRequest,
+    session: AsyncSession = Depends(get_db),
+    principal: Principal = Security(require_scope, scopes=["conversation:write:own"]),
+) -> dict:
+    conv = await conversation_service.create_conversation(session, body, principal)
     return {"success": True, "conversationId": str(conv.id)}
 
 
@@ -40,12 +46,14 @@ async def list_conversations(
     date_to: str | None = Query(None, description="Inclusive end date YYYY-MM-DD"),
     page: int = Query(1, ge=1),
     page_size: int | None = Query(None, ge=1, le=200, description="Omit for full list (legacy)"),
-    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+    principal: Principal = Security(require_scope, scopes=["conversation:read:own"]),
 ) -> HistoryResponse:
     start = time.time()
 
     convs, total = await conversation_service.list_conversations(
-        user=user,
+        session,
+        principal=principal,
         search=search,
         filter_agency=filter_agency,
         date_from=date_from,
@@ -77,8 +85,12 @@ async def list_conversations(
 
 
 @router.get("/{conversation_id}", summary="Get conversation with messages")
-async def get_conversation(conversation_id: uuid.UUID, user: User = Depends(get_current_user)) -> dict:
-    conv, messages = await conversation_service.get_conversation_with_messages(conversation_id, user)
+async def get_conversation(
+    conversation_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db),
+    principal: Principal = Security(require_scope, scopes=["conversation:read:own"]),
+) -> dict:
+    conv, messages = await conversation_service.get_conversation_with_messages(session, conversation_id, principal)
     return {
         "id": str(conv.id),
         "title": conv.title,
@@ -106,8 +118,12 @@ async def get_conversation(conversation_id: uuid.UUID, user: User = Depends(get_
     }
 
 @router.get("/{conversation_id}/messages", summary="Get messages for a conversation")
-async def get_conversation_messages(conversation_id: uuid.UUID, user: User = Depends(get_current_user)) -> list[dict]:
-    messages = await conversation_service.get_conversation_messages(conversation_id, user)
+async def get_conversation_messages(
+    conversation_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db),
+    principal: Principal = Security(require_scope, scopes=["conversation:read:own"]),
+) -> list[dict]:
+    messages = await conversation_service.get_conversation_messages(session, conversation_id, principal)
     return [
         {
             "id": str(m.id),
@@ -126,5 +142,9 @@ async def get_conversation_messages(conversation_id: uuid.UUID, user: User = Dep
 
 
 @router.delete("/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete conversation")
-async def delete_conversation(conversation_id: uuid.UUID, user: User = Depends(get_current_user)) -> None:
-    await conversation_service.delete_conversation(conversation_id, user)
+async def delete_conversation(
+    conversation_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db),
+    principal: Principal = Security(require_scope, scopes=["conversation:write:own"]),
+) -> None:
+    await conversation_service.delete_conversation(session, conversation_id, principal)

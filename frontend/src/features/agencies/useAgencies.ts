@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, axiosInstance } from '@/shared/lib/apiClient';
+import { getAccessToken } from '@/shared/lib/authToken';
 import { REFETCH, STALE_TIME } from '@/shared/constants/query';
 import { connectionLogKeys } from '@/features/connection-logs/useConnectionLogs';
 import type { Agency } from '@/shared/types';
@@ -122,11 +123,16 @@ export function useUploadAgencyLogo() {
     mutationFn: async ({ id, file }: { id: string; file: File }): Promise<Agency> => {
       const formData = new FormData();
       formData.append('file', file);
+      const token = getAccessToken();
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
       // Uses fetch (not axios) so the browser sets multipart/form-data with
       // the correct boundary itself, instead of axios's default JSON header.
       const res = await fetch(`${axiosInstance.defaults.baseURL}/api/v1/agencies/${id}/logo`, {
         method: 'POST',
-        credentials: 'include',
+        headers,
         body: formData,
       });
       const data = await res.json();

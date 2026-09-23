@@ -1,57 +1,35 @@
+"""Local user accounts — the identity store the self-hosted IdP authenticates.
+
+Replaces the accounts Keycloak used to hold. `Conversation.user_id` points at
+`users.id` (plain UUID, no hard FK, matching the historical `sub` semantics)."""
 import uuid
+from datetime import datetime
+from enum import Enum
 
-from tortoise import fields
-from tortoise.models import Model
-from app.utils import generate_uuid, now
+from sqlalchemy import Boolean, DateTime, Enum as SAEnum, String, func
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column
 
-class User(Model):
-    """
-    Admin/user account for the AI Chatbot Portal.
-    Passwords are stored as bcrypt hashes — never plaintext.
-    """
+from app.models.base import Base
+from app.utils import generate_uuid
 
-    id = fields.UUIDField(primary_key=True, default=generate_uuid)
-    email = fields.CharField(max_length=255, unique=True)
-    display_name = fields.CharField(max_length=255, null=True)
-    hashed_password = fields.CharField(max_length=500)
-    role = fields.CharField(max_length=20, default="user")     # user | staff | admin
-    avatar_url = fields.CharField(max_length=500, null=True)
-    is_active = fields.BooleanField(default=True)
-    is_ephemeral = fields.BooleanField(default=False)  # anonymous temp-user; prune later
 
-    created_at = fields.DatetimeField(auto_now_add=True)
-    updated_at = fields.DatetimeField(auto_now=True)
+class UserRole(str, Enum):
+    user = "user"
+    staff = "staff"
+    admin = "admin"
 
-    class Meta:
-        table = "users"
 
-    def __str__(self) -> str:
-        return self.email
+class User(Base):
+    __tablename__ = "users"
 
-    @property
-    def is_admin(self) -> bool:
-        return self.role == "admin"
-
-class UserAPIKey(Model):
-    """API keys for users to access the AI Chatbot API. Inherits its owner's role."""
-
-    id = fields.UUIDField(primary_key=True, default=generate_uuid)
-    user = fields.ForeignKeyField("models.User", related_name="api_keys")
-    name = fields.CharField(max_length=255)
-    key_hash = fields.CharField(max_length=64, unique=True, null=True)
-    key_prefix = fields.CharField(max_length=16, default="")
-    last_used_at = fields.DatetimeField(null=True)
-    expires_at = fields.DatetimeField(null=True)       # null = never expires
-    revoked_at = fields.DatetimeField(null=True)       # set when revoked; null = active
-    created_at = fields.DatetimeField(auto_now_add=True)
-
-    def is_usable(self) -> bool:
-        """True when the key is neither revoked nor expired."""
-        if self.revoked_at is not None:
-            return False
-        if self.expires_at is not None and self.expires_at <= now():
-            return False
-        return True
-
-    class Meta:
-        table = "user_api_keys"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=generate_uuid)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(255))
+    display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    role: Mapped[UserRole] = mapped_column(
+        SAEnum(UserRole, native_enum=False, create_constraint=False, length=20),
+        default=UserRole.user,
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

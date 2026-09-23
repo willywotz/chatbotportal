@@ -1,12 +1,7 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  useCallback,
-  type ReactNode,
-} from "react";
-import { api } from "@/shared/lib/apiClient";
+import { useCallback, useEffect } from "react";
+import { useAuth as useOidcAuth } from "react-oidc-context";
+
+import { beginLogout, setAccessToken, setOnUnauthenticated } from "@/shared/lib/authToken";
 import { type Role } from "@/features/auth/roles";
 
 export interface AuthUser {
@@ -15,74 +10,99 @@ export interface AuthUser {
   displayName: string;
   role: Role;
   avatarUrl: string | null;
-  isEphemeral: boolean;
 }
 
-interface AuthContextType {
+export interface AuthState {
   user: AuthUser | null;
   isAdmin: boolean;
   isLoading: boolean;
+  signIn: (returnTo?: string) => void;
   signOut: () => void;
-  /** Call after a successful login to set the authenticated user */
-  setAuth: (user: AuthUser) => void;
-  /** Bootstraps an anonymous session when no user is signed in; no-op otherwise */
-  ensureSession: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  isAdmin: false,
-  isLoading: true,
-  signOut: () => {},
-  setAuth: () => {},
-  ensureSession: async () => {},
-});
+// Mock mode (MSW) has no real OIDC provider — stand in with a fixed admin so the
+// UI is browsable/testable without a login round-trip.
+const MOCK = import.meta.env.VITE_USE_MOCKS === "true";
+const MOCK_USER: AuthUser = {
+  id: "mock-admin",
+  email: "admin@example.com",
+  displayName: "Mock Admin",
+  role: "admin",
+  avatarUrl: null,
+};
 
-export const useAuth = () => useContext(AuthContext);
+/**
+ * App-facing auth hook. Wraps react-oidc-context and derives the user straight
+ * from the OIDC profile (id-token claims) — no `/authentication/me` call.
+ */
+export function useAuth(): AuthState {
+  // `oidc` is undefined only outside an <AuthProvider> (isolated component tests
+  // that render a consumer directly); the real app always has the provider.
+  const oidc = useOidcAuth() as ReturnType<typeof useOidcAuth> | undefined;
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  // On mount: the session cookie (if any) is sent automatically — ask the
-  // server who we are.
-  useEffect(() => {
-    api
-      .get<{ user: AuthUser }>("/api/v1/authentication/me")
-      .then(({ user }) => setUser(user))
-      .catch(() => setUser(null))
-      .finally(() => setIsLoading(false));
-  }, []);
-
-  const setAuth = useCallback((authUser: AuthUser) => setUser(authUser), []);
+  const signIn = useCallback(
+    (returnTo?: string) => {
+      void oidc?.signinRedirect({
+        state: { returnTo: returnTo ?? window.location.pathname + window.location.search },
+      });
+    },
+    [oidc],
+  );
 
   const signOut = useCallback(() => {
-    api.post("/api/v1/authentication/logout", {}).catch(() => {});
-    setUser(null);
-  }, []);
+    // No RP-initiated logout endpoint on the provider; drop the local session
+    // and hard-navigate home. beginLogout() suppresses ProtectedRoute's
+    // auto-redirect so removeUser flipping to unauthenticated does not bounce us
+    // to the login page before "/" loads.
+    beginLogout();
+    void oidc?.removeUser();
+    window.location.href = "/";
+  }, [oidc]);
 
-  const ensureSession = useCallback(async () => {
-    if (user) return;
-    try {
-      const res = await api.post<{ user: AuthUser }>("/api/v1/authentication/anonymous", {});
-      setUser(res.user);
-    } catch {
-      // Proceed anyway; the chat request may 401 and surface an error.
-    }
-  }, [user]);
+  if (MOCK) {
+    return { user: MOCK_USER, isAdmin: true, isLoading: false, signIn, signOut };
+  }
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isAdmin: user?.role === "admin",
-        isLoading,
-        signOut,
-        setAuth,
-        ensureSession,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+  const profile = oidc?.user?.profile;
+  const user: AuthUser | null =
+    oidc?.isAuthenticated && profile
+      ? {
+          id: String(profile.sub ?? ""),
+          email: (profile.email as string) ?? "",
+          displayName: (profile.name as string) || (profile.email as string) || "",
+          role: (profile.role as Role) ?? "user",
+          avatarUrl: null,
+        }
+      : null;
+
+  return {
+    user,
+    isAdmin: user?.role === "admin",
+    isLoading: oidc?.isLoading ?? false,
+    signIn,
+    signOut,
+  };
+}
+
+/**
+ * Bridges the OIDC access token (React state) into the non-React axios client.
+ * Mounted once inside the provider; keeps `authToken` current and wires 401
+ * re-login. Renders nothing.
+ */
+export function AuthTokenSync(): null {
+  const oidc = useOidcAuth() as ReturnType<typeof useOidcAuth> | undefined;
+  const token = oidc?.user?.access_token;
+
+  useEffect(() => {
+    setAccessToken(token);
+  }, [token]);
+
+  useEffect(() => {
+    setOnUnauthenticated(() => {
+      void oidc?.signinRedirect();
+    });
+    return () => setOnUnauthenticated(undefined);
+  }, [oidc]);
+
+  return null;
 }

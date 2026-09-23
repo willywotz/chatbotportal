@@ -1,14 +1,16 @@
 """Ownership check on GET/DELETE /conversations/{id} and its /messages sibling.
 
-Pins the semantics carried over from the deleted authorize(): a conversation
-with a NULL user_id (an anonymous chat) is denied to any non-admin caller,
-since str(None) never equals str(user.id).
+Pins the scope-based ownership semantics: a conversation with a NULL user_id
+(an anonymous chat) is denied to any caller without `conversation:read:all`,
+since str(None) never equals str(principal.id).
 """
+import uuid
+
 import pytest
 
+from app.auth.principal import Principal
 from app.errors import ApiError
-from app.models.conversation import Conversation
-from app.models.user import User
+from app.repositories import conversation as conversation_repo
 from app.routers.conversations import (
     delete_conversation,
     get_conversation,
@@ -16,70 +18,74 @@ from app.routers.conversations import (
 )
 
 
-async def _anonymous_conversation() -> Conversation:
-    return await Conversation.create(title="t", status="active")
+def _principal(*, read_all: bool = False) -> Principal:
+    scopes = {"conversation:read:own", "conversation:write:own"}
+    if read_all:
+        scopes.add("conversation:read:all")
+    return Principal(id=str(uuid.uuid4()), email=None, display_name=None,
+                      role="admin" if read_all else "user", scopes=frozenset(scopes))
 
 
-async def test_non_admin_denied_read_of_anonymous_conversation(db):
-    other = await User.create(email="other-read@x.com", hashed_password="h", role="user")
-    conv = await _anonymous_conversation()
+async def test_non_admin_denied_read_of_anonymous_conversation(db_session):
+    other = _principal()
+    conv = await conversation_repo.create(db_session, title="t", status="active")
     with pytest.raises(ApiError) as exc:
-        await get_conversation(conv.id, other)
+        await get_conversation(conv.id, db_session, other)
     assert exc.value.status == 403
 
 
-async def test_non_admin_denied_read_messages_of_anonymous_conversation(db):
-    other = await User.create(email="other-msgs@x.com", hashed_password="h", role="user")
-    conv = await _anonymous_conversation()
+async def test_non_admin_denied_read_messages_of_anonymous_conversation(db_session):
+    other = _principal()
+    conv = await conversation_repo.create(db_session, title="t", status="active")
     with pytest.raises(ApiError) as exc:
-        await get_conversation_messages(conv.id, other)
+        await get_conversation_messages(conv.id, db_session, other)
     assert exc.value.status == 403
 
 
-async def test_non_admin_denied_delete_of_anonymous_conversation(db):
-    other = await User.create(email="other-delete@x.com", hashed_password="h", role="user")
-    conv = await _anonymous_conversation()
+async def test_non_admin_denied_delete_of_anonymous_conversation(db_session):
+    other = _principal()
+    conv = await conversation_repo.create(db_session, title="t", status="active")
     with pytest.raises(ApiError) as exc:
-        await delete_conversation(conv.id, other)
+        await delete_conversation(conv.id, db_session, other)
     assert exc.value.status == 403
 
 
-async def test_admin_can_read_anonymous_conversation(db):
-    admin = await User.create(email="admin-read@x.com", hashed_password="h", role="admin")
-    conv = await _anonymous_conversation()
-    result = await get_conversation(conv.id, admin)
+async def test_admin_can_read_anonymous_conversation(db_session):
+    admin = _principal(read_all=True)
+    conv = await conversation_repo.create(db_session, title="t", status="active")
+    result = await get_conversation(conv.id, db_session, admin)
     assert result["id"] == str(conv.id)
 
 
-async def test_owner_can_read_own_conversation(db):
-    owner = await User.create(email="owner-read@x.com", hashed_password="h", role="user")
-    conv = await Conversation.create(title="t", status="active", user_id=owner.id)
-    result = await get_conversation(conv.id, owner)
+async def test_owner_can_read_own_conversation(db_session):
+    owner = _principal()
+    conv = await conversation_repo.create(db_session, title="t", status="active", user_id=owner.id)
+    result = await get_conversation(conv.id, db_session, owner)
     assert result["id"] == str(conv.id)
 
 
-async def test_other_user_denied_read_of_owned_conversation(db):
-    owner = await User.create(email="owner-a@x.com", hashed_password="h", role="user")
-    other = await User.create(email="other-b@x.com", hashed_password="h", role="user")
-    conv = await Conversation.create(title="t", status="active", user_id=owner.id)
+async def test_other_user_denied_read_of_owned_conversation(db_session):
+    owner = _principal()
+    other = _principal()
+    conv = await conversation_repo.create(db_session, title="t", status="active", user_id=owner.id)
     with pytest.raises(ApiError) as exc:
-        await get_conversation(conv.id, other)
+        await get_conversation(conv.id, db_session, other)
     assert exc.value.status == 403
 
 
-async def test_other_user_denied_read_messages_of_owned_conversation(db):
-    owner = await User.create(email="owner-c@x.com", hashed_password="h", role="user")
-    other = await User.create(email="other-d@x.com", hashed_password="h", role="user")
-    conv = await Conversation.create(title="t", status="active", user_id=owner.id)
+async def test_other_user_denied_read_messages_of_owned_conversation(db_session):
+    owner = _principal()
+    other = _principal()
+    conv = await conversation_repo.create(db_session, title="t", status="active", user_id=owner.id)
     with pytest.raises(ApiError) as exc:
-        await get_conversation_messages(conv.id, other)
+        await get_conversation_messages(conv.id, db_session, other)
     assert exc.value.status == 403
 
 
-async def test_other_user_denied_delete_of_owned_conversation(db):
-    owner = await User.create(email="owner-e@x.com", hashed_password="h", role="user")
-    other = await User.create(email="other-f@x.com", hashed_password="h", role="user")
-    conv = await Conversation.create(title="t", status="active", user_id=owner.id)
+async def test_other_user_denied_delete_of_owned_conversation(db_session):
+    owner = _principal()
+    other = _principal()
+    conv = await conversation_repo.create(db_session, title="t", status="active", user_id=owner.id)
     with pytest.raises(ApiError) as exc:
-        await delete_conversation(conv.id, other)
+        await delete_conversation(conv.id, db_session, other)
     assert exc.value.status == 403

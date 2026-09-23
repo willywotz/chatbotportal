@@ -73,6 +73,18 @@ function findAgency(id: string): AgencyRow | undefined {
 }
 
 export const handlers = [
+  // Mock-mode stand-in for the OIDC session + the backend `/authentication/me`
+  // principal lookup: dev/test always sees a signed-in admin.
+  http.get("*/api/v1/authentication/me", () =>
+    HttpResponse.json({
+      id: "mock-admin",
+      email: "admin@example.com",
+      display_name: "Mock Admin",
+      role: "admin",
+      avatar_url: null,
+    }),
+  ),
+
   http.get("*/api/v1/history", ({ request }) => {
     const url = new URL(request.url);
     const page = Number(url.searchParams.get("page") ?? "1");
@@ -264,7 +276,7 @@ export const handlers = [
     const formData = await request.formData();
     const file = formData.get("file");
     if (!file) return HttpResponse.json({ detail: "file is required" }, { status: 422 });
-    agency.logo = `/api/v1/agencies/${agency.id}/logo?v=abcd1234`;
+    agency.logo = `/api/v1/public/agencies/${agency.id}/logo?v=abcd1234`;
     agency.updated_at = new Date().toISOString();
     return HttpResponse.json(agency);
   }),

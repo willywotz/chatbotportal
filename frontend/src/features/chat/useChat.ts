@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ChatMessage, AgentStep } from '@/shared/types';
-import { useAuth } from '@/features/auth/useAuth';
 import { sendChatQuery } from '@/features/chat/chatApi';
 import { updateMessageRating } from '@/features/chat/feedbackApi';
 import { mockAgentSteps } from '@/shared/data/mockData';
@@ -22,7 +21,6 @@ export function useChat() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const { ensureSession } = useAuth();
   const { streamingState, streamingRef, abortRef, startStream, cancelStream: streamCancel, resetStream } = useChatStream();
 
   useEffect(() => {
@@ -84,7 +82,8 @@ export function useChat() {
     setActiveStepCount(0);
 
     try {
-      await ensureSession();
+      // /chat sits behind ProtectedRoute, so an OIDC session is already
+      // guaranteed here — no anonymous session to bootstrap.
       const { usedSSE, aborted } = await startStream({
         query: question,
         conversation_id: conversationId || undefined,
@@ -133,7 +132,7 @@ export function useChat() {
       resetStream();
       setMessages((prev) => [...prev, buildGenericErrorMessage()]);
     }
-  }, [input, isTyping, finalizeStreaming, startStream, conversationId, resetStream, ensureSession]);
+  }, [input, isTyping, finalizeStreaming, startStream, conversationId, resetStream]);
 
   const reset = useCallback(() => {
     setMessages([]);

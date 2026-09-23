@@ -6,10 +6,12 @@ Endpoint
   GET  /feedback/statistics
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Security
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.dependencies import get_current_user, require_admin
-from app.models.user import User
+from app.auth.dependencies import require_scope
+from app.auth.principal import Principal
+from app.db import get_db
 from app.schemas.conversation import FeedbackStats
 from app.services.feedback import agency_low_rated, agency_low_rated_or_404, get_feedback_stats
 from app.services.feedback import scalar_stats as _scalar_stats
@@ -17,13 +19,18 @@ from app.services.feedback import scalar_stats as _scalar_stats
 router = APIRouter(prefix="/feedback", tags=["Feedback"])
 
 
-@router.get("/agencies/{agency_id}/low-rated", summary="Down-rated answers for an agency (admin)")
-async def get_agency_low_rated(agency_id: str, _: User = Depends(require_admin)):
-    return await agency_low_rated_or_404(agency_id)
+@router.get("/agencies/{agency_id}/low-rated", summary="Down-rated answers for an agency")
+async def get_agency_low_rated(
+    agency_id: str,
+    session: AsyncSession = Depends(get_db),
+    _: Principal = Security(require_scope, scopes=["feedback:read:detail"]),
+):
+    return await agency_low_rated_or_404(session, agency_id)
 
 
 @router.get("/statistics", response_model=FeedbackStats, summary="Get feedback and satisfaction metrics")
-async def feedback_stats(_user: User = Depends(get_current_user)) -> FeedbackStats:
-    # Authorization is enforced by the global role allowlist: admin passes it;
-    # a plain `user` is blocked upstream.
-    return await get_feedback_stats()
+async def feedback_stats(
+    session: AsyncSession = Depends(get_db),
+    _user: Principal = Security(require_scope, scopes=["feedback:read"]),
+) -> FeedbackStats:
+    return await get_feedback_stats(session)

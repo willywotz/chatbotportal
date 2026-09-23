@@ -1,8 +1,8 @@
 """
 AI Chatbot Portal — FastAPI Backend
 =====================================
-Stack:  FastAPI · Tortoise ORM · FastMCP
-DB:     PostgreSQL
+Stack:  FastAPI · SQLAlchemy 2 (async) · Alembic · FastMCP
+DB:     PostgreSQL + PGroonga
 
 Entry-point:
     uvicorn app.main:app --reload
@@ -33,21 +33,18 @@ logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
 
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings, load_settings_from_db
 from app.errors import register_error_handlers
-from app.database import init_db, close_db
-from app.middleware.session_refresh import SessionRefreshMiddleware
+from app.db import init_db, close_db
 from app.mcp.server import mcp
-from app.auth.dependencies import enforce_role_allowlist
-from app.routers import agencies, audit_log, conversations, messages, dashboard, feedback, auth, chat, connection_logs, api_key, executive_summary, insight, popular_questions, public_status, users, settings as settings_router
+from app.routers import agencies, audit_log, conversations, messages, dashboard, feedback, auth, chat, connection_logs, executive_summary, insight, popular_questions, public_status, users, settings as settings_router
 from app.routers import agent_proxy
 from app.routers import llm as llm_router
-from app.routers import openai_conversations
-from app.routers import responses
-from app.services.seed import run_seed_admin, run_seed_agencies
+from app.auth.oidc.router import router as oidc_router
+from app.services.seed import run_seed_agencies
 from app.services.popular_questions import seed_popular_questions
 from app.scheduler import start_scheduler, stop_scheduler
 from app.trace_util import QueryTraceparentASGI
@@ -89,7 +86,6 @@ mcp_app = mcp.http_app(path="/", stateless_http=True)
 async def lifespan(app: FastAPI):
     await init_db()
     await load_settings_from_db()
-    await run_seed_admin()
     await run_seed_agencies()
     await start_scheduler()
 
@@ -115,7 +111,6 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
-    dependencies=[Depends(enforce_role_allowlist)],
 )
 register_error_handlers(app)
 
@@ -130,7 +125,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.add_middleware(SessionRefreshMiddleware)
 
 # ---------------------------------------------------------------------------
 # REST routers
@@ -142,12 +136,9 @@ app.include_router(agencies.router, prefix="/api/v1")
 app.include_router(conversations.router, prefix="/api/v1")
 app.include_router(messages.router, prefix="/api/v1")
 app.include_router(chat.router, prefix="/api/v1")
-app.include_router(responses.router, prefix="/api/v1")
-app.include_router(openai_conversations.router, prefix="/api/v1")
 app.include_router(dashboard.router, prefix="/api/v1")
 app.include_router(feedback.router, prefix="/api/v1")
 app.include_router(connection_logs.router, prefix="/api/v1")
-app.include_router(api_key.router, prefix="/api/v1")
 app.include_router(executive_summary.router, prefix="/api/v1")
 app.include_router(insight.router, prefix="/api/v1")
 app.include_router(popular_questions.router, prefix="/api/v1")
@@ -157,14 +148,19 @@ app.include_router(audit_log.router, prefix="/api/v1")
 app.include_router(llm_router.router, prefix="/api/v1")
 app.include_router(agent_proxy.router, prefix="/api/v1")
 
+# OIDC provider — NOT under /api/v1: discovery/JWKS live at the issuer root
+# under /.well-known and the flow endpoints under /oauth2, where the SPA's OIDC
+# client and the token `iss` expect them.
+app.include_router(oidc_router)
+
 # ---------------------------------------------------------------------------
-# MCP transport — intentionally outside the role chokepoint
+# MCP transport — its own auth, independent of the REST routers above.
 #
-# NOTE: enforce_role_allowlist (an app-level FastAPI dependency) does NOT cover
-# this mount. Mounted sub-apps (app.mount) bypass FastAPI's dependency
-# injection by design. MCP auth is enforced in app/mcp/server.py via API key:
-# any active user is admitted with no role check. Do not "fix" this by gating
-# the mount without revisiting that intent — see backend/tests/test_mcp_role_access.py.
+# Mounted sub-apps (app.mount) bypass FastAPI's per-request dependency
+# injection by design, so the REST routers' `require_scope` never runs for
+# this mount. MCP auth is enforced in app/mcp/server.py via an OIDC bearer
+# token: any authenticated principal is admitted with no role check — see
+# backend/tests/test_mcp_role_access.py.
 # ---------------------------------------------------------------------------
 
 # MCP server — stateless streamable-HTTP sub-app. QueryTraceparentASGI runs

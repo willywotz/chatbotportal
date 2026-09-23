@@ -1,110 +1,68 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { api } from "@/shared/lib/apiClient";
-import { AuthProvider, useAuth, type AuthUser } from "./useAuth";
-
-vi.mock("@/shared/lib/apiClient", () => ({
-  api: { get: vi.fn(), post: vi.fn() },
-}));
-
-beforeEach(() => vi.clearAllMocks());
-
-const authUser: AuthUser = {
-  id: "1",
-  email: "a@b.co",
-  displayName: "A",
-  role: "admin",
-  avatarUrl: null,
-  isEphemeral: false,
+// Mocked react-oidc-context state the adapter reads.
+const oidc: {
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  user?: { profile?: Record<string, unknown>; access_token?: string };
+  signinRedirect: ReturnType<typeof vi.fn>;
+  removeUser: ReturnType<typeof vi.fn>;
+} = {
+  isAuthenticated: false,
+  isLoading: false,
+  user: undefined,
+  signinRedirect: vi.fn(),
+  removeUser: vi.fn().mockResolvedValue(undefined),
 };
 
-function Consumer() {
-  const { user, isLoading, signOut, setAuth, ensureSession } = useAuth();
-  return (
-    <div>
-      <span>loading:{String(isLoading)}</span>
-      <span>user:{user?.email ?? "none"}</span>
-      <button onClick={() => setAuth(authUser)}>set</button>
-      <button onClick={() => signOut()}>signout</button>
-      <button onClick={() => ensureSession()}>ensure</button>
-    </div>
-  );
-}
+vi.mock("react-oidc-context", () => ({ useAuth: () => oidc }));
 
-describe("AuthProvider", () => {
-  it("restores the user by calling GET /api/v1/authentication/me on mount", async () => {
-    vi.mocked(api.get).mockResolvedValueOnce({ user: authUser });
-    render(
-      <AuthProvider>
-        <Consumer />
-      </AuthProvider>,
-    );
-    await waitFor(() => expect(screen.getByText("loading:false")).toBeInTheDocument());
-    expect(api.get).toHaveBeenCalledWith("/api/v1/authentication/me");
-    expect(screen.getByText("user:a@b.co")).toBeInTheDocument();
+import { useAuth } from "./useAuth";
+
+beforeEach(() => {
+  oidc.isAuthenticated = false;
+  oidc.isLoading = false;
+  oidc.user = undefined;
+  oidc.signinRedirect = vi.fn();
+  oidc.removeUser = vi.fn().mockResolvedValue(undefined);
+});
+
+describe("useAuth adapter", () => {
+  it("maps the OIDC profile (id-token claims) to an AuthUser", () => {
+    oidc.isAuthenticated = true;
+    oidc.user = { profile: { sub: "1", email: "a@b.co", name: "A", role: "admin" } };
+    const { result } = renderHook(() => useAuth());
+    expect(result.current.user).toEqual({
+      id: "1", email: "a@b.co", displayName: "A", role: "admin", avatarUrl: null,
+    });
+    expect(result.current.isAdmin).toBe(true);
+    expect(result.current.isLoading).toBe(false);
   });
 
-  it("sets user to null when /auth/me fails", async () => {
-    vi.mocked(api.get).mockRejectedValueOnce(new Error("401"));
-    render(
-      <AuthProvider>
-        <Consumer />
-      </AuthProvider>,
-    );
-    await waitFor(() => expect(screen.getByText("loading:false")).toBeInTheDocument());
-    expect(screen.getByText("user:none")).toBeInTheDocument();
+  it("returns a null user when not authenticated", () => {
+    const { result } = renderHook(() => useAuth());
+    expect(result.current.user).toBeNull();
+    expect(result.current.isAdmin).toBe(false);
   });
 
-  it("setAuth sets the user without a token argument", async () => {
-    vi.mocked(api.get).mockResolvedValueOnce({ user: null });
-    render(
-      <AuthProvider>
-        <Consumer />
-      </AuthProvider>,
-    );
-    await waitFor(() => expect(screen.getByText("loading:false")).toBeInTheDocument());
-    await act(async () => screen.getByText("set").click());
-    expect(screen.getByText("user:a@b.co")).toBeInTheDocument();
+  it("defaults role to 'user' when the claim is missing", () => {
+    oidc.isAuthenticated = true;
+    oidc.user = { profile: { sub: "2", email: "u@b.co" } };
+    const { result } = renderHook(() => useAuth());
+    expect(result.current.user?.role).toBe("user");
+    expect(result.current.isAdmin).toBe(false);
   });
 
-  it("signOut calls POST /api/v1/authentication/logout and clears the user", async () => {
-    vi.mocked(api.get).mockResolvedValueOnce({ user: authUser });
-    vi.mocked(api.post).mockResolvedValueOnce({ ok: true });
-    render(
-      <AuthProvider>
-        <Consumer />
-      </AuthProvider>,
-    );
-    await waitFor(() => expect(screen.getByText("user:a@b.co")).toBeInTheDocument());
-    await act(async () => screen.getByText("signout").click());
-    expect(api.post).toHaveBeenCalledWith("/api/v1/authentication/logout", {});
-    expect(screen.getByText("user:none")).toBeInTheDocument();
+  it("signIn redirects with the returnTo state", () => {
+    const { result } = renderHook(() => useAuth());
+    result.current.signIn("/dashboard");
+    expect(oidc.signinRedirect).toHaveBeenCalledWith({ state: { returnTo: "/dashboard" } });
   });
 
-  it("ensureSession posts /auth/anonymous and sets the user when none is set", async () => {
-    vi.mocked(api.get).mockResolvedValueOnce({ user: null });
-    vi.mocked(api.post).mockResolvedValueOnce({ user: authUser });
-    render(
-      <AuthProvider>
-        <Consumer />
-      </AuthProvider>,
-    );
-    await waitFor(() => expect(screen.getByText("user:none")).toBeInTheDocument());
-    await act(async () => screen.getByText("ensure").click());
-    expect(api.post).toHaveBeenCalledWith("/api/v1/authentication/anonymous", {});
-    expect(screen.getByText("user:a@b.co")).toBeInTheDocument();
-  });
-
-  it("ensureSession is a no-op when a user is already set", async () => {
-    vi.mocked(api.get).mockResolvedValueOnce({ user: authUser });
-    render(
-      <AuthProvider>
-        <Consumer />
-      </AuthProvider>,
-    );
-    await waitFor(() => expect(screen.getByText("user:a@b.co")).toBeInTheDocument());
-    await act(async () => screen.getByText("ensure").click());
-    expect(api.post).not.toHaveBeenCalled();
+  it("signOut removes the local session", () => {
+    const { result } = renderHook(() => useAuth());
+    result.current.signOut();
+    expect(oidc.removeUser).toHaveBeenCalled();
   });
 });

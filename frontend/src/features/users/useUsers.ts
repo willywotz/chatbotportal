@@ -5,6 +5,7 @@ import {
   updateUser,
   deactivateUser,
   activateUser,
+  deleteUser,
   type UserListParams,
   type CreateUserPayload,
   type UpdateUserPayload,
@@ -42,6 +43,14 @@ export function useSetUserActive() {
   return useMutation({
     mutationFn: ({ id, active }: { id: string; active: boolean }) =>
       active ? activateUser(id) : deactivateUser(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [KEY] }),
+  });
+}
+
+export function useDeleteUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteUser(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: [KEY] }),
   });
 }

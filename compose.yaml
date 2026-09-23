@@ -1,7 +1,7 @@
 services:
 
   postgres:
-    image: pgvector/pgvector:pg16
+    image: groonga/pgroonga:4.0.8-debian-17
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-chatbot}
@@ -9,8 +9,6 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-chatbot_secret}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    networks:
-      - chatbot-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-chatbot} -d ${POSTGRES_DB:-chatbot}"]
       interval: 10s
@@ -22,24 +20,29 @@ services:
         published: "${EXTERNAL_POSTGRES_PORT:-}"
 
   backend:
-    image: ghcr.io/willywotz/chatbotportal:${IMAGE_TAG:-latest}
-    build:
-      context: ./backend
-      target: production
+    build: {context: ./backend, target: production}
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-chatbot}:${POSTGRES_PASSWORD:-chatbot_secret}@${POSTGRES_HOST:-postgres}:5432/${POSTGRES_DB:-chatbot}
       ENV: ${ENV:-development}
+      DATABASE_URL: postgres://${POSTGRES_USER:-chatbot}:${POSTGRES_PASSWORD:-chatbot_secret}@${POSTGRES_HOST:-postgres}:5432/${POSTGRES_DB:-chatbot}
       CORS_ORIGINS: ${CORS_ORIGINS:-["*"]}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      # Self-hosted OIDC provider. OIDC_ISSUER is the PUBLIC root origin (through
+      # Caddy); discovery is at {issuer}/.well-known/openid-configuration and the
+      # flow endpoints under {issuer}/oauth2/*. It must equal the token `iss` and
+      # the SPA authority. PROD MUST override OIDC_ISSUER,
+      # OIDC_ALLOWED_REDIRECT_URIS and SEED_ADMIN_PASSWORD.
+      OIDC_ISSUER: ${OIDC_ISSUER:-http://localhost:${HTTP_PORT:-8080}}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-chatbotportal-web}
+      OIDC_ALLOWED_REDIRECT_URIS: ${OIDC_ALLOWED_REDIRECT_URIS:-["http://localhost:${HTTP_PORT:-8080}/auth/callback"]}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@example.com}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-admin1234}
     depends_on:
       postgres:
         condition: service_healthy
         restart: true
       jaeger:
         condition: service_started
-    networks:
-      - chatbot-network
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
       interval: 15s
@@ -51,23 +54,12 @@ services:
       - agency-uploads:/app/uploads
 
   frontend:
-    image: ghcr.io/willywotz/chatbotportal-web:${IMAGE_TAG:-latest}
-    build:
-      context: ./frontend
-      target: production
+    build: {context: ./frontend, target: production}
     restart: unless-stopped
     environment:
-      VITE_API_BASE_URL: "${VITE_API_BASE_URL:-}"
-    networks:
-      - chatbot-network
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
-      interval: 15s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
-    volumes:
-      - frontend-pnpm-store:/pnpm/store
+      API_BASE_URL: ${API_BASE_URL:-http://localhost:${HTTP_PORT:-8080}}
+      OIDC_AUTHORITY: ${OIDC_AUTHORITY:-${OIDC_ISSUER:-http://localhost:${HTTP_PORT:-8080}}}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-chatbotportal-web}
 
   caddy:
     image: caddy:2-alpine
@@ -79,7 +71,7 @@ services:
       SITE_ADDRESS: ${CERT_DOMAIN:-:80}
       CERT_EMAIL: ${CERT_EMAIL:-}
     volumes:
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
@@ -91,30 +83,22 @@ services:
         restart: true
       jaeger:
         condition: service_started
-    networks:
-      - chatbot-network
     ports:
       - target: 80
-        published: "${EXTERNAL_HTTP_PORT:-}"
+        published: "${EXTERNAL_HTTP_PORT:-${HTTP_PORT:-8080}}"
       - target: 443
-        published: "${EXTERNAL_HTTPS_PORT:-}"
+        published: "${EXTERNAL_HTTPS_PORT:-${HTTPS_PORT:-8443}}"
 
   jaeger:
     image: jaegertracing/jaeger:2.18.0
     restart: unless-stopped
-    networks:
-      - chatbot-network
     command:
       - "--set=extensions.jaeger_query.base_path=/jaeger"
-      - "--set=storage.memory.max_traces=1000"
+      - "--set=extensions.jaeger_storage.backends.some_storage.memory.max_traces=1000"
 
 volumes:
   postgres_data:
   backend-uv-cache:
   agency-uploads:
-  frontend-pnpm-store:
   caddy_data:
   caddy_config:
-
-networks:
-  chatbot-network:

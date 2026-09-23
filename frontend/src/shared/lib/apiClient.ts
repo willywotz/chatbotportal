@@ -3,36 +3,56 @@
  *
  * Base URL:  VITE_API_BASE_URL  (default: http://localhost:8000)
  *
- * The instance sends the HttpOnly session cookie on every request
- * (`withCredentials: true`); no Authorization header is attached.
+ * A request interceptor attaches the current OIDC access token (kept fresh by
+ * AuthTokenSync / react-oidc-context) as `Authorization: Bearer <token>`; no
+ * session cookie is sent.
  *
  * A response interceptor unwraps Axios errors and surfaces the FastAPI
- * `detail` field as a plain Error message.
+ * `detail` field as a plain Error message, and re-triggers OIDC login
+ * on a 401 for a previously-authenticated session.
  *
  * Usage:
  *   import { api } from '@/shared/lib/apiClient';
  *   const data = await api.get<AgencyList>('/api/v1/agencies');
- *   const result = await api.post('/api/v1/chat', { query: '...' });
+ *   const result = await api.post('/api/v1/public/chat', { query: '...' });
  */
 
 import axios, { type AxiosInstance, type AxiosResponse } from 'axios';
 
-var baseURL = import.meta.env.VITE_API_BASE_URL as string | undefined;
+import { getAccessToken, isLoggingOut, notifyUnauthenticated } from '@/shared/lib/authToken';
 
-if (!baseURL || baseURL.trim() === '') {
-  baseURL = window.location.origin;
-}
+const appConfig = (window as any).__APP_CONFIG__;
+
+var baseURL = appConfig?.API_BASE_URL || window.location.origin;
 
 const axiosInstance: AxiosInstance = axios.create({
   baseURL: baseURL,
   headers: { 'Content-Type': 'application/json' },
-  withCredentials: true,
+});
+
+// -- Request interceptor: attach the OIDC bearer token ----------------------
+axiosInstance.interceptors.request.use((config) => {
+  // Token is kept current by AuthTokenSync (react-oidc-context handles silent
+  // renew); undefined when there is no session (guest / public pages).
+  const token = getAccessToken();
+  if (token) {
+    // config.headers is always defined here (axios sets it before running
+    // interceptors); a direct property assignment works whether it's a
+    // plain object (as in apiClient.test.ts) or a real AxiosHeaders instance.
+    (config.headers as Record<string, string>).Authorization = `Bearer ${token}`;
+  }
+  return config;
 });
 
 // -- Response interceptor: surface FastAPI error message as Error ------------
 axiosInstance.interceptors.response.use(
   (response: AxiosResponse) => response,
   (error) => {
+    // Only re-login when a previously-authenticated session got a 401;
+    // an anonymous 401 must not trigger a redirect loop.
+    if (error?.response?.status === 401 && getAccessToken() && !isLoggingOut()) {
+      notifyUnauthenticated();
+    }
     const data = error?.response?.data;
     // New envelope shape: {"error": {"code", "message", "retryable"}}
     const envelopeMessage = data?.error?.message;

@@ -1,0 +1,77 @@
+# MEMORY — AI Chatbot Portal (Thai Citizen Guide)
+
+Living source of truth. Prune on every change. Distilled from the retired `CONTEXT.md`; dated changelog dropped (it lives in Git history).
+
+## Current Focus
+- Branch `feat/self-hosted-oidc`: Keycloak removed; backend is now its own OIDC provider/IdP (Auth-Code+PKCE/S256, RS256, JWKS, refresh rotation). Discovery/JWKS at root `/.well-known/*`, flow under `/oauth2/*`, issuer = root origin. Backend suite green (756). Frontend on `oidc-client-ts`, tsc clean, 43 auth tests green.
+- Next actionable: open PR `feat/self-hosted-oidc` → `dev`. Pre-existing (NOT from this work) frontend failures remain: `useTextScale`/`TextScaleControl`/`ChatConversation` fail with `window.localStorage` undefined under jsdom/Node 24.
+
+## Active Status
+- [x] SQLAlchemy 2 async + Alembic baseline (`versions/0001_initial.py`) + PGroonga. App is Tortoise-free (0 refs in `app`/`tests`).
+- [x] Repository layer (`app/repositories/*`, `session`-first module funcs). `get_db` owns one txn/request.
+- [x] Self-hosted OIDC provider/IdP (replaced Keycloak). Local `users` table; RS256 signing key in DB; role→scope map in `app/auth/scopes.py`.
+- [ ] Stale Aerich doc references (readme + docs).
+- [ ] `testcontainers.postgres` deprecation → `testcontainers.community.postgres` (`tests/conftest.py:26`).
+
+## What this is
+AI gateway/one-stop portal: routes Thai citizens' NL questions to Thai gov agencies (API/MCP/A2A), synthesizes one cited answer. Heavy orchestration (decompose→route→dispatch→synthesize, sync v1–v3, stream v4/v5) runs in external **OneChat** (`ONECHAT_BASE_URL`, via `services/onechat/`). This backend is the portal/gateway: wraps OneChat, serves an MCP server OneChat calls back into, persists conversations, and owns all admin/analytics/auth. Product name "AI Chatbot Portal"; repo/README still "Thai Citizen Guide".
+
+## Services (`compose.yaml`)
+All traffic via **caddy** (80/443, TLS auto via `CERT_DOMAIN`; `caddy/Caddyfile` = single routing+TLS source). `backend` Python 3.12 · FastAPI · SQLAlchemy 2 async · Alembic · FastMCP (`/api/v1`, `/mcp`, port 8080, `uvicorn --workers 4` → MCP stateless-http). `frontend` React 18 · Vite 5 · TS · shadcn/ui. `postgres` = `groonga/pgroonga:4.0.8-debian-17` (PG17). `jaeger` = `jaegertracing/jaeger:2.18.0` (OTLP `jaeger:4317`, UI `/jaeger/`). `agent-proxy` (Go) reverse-proxies agency calls, logs every call, bumps `total_calls` on 2xx.
+- Caddy `/api /sse /messages /mcp /docs /redoc /openapi.json`→backend (`/api/v1/responses` gets its own 3700s WS timeout block); `/.well-known/openid-configuration`, `/.well-known/jwks.json`, `/oauth2/*`→backend (OIDC provider; only those two well-known paths, so `/.well-known/acme-challenge/*` stays with Caddy); `/jaeger/*`→jaeger; `/`→frontend SPA (incl. `/auth/callback`).
+
+## Request flow (chat)
+`POST /api/v1/chat` (JSON, or SSE when body `stream:true`); `WS /api/v1/chat` same path. `POST /api/v1/responses` = OpenAI Responses-compatible (HTTP/SSE/WS; model id `onechat` only, version via `onechat_version` body field). All transports drive one transport-free pipeline `prepare_turn`+`run_turn` (`services/chat/stream.py`).
+1. **Similarity cache** (new convos only): `services/similarity.find_similar_question(session, query)` → PGroonga `content &@* :query` ordered by `pgroonga_score`. `SIMILARITY_THRESHOLD` 0.95 reinterpreted as PGroonga **score floor — needs retuning** (tokenizer/normalizer `NormalizerNFKC150`). Replaced `pg_trgm`; vectors long gone. `Conversation.status="failed"` is a one-way ratchet, so failures never poison cache.
+2. **OneChat dispatch** via `services/onechat/` (`get_client(version)`, `resolve_version()` → newest v5). Client is transport-only (errors: non-200→status, `ReadTimeout`→504, other→502=`OneChatError`); persistence/tracing stay in callers. All paths from `ONECHAT_BASE_URL`. v5 adds `summarize` step, `summary`, `references[]`, `thread_name`; degrades silently to v4. Existing convos first `ensure_session_warmed()`.
+3. **Persist**: `services/chat/turn.save_turn()` → Conversation + user/assistant Message + `ConnectionLog(action=query)`. `thread_name` titles the convo only on the creating turn.
+4. **Classify** (background): `services/chat/llm.classify_message_category()` tags a Thai category.
+
+## Data model (SQLAlchemy 2 declarative, `app/models/`)
+- Access via **module-level repo funcs** (`session` first arg). Routers `Depends(get_db)` = one txn/request, commit-on-success. Non-request contexts (scheduler, MCP, seed, chat-stream persist, agent-proxy, rate-limit, outbox dispatch) open own short `AsyncSessionLocal()`+`begin()`. **Services never `commit()`**; use `flush()` for mid-txn PKs.
+- Enum cols = `Enum(EnumClass, native_enum=False, create_constraint=False, length=n)` (varchar, coerced on read; app uses `.value`). All datetimes `timestamptz`. `Base` sets `eager_defaults=True` + naming convention (clean Alembic diffs).
+- 19 tables: `agencies`, `conversations`, `messages`, `connection_logs`, `golden_questions`, `eval_results`, `executive_briefs`, `llm_providers`, `llm_routes`, `llm_usage`, `audit_logs`, `settings` (PK=`key`, no id), `popular_questions`, `domain_events` (outbox), `rate_limit_counters` (BigInt PK + unique(key,window_start)); OIDC: `users`, `signing_keys` (PK=`kid`), `oauth_auth_codes` (PK=`code_hash`), `oauth_refresh_tokens`. Alembic `0002` adds the four OIDC tables.
+- `Conversation.meta` = Python attr mapped to DB col `metadata` (SQLAlchemy reserves `Base.metadata`). `user_id` = plain nullable UUID (OIDC sub → `users.id`; no hard FK). `Message.summary_references` NOT `references` (reserved word). `LlmUsage.total_tokens` = Python `@property`.
+- **Migrations = Alembic only** (`backend/alembic/`, async env sourcing URL from settings). Tortoise/Aerich squashed into `0001_initial` (pgroonga extension + 15 tables w/ FK ondelete + `messages.content` PGroonga index). `init_db()` runs `alembic upgrade head` at startup (serialized across workers by a Postgres advisory lock; NO `create_all`/`generate_schemas`). Schema change = edit model → `uv run alembic revision --autogenerate -m "..."`, review diff.
+
+## Auth & RBAC (self-hosted OIDC — authoritative, supersedes all Keycloak/cookie/JWT notes)
+- Backend IS the OpenID Provider (`app/auth/oidc/`): issuer = root origin (`OIDC_ISSUER`, no path); discovery/jwks at `/.well-known/{openid-configuration,jwks.json}`, authorize/token/userinfo under `/oauth2/*` (NOT `/api/v1`). Auth-Code+PKCE(S256), RS256, refresh-token rotation (reuse revokes the chain). `/oauth2/authorize` serves a server-rendered login page (HTML-escaped inputs). Access token carries `role`+`scope`; the **id token also carries `role`** so the SPA reads it from the OIDC profile (no `/me`).
+- **Signing key**: `signing_keys` table, one RSA keypair generated at startup under a PG advisory lock (shared across workers; distinct lock key from migrations); env override `OIDC_PRIVATE_KEY`. Public keys cached in-memory so `verify_token` (`app/auth/oidc/tokens.py`, RS256, iss=`OIDC_ISSUER`, aud=`OIDC_ISSUER` — no separate audience knob) does no per-request I/O → frozen `Principal{id(sub),email,display_name,role,scopes}` (`app/auth/principal.py`).
+- **Per-route scopes, no runtime gate**: each protected route `Security(require_scope, scopes=[…])`. Access-token JWT carries flat `role` + space-delimited `scope`. CI `tests/test_route_audit.py` guarantees no route is silently unprotected.
+- **Anonymous = `/api/v1/public/*`** (auth-optional): `public_status`, `popular_questions`, guest chat `POST /public/chat`, logo. Whitelisted non-public: `/api/v1/agent-proxy/{id}` (OneChat callback), `GET /api/v1/authentication/me`.
+- Roles→scopes live in **code** (`app/auth/scopes.py`, composite `user`⊂`staff`⊂`admin`), replicating the old realm composites verbatim. Ownership is scope-based (`conversation:read:all` vs filter to `principal.id`); no `role=="admin"` literals in services.
+- User mgmt = local `users` table via `services/user_admin.py` (`routers/users.py` under `user:manage`; bcrypt via `app/auth/oidc/passwords.py`, SHA-256 pre-hash); hard delete, refuses self-delete. Startup seeds `SEED_ADMIN_EMAIL` (role admin) if none exists. Config: `OIDC_ISSUER/CLIENT_ID/ALLOWED_REDIRECT_URIS/ACCESS_TOKEN_TTL/REFRESH_TOKEN_TTL/CODE_TTL/PRIVATE_KEY`, `SEED_ADMIN_EMAIL/PASSWORD`; SPA reads **runtime** config from `/config.js` (`window.__APP_CONFIG__.{OIDC_AUTHORITY,OIDC_CLIENT_ID,API_BASE_URL}`), callback route `/auth/callback`.
+- **Frontend auth = `react-oidc-context`** (over `oidc-client-ts`), NO bespoke provider/`/me`. `main.tsx` wraps `<App>` in `<AuthProvider {...oidcConfig}>` (`shared/lib/oidc.ts`); `features/auth/useAuth.tsx` is a thin adapter mapping the OIDC profile (id-token claims: `sub/email/name/role`) to `{user,isAdmin,isLoading,signIn,signOut}` (missing role⇒`user`; MOCK mode⇒fixed admin; tolerates no-provider in unit tests). `signIn`=`signinRedirect({state:{returnTo}})`; `signOut`=`removeUser()`+home (no RP-initiated logout endpoint). `CallbackPage` waits for react-oidc-context to process then routes to `returnTo`; `onSigninCallback` strips `?code&state`. `AuthTokenSync` (in App) pushes the access token + 401-relogin into `shared/lib/authToken.ts`, which the non-React `apiClient`/`chatApi`/`useAgencies` read for the `Bearer` header. Verified e2e (login→callback authenticates with no reload; role gates admin nav; scoped API works).
+
+## Scheduler jobs (`app/scheduler.py`)
+`agency_chat_test` (15 min: probe non-draft/disabled agencies via `test_connection`, log, `reconcile_statuses`), `regenerate_brief_job` (24h), `purge_old_connection_logs` (24h, retention 90d), `run_evaluation` (weekly golden-question LLM-judge), `regenerate_popular_questions` (24h: LLM-synth คำถามยอดนิยม from successful turns; no-op below `POPULAR_QUESTIONS_MIN_TURNS`=20; replaces only unpinned/unhidden `auto` rows; hidden `text_key`=tombstone).
+- **Connection test** = one reachability probe/type (HEAD→GET), any HTTP response (incl 4xx/5xx) = reachable=success; only transport failure = error. No protocol handshake.
+
+## Testing
+- backend: pytest `asyncio_mode=auto` over a **real Postgres+PGroonga testcontainer**; session-scoped container runs `alembic upgrade head`, `db_session` fixture = rolled-back txn, `client` fixture serves ASGI with `get_db` overridden. Requires Docker (Ryuk disabled in conftest). RBAC access-matrix tests live here.
+- frontend: vitest + jsdom + MSW (`src/mocks`, `VITE_USE_MOCKS`). Standalone `blackbox/` + `e2e/` removed; no E2E in CI.
+
+## CI/CD & deploy
+- Branches: `main`=prod (protected, PR-only), `dev`=dev. Branch off `dev`→PR→`dev`→PR→`main`. Never push `main`.
+- `.github/workflows/ci.yaml`: backend pytest ‖ frontend tsc+vitest. `release.yaml`: on `v*` tag → self-hosted runner, `docker compose -f compose.yaml up -d --build` (explicit `-f` disables override merge so `compose.override.yaml` never hits prod). Tag-driven, not merge-driven.
+- Env: `.env.example` holds only environment-level vars; app tuning stays as `config.py` defaults. Every var has a code default. Prod-override: `ENV=production`, `DATABASE_URL`, `OPENROUTER_API_KEY`, `ONECHAT_BASE_URL`, `MCP_ENDPOINT_URL`, `PARSE_SPEC_API_KEY`. **CORS wide-open by design** (`CORS_ORIGINS=["*"]`); no code enforces restriction.
+- Dev: `compose.override.yaml` (watch/dev targets) is currently **commented out** — `docker compose up -d --build` runs the production build for every service (frontend served by nginx, not the Vite dev server). Compose services are build-only (no `image:` keys); `HTTP_PORT` (`.env`) drives the gateway host port + `OIDC_ISSUER`/authority defaults. Re-enable the override for `--watch` HMR.
+
+## Conventions & Pitfalls
+- Reply in ASD-STE100 Simplified Technical English. Self-documenting code, **no comments** except Swagger/OpenAPI (project rule). KEEP-only comment policy = explain WHY (security/external-quirk/PDPA/async hazard/`withinlazy:` simplification).
+- 15-Factor App mandatory. Full-English API route names (no short forms). TDD mandatory (red→green→refactor). Branch before multi-task work; **never** git worktree.
+- **All OneChat calls via `services/onechat/`** — never inline an upstream URL. Inject `httpx.MockTransport` to test.
+- Agencies router: register literal paths (`/mcp/discover`, `/parse-specification`) **before** `/{agency_id}`; an unmatched literal falls to `/{agency_id}` → **422** (UUID validation), not 404.
+- Error envelope `{"error":{"code","message","retryable","upstream_status"}}` (`app/errors.py`); frontend unwraps (legacy `detail` fallback).
+- `utils.clean_agency_ids` at every read of `Message.agency_ids` — legacy comma-joined `"id1,id2"` is an invalid UUID that crashes asyncpg `id__in` queries.
+- **MCP `endpoint_url` scheme** resolves cf-visitor → X-Forwarded-Proto → connection scheme (`_external_scheme`, `app/mcp/server.py`) — behind Cloudflare the chain speaks http; only `cf-visitor` carries the real https. Covered by `test_mcp_endpoint_scheme.py`.
+- **OIDC issuer must match**: `OIDC_ISSUER` (token `iss` + SPA authority) must equal the browser root origin (no path); a mismatch fails `verify_token`'s issuer check. `OIDC_ALLOWED_REDIRECT_URIS` must list the SPA's `/auth/callback`.
+- **Frontend config is RUNTIME, not build-time**: the prod image bakes no `VITE_*` values. `frontend/docker-entrypoint.d/40-app-config.sh` writes `/config.js` (`window.__APP_CONFIG__`) from the frontend container's `OIDC_AUTHORITY`/`OIDC_CLIENT_ID`/`API_BASE_URL` env at startup; `index.html` loads it (classic script) before the app module. One image runs on any port/domain — change env + recreate, no rebuild. nginx serves `config.js` `no-store` (fixed name, mutable body) while hashed `/assets/*` stay `immutable`. The earlier "unknown client_id"/wrong-port bug was a stale build-time `VITE_OIDC_*` bake; this replaces it. Compose passes the SPA env as `OIDC_AUTHORITY`/`OIDC_CLIENT_ID`/`API_BASE_URL` (defaults track `OIDC_ISSUER` and `HTTP_PORT`).
+- `docker compose up` won't rebuild an existing image → config edits do nothing until `up -d --build <svc>`.
+- Frontend tests can't use `node` env or import `vite.config.ts` (jsdom@20 under Node 24; `setup.ts` touches `window`).
+- Agency conformance: 5-check battery (`responds`,`non_empty`,`thai_text`,`concurrency_3`,`garbage_input`) gates `draft→active` (setup wizard only). Editing connection-identity fields on active/maintenance agency demotes to `draft` + clears report (ADR 0002). Agency `API` must return HTTP 200 for every valid question.
+- ⚠️ `spec/agent-20260623.md`, `agent-onechat.md`, `agent-promes.md` contain **real API keys flagged for rotation** — treat as secrets, do not propagate.
+- Tracing: one W3C trace id across user→portal→OneChat→/mcp→agent-proxy. OneChat drops `traceparent` header but keeps query strings → context smuggled via `?traceparent=` on `mcp_endpoint_url`/agent-proxy URLs (`app/trace_util.py`), promoted back to a header on receipt.
+
+## Docs & specs map
+`docs/agency-integration.md` (agency contract), `docs/quickstart.md` (API consumer), `docs/tls.md`, `docs/tracing-verification.md`, `spec/roadmap.md`, `spec/openai-responses*.md` (Responses wire contract; 9/53 stream events implemented), `spec/v4-streaming.md`, `spec/mcp-server.md`, ADRs `docs/adr/000{2,3}-*`. `docs/aerich-migrations.md` is now historical (Aerich superseded by Alembic).

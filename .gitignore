@@ -1,8 +1,10 @@
-.env
+.env*
 .superpowers/
 
 # Python build artifacts
-__pycache__/
+__pycache__
+.pytest_cache
+.venv
 *.pyc
 
 # Test suites
@@ -15,3 +17,4 @@ test-results
 node_modules
 .venv
 185-84-160-55
+graphify-out
