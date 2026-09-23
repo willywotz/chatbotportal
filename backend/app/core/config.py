@@ -89,13 +89,24 @@ class Settings(BaseSettings):
 
     # ── Agency health / scheduler ────────────────────────────────────────────
     AGENCY_CHAT_TIMEOUT: int = 180
-    AGENCY_CHAT_CONCURRENCY: int = 5
     HEALTH_CHECK_INTERVAL_MINUTES: int = 15
     CONNECTION_TEST_TIMEOUT: float = 10.0
     HEALTH_DEGRADED_UPTIME_PCT: float = 95.0
     CONNECTION_LOG_BODY_MAX_CHARS: int = 4096
     CONNECTION_LOG_RETENTION_DAYS: int = 90
     EVAL_INTERVAL_HOURS: int = 7 * 24
+
+    # ── Uptime monitor ───────────────────────────────────────────────────────
+    MONITOR_TICK_SECONDS: int = 15
+    MONITOR_CLAIM_BATCH: int = 50
+    MONITOR_PROBE_CONCURRENCY: int = 5
+    DEFAULT_CHECK_INTERVAL_SECONDS: int = 300
+    CHECK_JITTER_SECONDS: int = 30
+    CHECK_RETRY_MAX: int = 3
+    CHECK_BACKOFF_BASE_MS: int = 200
+    FAILURE_THRESHOLD: int = 3
+    UPTIME_BUCKET_HOUR_RETENTION_DAYS: int = 14
+    UPTIME_BUCKET_DAY_RETENTION_DAYS: int = 365
 
     # ── Executive summary ────────────────────────────────────────────────────
     BRIEF_REGEN_INTERVAL_HOURS: int = 24

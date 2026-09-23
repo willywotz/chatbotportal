@@ -25,6 +25,30 @@ async def _on_agency_status_changed(payload: dict) -> None:
         )
 
 
+async def _on_incident_opened(payload: dict) -> None:
+    async with AsyncSessionLocal() as session, session.begin():
+        await audit_repo.create(
+            session,
+            actor_email="system:events",
+            action="agency.incident_opened",
+            object_type="agency",
+            object_id=str(payload.get("agency_id")),
+            detail={"incident_id": payload.get("incident_id"), "reason": payload.get("detail")},
+        )
+
+
+async def _on_incident_closed(payload: dict) -> None:
+    async with AsyncSessionLocal() as session, session.begin():
+        await audit_repo.create(
+            session,
+            actor_email="system:events",
+            action="agency.incident_closed",
+            object_type="agency",
+            object_id=str(payload.get("agency_id")),
+            detail={"incident_id": payload.get("incident_id")},
+        )
+
+
 _registered = False
 
 
@@ -33,4 +57,6 @@ def register_consumers() -> None:
     if _registered:
         return
     subscribe("agency.status_changed", _on_agency_status_changed)
+    subscribe("agency.incident_opened", _on_incident_opened)
+    subscribe("agency.incident_closed", _on_incident_closed)
     _registered = True

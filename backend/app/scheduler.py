@@ -1,4 +1,3 @@
-import asyncio
 from datetime import timedelta
 import logging
 
@@ -8,21 +7,17 @@ from apscheduler.triggers.interval import IntervalTrigger
 from app.core.concurrency import spawn_logged
 from app.core.config import settings
 from app.core.db import AsyncSessionLocal
-from app.features.agency.models.agency import Agency
-from app.features.agency.repositories import agency as agency_repo
 from app.core.repositories import connection_log as connection_log_repo
-from app.features.agency.services.agency import test_connection
-from app.features.agency.services.agency_reconcile import reconcile_statuses
 from app.features.analytics.services import regenerate_weekly_brief
 from app.features.agency.services.evaluation import run_evaluation
 from app.core.event_consumers import register_consumers
 from app.core.events import dispatch_pending
 from app.features.analytics.services.popular_questions import regenerate as regenerate_popular_questions
-from app.core.log_sanitize import sanitize_body
-from app.core.utils import generate_uuid, now
+from app.features.monitoring.services.monitor import run_tick as monitor_tick_impl
+from app.features.monitoring.repositories import uptime_bucket as uptime_bucket_repo
+from app.core.utils import now
 
 scheduler = AsyncIOScheduler()
-sem: asyncio.Semaphore | None = None
 
 logger = logging.getLogger(__name__)
 
@@ -38,59 +33,13 @@ tracerProvider = TracerProvider(resource=Resource.create({SERVICE_NAME: "backend
 tracerProvider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint="jaeger:4317", insecure=True)))
 tracer = tracerProvider.get_tracer(__name__)
 
-async def _run_agency_item(agency: Agency) -> None:
-    """Tracing + dispatch for a single agency health check (time-bounded by caller)."""
-    with tracer.start_as_current_span(f"agency_chat_test {agency.name}") as span:
-        span.set_attribute("agency.id", str(agency.id))
-        span.set_attribute("agency.name", agency.name)
-        try:
-            if agency.status in ("draft", "disabled"):
-                span.set_attribute("agency.skipped", True)
-                return
-            span.set_attribute("agency.connection_type", agency.connection_type)
-            result = await test_connection(agency.connection_type, agency)
-            try:
-                latency = int(str(result.get("latency", "0")).rstrip("ms"))
-            except ValueError:
-                latency = 0
-            span.set_attribute("agency.api_latency_ms", latency)
-            async with AsyncSessionLocal() as session, session.begin():
-                await connection_log_repo.create(
-                    session,
-                    id=generate_uuid(),
-                    agency_id=agency.id,
-                    action="test",
-                    connection_type=agency.connection_type,
-                    status="success" if result.get("success") else "error",
-                    latency_ms=latency,
-                    detail=sanitize_body(result.get("error") or "ok"),
-                )
-        except Exception as e:
-            logger.error(f"Error testing agency {agency.name}: {e}")
-            span.set_attribute("agency.error", str(e))
-
-
-async def agency_chat_item(agency: Agency) -> None:
-    logger.info(f"Testing agency {agency.name}...")
-    async with sem:
-        try:
-            await asyncio.wait_for(_run_agency_item(agency), timeout=settings.AGENCY_CHAT_TIMEOUT + 5)
-        except asyncio.TimeoutError:
-            logger.error("agency %s health item timed out", agency.name)
-
-
-async def agency_chat_test() -> None:
-    logger.info("Running agency chat tests...")
-    async with AsyncSessionLocal() as session, session.begin():
-        agencies, _ = await agency_repo.list_and_count(
-            session, status="all", connection_type=None, search_text=None,
-        )
-    await asyncio.gather(*[agency_chat_item(ag) for ag in agencies])
+async def monitor_tick() -> None:
+    logger.info("Running uptime monitor tick...")
     try:
-        async with AsyncSessionLocal() as session, session.begin():
-            await reconcile_statuses(session)
+        recorded = await monitor_tick_impl()
+        logger.info("Monitor tick recorded %d agency check(s)", recorded)
     except Exception as e:
-        logger.error(f"Error reconciling agency statuses: {e}")
+        logger.error("Monitor tick failed: %s", e)
 
 
 async def regenerate_brief_job() -> None:
@@ -114,19 +63,24 @@ async def regenerate_popular_questions_job() -> None:
 
 async def purge_old_connection_logs() -> int:
     logger.info("Purging old connection logs...")
-    cutoff = now() - timedelta(days=settings.CONNECTION_LOG_RETENTION_DAYS)
     async with AsyncSessionLocal() as session, session.begin():
-        return await connection_log_repo.delete_older_than(session, cutoff)
+        removed_logs = await connection_log_repo.delete_older_than(
+            session, now() - timedelta(days=settings.CONNECTION_LOG_RETENTION_DAYS),
+        )
+        await uptime_bucket_repo.prune(
+            session,
+            hour_cutoff=now() - timedelta(days=settings.UPTIME_BUCKET_HOUR_RETENTION_DAYS),
+            day_cutoff=now() - timedelta(days=settings.UPTIME_BUCKET_DAY_RETENTION_DAYS),
+        )
+    return removed_logs
 
 
 async def start_scheduler() -> None:
-    global sem
-    sem = asyncio.Semaphore(settings.AGENCY_CHAT_CONCURRENCY)
     register_consumers()  # wire domain-event consumers before the dispatcher runs
     scheduler.add_job(dispatch_pending, IntervalTrigger(seconds=settings.EVENT_DISPATCH_INTERVAL_SECONDS))
-    spawn_logged(agency_chat_test(), name="agency_chat_test:startup")
+    spawn_logged(monitor_tick(), name="monitor_tick:startup")
     spawn_logged(regenerate_brief_job(), name="regenerate_brief_job:startup")
-    scheduler.add_job(agency_chat_test, IntervalTrigger(minutes=settings.HEALTH_CHECK_INTERVAL_MINUTES))
+    scheduler.add_job(monitor_tick, IntervalTrigger(seconds=settings.MONITOR_TICK_SECONDS))
     scheduler.add_job(regenerate_brief_job, IntervalTrigger(hours=settings.BRIEF_REGEN_INTERVAL_HOURS))
     scheduler.add_job(purge_old_connection_logs, IntervalTrigger(hours=24))
     scheduler.add_job(run_evaluation, IntervalTrigger(hours=settings.EVAL_INTERVAL_HOURS))

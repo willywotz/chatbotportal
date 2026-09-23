@@ -1,30 +1,9 @@
-from datetime import timedelta
-
 import pytest
 
 from app.features.agency.models.agency import Agency
-from app.core.models.connection_log import ConnectionLog
 from app.features.analytics.repositories import public_status_read as repo
-from app.core.utils import now
 
 pytestmark = pytest.mark.asyncio
-
-
-async def test_connection_uptime_by_agency(db_session):
-    ag = Agency(name="Agency A")
-    db_session.add(ag)
-    await db_session.flush()
-    db_session.add_all([
-        ConnectionLog(agency_id=ag.id, connection_type="API", status="success"),
-        ConnectionLog(agency_id=ag.id, connection_type="API", status="success"),
-        ConnectionLog(agency_id=ag.id, connection_type="API", status="error"),
-    ])
-    await db_session.flush()
-
-    since = now() - timedelta(hours=24)
-    counts = await repo.connection_uptime_by_agency(db_session, since)
-
-    assert counts[str(ag.id)] == (3, 2)
 
 
 async def test_list_public_agencies_excludes_draft_ordered_by_name(db_session):

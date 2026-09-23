@@ -13,4 +13,7 @@ import app.features.llm.models.llm_provider  # noqa: F401
 import app.features.llm.models.llm_route  # noqa: F401
 import app.features.llm.models.llm_usage  # noqa: F401
 import app.features.llm.models.rate_limit_counter  # noqa: F401
+import app.features.monitoring.models.incident  # noqa: F401
+import app.features.monitoring.models.uptime_bucket  # noqa: F401
+import app.features.monitoring.models.check_state  # noqa: F401
 import app.features.settings.models.setting  # noqa: F401

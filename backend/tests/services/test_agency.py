@@ -146,19 +146,28 @@ async def test_increment_calls_persists_the_counter(db_session):
     assert refreshed.total_calls == 2
 
 
-async def test_run_connection_test_logs_a_connection_log_row(db_session):
+async def test_run_connection_test_records_check_state_not_connection_log(db_session):
     from sqlalchemy import select
 
     from app.features.agency.services.agency import run_connection_test
+    from app.features.monitoring.repositories import check_state as cs_repo
+    from app.features.monitoring.models.check_state import CheckStatus
 
     agency = await _agency(db_session, endpoint_url="https://x.example")
     fake_result = {"success": True, "protocol": "REST API", "version": "-", "steps": [], "latency": "12ms", "statusCode": 200}
-    with patch("app.features.agency.services.agency.test_connection", AsyncMock(return_value=fake_result)):
+    with patch("app.features.agency.services.agency.probe_reachability", AsyncMock(return_value=fake_result)):
         raw = await run_connection_test(db_session, agency)
     assert raw["success"] is True
-    logs = (await db_session.execute(select(ConnectionLog).where(ConnectionLog.agency_id == agency.id))).scalars().all()
-    assert len(logs) == 1
-    assert logs[0].latency_ms == 12
+
+    logs = (await db_session.execute(
+        select(ConnectionLog).where(ConnectionLog.agency_id == agency.id, ConnectionLog.action == "test")
+    )).scalars().all()
+    assert logs == []
+
+    state = await cs_repo.get(db_session, agency.id)
+    assert state is not None
+    assert state.last_status == CheckStatus.up
+    assert state.last_latency_ms == 12
 
 
 async def test_run_connection_test_recovers_auto_maintenance(db_session):
@@ -169,7 +178,7 @@ async def test_run_connection_test_recovers_auto_maintenance(db_session):
         status=AgencyStatus.maintenance, auto_maintenance=True,
     )
     fake_result = {"success": True, "protocol": "REST API", "version": "-", "steps": [], "latency": "5ms", "statusCode": 200}
-    with patch("app.features.agency.services.agency.test_connection", AsyncMock(return_value=fake_result)):
+    with patch("app.features.agency.services.agency.probe_reachability", AsyncMock(return_value=fake_result)):
         await run_connection_test(db_session, agency)
     assert agency.status == "active"
     assert agency.auto_maintenance is False

@@ -20,6 +20,7 @@ async def pending(session: AsyncSession, limit: int) -> list[DomainEvent]:
         .where(DomainEvent.dispatched_at.is_(None))
         .order_by(DomainEvent.created_at, DomainEvent.id)
         .limit(limit)
+        .with_for_update(skip_locked=True)
     )
     return list((await session.execute(stmt)).scalars().all())
 
