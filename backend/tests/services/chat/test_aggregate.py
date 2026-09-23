@@ -34,7 +34,6 @@ async def test_collect_turn_folds_answer_steps_and_done():
     assert result.message_id == "msg-1"
     assert result.total_ms == 1234
     assert result.error is None
-    assert result.cached is False
 
 
 @pytest.mark.asyncio

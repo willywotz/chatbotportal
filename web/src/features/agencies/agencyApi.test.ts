@@ -13,7 +13,6 @@ describe('queryAgency — unified chat envelope mapping', () => {
           success: true,
           data: {
             message_id: 'msg-1',
-            cached: false,
             agentSteps: [],
             summary: 'revenue summary',
             references: [{ agency_name: 'Revenue Department', url: 'https://rd.go.th' }],

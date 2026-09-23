@@ -5,19 +5,15 @@ as `message_id`, so a streamed answer can be rated against a real row instead
 of a client-generated id.
 """
 
-import json
 import uuid
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import BackgroundTasks
 from opentelemetry.trace import StatusCode
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.features.chat.models.conversation import Message
-from app.features.chat.repositories import conversation as conversation_repo
-from app.features.chat.repositories import message as message_repo
 from app.features.chat.routers import chat as chat_router
 from app.features.chat.schemas.chat import ChatRequest
 from app.features.chat.services import stream as turn_stream
@@ -65,35 +61,6 @@ async def test_save_stream_conversation_returns_assistant_id(db_session):
     saved = await db_session.get(Message, asst_id)
     assert saved.role == "assistant"
     assert saved.content == "คำตอบ"
-
-
-async def test_cached_stream_emits_message_id_in_done(db_session):
-    conv = await conversation_repo.create(
-        db_session, id=str(uuid.uuid4()), title="t", preview="p", agencies=[],
-        status="success", message_count=0, response_time="0",
-    )
-    user_msg = await message_repo.create(
-        db_session, conversation_id=conv.id, role="user", content="q",
-    )
-    asst_msg = await message_repo.create(
-        db_session, parent_id=user_msg.id, conversation_id=conv.id, role="assistant",
-        content="cached answer",
-    )
-    await db_session.flush()
-    conn_log = MagicMock(response_body=json.dumps({"answer": "cached answer"}))
-
-    with patch.object(turn_stream, "find_similar_question",
-                      new=AsyncMock(return_value=(user_msg, asst_msg, conn_log))):
-        resp = await chat_router.chat(ChatRequest(query="q", stream=True), BackgroundTasks(), None)
-        chunks = [c async for c in resp.body_iterator]
-
-    text = "".join(c if isinstance(c, str) else c.decode() for c in chunks)
-    new_asst = (await db_session.execute(
-        select(Message).where(Message.role == "assistant", Message.id != asst_msg.id)
-    )).scalars().first()
-    assert new_asst is not None
-    assert "event: done" in text
-    assert str(new_asst.id) in text
 
 
 async def test_error_event_marks_endpoint_span_as_error(db_session):

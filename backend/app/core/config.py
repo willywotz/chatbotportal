@@ -119,11 +119,6 @@ class Settings(BaseSettings):
     BUSINESS_HOURS_START: int = 8
     BUSINESS_HOURS_END: int = 18
 
-    # ── Embedding / similarity ──────────────────────────────────────────────
-    SIMILARITY_THRESHOLD: float = 0.95
-    SIMILARITY_WINDOW_SECONDS: int = 60
-    SIMILARITY_CACHE_ENABLED: bool = True
-
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     def apply_overrides(self, overrides: dict[str, str]) -> "OverrideReport":
@@ -158,7 +153,6 @@ def _deserialize(raw: str, annotation: type):
 
 
 SETTINGS_GROUPS: dict[str, list[str]] = {
-    "Similarity": ["SIMILARITY_CACHE_ENABLED", "SIMILARITY_THRESHOLD", "SIMILARITY_WINDOW_SECONDS"],
     "OneChat": ["MCP_ENDPOINT_URL", "ONECHAT_BASE_URL"],
 }
 

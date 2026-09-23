@@ -16,7 +16,6 @@ class ChatResponseData(BaseModel):
     agentSteps: list[dict[str, Any]]
     agencies: list[dict[str, Any]]
     confidence: float
-    cached: bool = False
 
 class ChatResponse(BaseModel):
     success: bool

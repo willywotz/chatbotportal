@@ -5,11 +5,11 @@ import { PageHeader } from "@/shared/components/layout/PageHeader";
 import { Button } from "@/shared/components/ui/button";
 import { Label } from "@/shared/components/ui/label";
 import { Alert, AlertDescription } from "@/shared/components/ui/alert";
-import { Loader2, Save, RotateCcw, Trash2 } from "lucide-react";
+import { Loader2, Save, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/useAuth";
 import { Navigate } from "react-router-dom";
-import { flushCache, getSettings, updateSettings } from "@/features/settings/settingsApi";
+import { getSettings, updateSettings } from "@/features/settings/settingsApi";
 import { FieldInput } from "@/shared/components/FieldInput";
 
 const RESTART_FIELDS = new Set(["DATABASE_URL", "CORS_ORIGINS"]);
@@ -52,17 +52,6 @@ export default function SettingsPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const flushMutation = useMutation({
-    mutationFn: flushCache,
-    onSuccess: () => toast.success("ล้าง answer cache เรียบร้อย"),
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const handleFlush = () => {
-    if (!window.confirm("ล้าง answer cache ทั้งหมด? คำถามที่คล้ายกันจะไม่ถูก cache จนกว่าจะมีคำตอบใหม่")) return;
-    flushMutation.mutate();
-  };
-
   const handleChange = useCallback((key: string, value: string) => {
     setEdited((prev) => ({ ...prev, [key]: value }));
   }, []);
@@ -99,16 +88,6 @@ export default function SettingsPage() {
         title="ตั้งค่าระบบ"
         actions={
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              disabled={flushMutation.isPending}
-              onClick={handleFlush}
-            >
-              {flushMutation.isPending
-                ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                : <Trash2 className="h-4 w-4 mr-2" />}
-              ล้าง answer cache
-            </Button>
             <Button
               disabled={dirtyKeys.length === 0 || saveMutation.isPending}
               onClick={() => saveMutation.mutate()}

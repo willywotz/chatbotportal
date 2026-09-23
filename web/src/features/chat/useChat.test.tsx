@@ -100,7 +100,6 @@ describe('sync fallback response mapping (unified envelope)', () => {
       success: true,
       data: {
         message_id: 'msg-1',
-        cached: false,
         agentSteps: [],
         summary: 'summarized answer',
         references: [{ agency_name: 'Revenue Department', url: 'https://rd.go.th' }],

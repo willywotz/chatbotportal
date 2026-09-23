@@ -20,7 +20,6 @@ from app.features.settings.schemas.settings import (
 )
 from app.features.settings.services import settings as settings_service
 from app.core.audit import record_audit
-from app.features.settings.services.cache_flush import flush_similarity_cache
 
 router = APIRouter(tags=["Settings"])
 
@@ -119,9 +118,3 @@ def _group_for_key(key: str) -> str:
         if key in keys:
             return group_name
     return "App"
-
-
-@router.post("/settings/cache/flush", dependencies=[Security(require_scope, scopes=["settings:write"])])
-async def flush_cache(session: AsyncSession = Depends(get_db)):
-    await flush_similarity_cache(session)
-    return {"detail": "cache flushed"}

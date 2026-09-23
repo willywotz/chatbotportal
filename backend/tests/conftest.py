@@ -2,7 +2,7 @@
 Shared pytest fixtures.
 
 `db_session` runs the app's Alembic migrations against a session-scoped
-Postgres+PGroonga testcontainer, then hands each test an `AsyncSession`
+Postgres testcontainer, then hands each test an `AsyncSession`
 bound to an outer transaction that is rolled back afterward. Nested writes
 inside a test use savepoints, so a test's own commits never leak.
 """
@@ -63,7 +63,7 @@ def as_principal():
 
 @pytest.fixture(scope="session")
 def pg_container():
-    with PostgresContainer("groonga/pgroonga:4.0.8-debian-17", driver="asyncpg") as pg:
+    with PostgresContainer("postgres:18", driver="asyncpg") as pg:
         yield pg
 
 

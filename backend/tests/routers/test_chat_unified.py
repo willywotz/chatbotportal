@@ -1,12 +1,11 @@
 """Merged POST /chat: JSON by default, SSE when stream=true, model picks version."""
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 from fastapi import BackgroundTasks
 
 from app.features.chat.routers import chat as chat_router
 from app.features.chat.schemas.chat import ChatRequest
-from app.features.chat.services import stream as turn_stream
 from app.features.chat.services.stream import ChatEvent
 
 pytestmark = pytest.mark.asyncio
@@ -29,21 +28,18 @@ def _fake_run_turn(*events):
 
 
 async def test_json_response_default(db_session):
-    with patch.object(turn_stream, "find_similar_question", new=AsyncMock(return_value=None)), \
-         patch.object(chat_router, "run_turn", _fake_run_turn(*_events())), \
+    with patch.object(chat_router, "run_turn", _fake_run_turn(*_events())), \
          patch("app.features.chat.services.aggregate.run_turn", _fake_run_turn(*_events())):
         result = await chat_router.chat(ChatRequest(query="q"), BackgroundTasks(), None)
     assert result["success"] is True
     assert result["data"]["answer"] == "คำตอบ"
     assert result["data"]["summary"] == "S"
     assert result["data"]["message_id"] == "m-1"
-    assert result["data"]["cached"] is False
     assert result["responseTime"] == 42
 
 
 async def test_sse_response_when_stream_true(db_session):
-    with patch.object(turn_stream, "find_similar_question", new=AsyncMock(return_value=None)), \
-         patch.object(chat_router, "run_turn", _fake_run_turn(*_events())):
+    with patch.object(chat_router, "run_turn", _fake_run_turn(*_events())):
         resp = await chat_router.chat(ChatRequest(query="q", stream=True), BackgroundTasks(), None)
         chunks = [c async for c in resp.body_iterator]
     text = "".join(c if isinstance(c, str) else c.decode() for c in chunks)

@@ -13,8 +13,9 @@ def test_removed_setting_groups_are_gone():
         assert group not in SETTINGS_GROUPS
 
 
-def test_similarity_group_is_first():
-    assert next(iter(SETTINGS_GROUPS)) == "Similarity"
+def test_onechat_group_is_present():
+    assert "OneChat" in SETTINGS_GROUPS
+    assert "Similarity" not in SETTINGS_GROUPS
 
 
 def test_permissive_defaults():

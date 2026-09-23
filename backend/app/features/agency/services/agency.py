@@ -14,7 +14,6 @@ from app.features.agency.models.agency import Agency
 from app.features.agency.repositories import agency as agency_repo
 from app.core.repositories import connection_log as connection_log_repo
 from app.features.agency.schemas.agency import AgencyCreate, AgencyUpdate
-from app.features.settings.services.cache_flush import flush_similarity_cache
 from app.core.log_sanitize import sanitize_body
 from app.core.utils import now
 
@@ -61,18 +60,9 @@ async def create_agency(session: AsyncSession, body: AgencyCreate) -> Agency:
     return await agency_repo.create(session, **_flatten_agency_payload(body))
 
 
-async def _flush_similarity_cache_best_effort() -> None:
-    try:
-        async with AsyncSessionLocal() as session, session.begin():
-            await flush_similarity_cache(session)
-    except Exception:
-        logger.exception("failed to flush similarity cache after agency update")
-
-
 async def replace_agency(session: AsyncSession, agency: Agency, body: AgencyCreate) -> Agency:
     _apply(agency, _flatten_agency_payload(body))
     await agency_repo.save(session, agency)
-    await _flush_similarity_cache_best_effort()
     return agency
 
 
@@ -93,7 +83,6 @@ async def update_agency(session: AsyncSession, agency: Agency, body: AgencyUpdat
 
     _apply(agency, update_data)
     await agency_repo.save(session, agency)
-    await _flush_similarity_cache_best_effort()
     return agency
 
 
