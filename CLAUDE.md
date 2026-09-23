@@ -43,3 +43,13 @@ Do not let `MEMORY.md` become an append-only graveyard. Actively purge stale inf
 * **Atomic Edits**: Update in-place with precise diffs; do not wipe active sections unprompted.
 * **Punchy & Dense**: Zero conversational commentary, intros, or summaries inside `MEMORY.md`. Use bullet points, code tags, and markdown checkboxes only.
 * **Explicit Acknowledgment**: In your final response to the user, include a brief 1-line confirmation stating what was added, updated, or purged in `MEMORY.md`.
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
