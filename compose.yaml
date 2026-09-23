@@ -20,7 +20,7 @@ services:
     build: {context: ./backend, target: production}
     restart: unless-stopped
     depends_on:
-      postgres: {condition: service_healthy, restart: true}
+      postgres: {condition: service_healthy}
       jaeger: {condition: service_started}
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-chatbot}:${POSTGRES_PASSWORD:-chatbot_secret}@${POSTGRES_HOST:-postgres}:5432/${POSTGRES_DB:-chatbot}
