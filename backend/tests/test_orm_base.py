@@ -1,4 +1,4 @@
-from app.models.base import Base
+from app.core.base import Base
 
 
 def test_base_has_metadata_and_naming_convention():

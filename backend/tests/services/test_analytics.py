@@ -1,14 +1,14 @@
-"""Service-level tests for app.services.analytics.* against real Postgres (db_session)."""
+"""Service-level tests for app.features.analytics.services.* against real Postgres (db_session)."""
 import uuid
 from datetime import timedelta
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.models.agency import Agency
-from app.models.connection_log import ConnectionLog
-from app.models.conversation import Conversation, Message
-from app.utils import now
+from app.features.agency.models.agency import Agency
+from app.core.models.connection_log import ConnectionLog
+from app.features.chat.models.conversation import Conversation, Message
+from app.core.utils import now
 
 pytestmark = pytest.mark.asyncio
 
@@ -36,7 +36,7 @@ async def _message(session, conv, **fields):
 
 
 async def test_get_dashboard_stats_shape(db_session):
-    from app.services.analytics import dashboard
+    from app.features.analytics.services import dashboard
 
     ag = await _agency(db_session, color="#fff", total_calls=10)
     conv = await _conversation(db_session)
@@ -54,8 +54,8 @@ async def test_get_dashboard_stats_shape(db_session):
 
 
 async def test_get_agency_health_empty_agencies(db_session):
-    from app.schemas.insight import AgencyHealthData
-    from app.services.analytics import health
+    from app.features.analytics.schemas.insight import AgencyHealthData
+    from app.features.analytics.services import health
 
     result = await health.get_agency_health(db_session)
 
@@ -65,8 +65,8 @@ async def test_get_agency_health_empty_agencies(db_session):
 
 
 async def test_get_agency_health_computes_latency_and_error_rate(db_session):
-    from app.schemas.insight import AgencyHealthData
-    from app.services.analytics import health
+    from app.features.analytics.schemas.insight import AgencyHealthData
+    from app.features.analytics.services import health
 
     ag = await _agency(db_session, short_name="TA", status="active")
     db_session.add_all([
@@ -88,8 +88,8 @@ async def test_get_agency_health_computes_latency_and_error_rate(db_session):
 
 
 async def test_get_usage_heatmap_shape(db_session):
-    from app.schemas.insight import UsageHeatmapData
-    from app.services.analytics import heatmap
+    from app.features.analytics.schemas.insight import UsageHeatmapData
+    from app.features.analytics.services import heatmap
 
     ag = await _agency(db_session)
     conv = await _conversation(db_session)
@@ -105,8 +105,8 @@ async def test_get_usage_heatmap_shape(db_session):
 
 
 async def test_get_executive_summary_smoke(db_session):
-    from app.schemas.executive_summary import ExecutiveData
-    from app.services.analytics import brief
+    from app.features.analytics.schemas.executive_summary import ExecutiveData
+    from app.features.analytics.services import brief
 
     with patch.object(brief, "_latest_brief", new=AsyncMock(return_value="brief")):
         result = await brief.get_executive_summary(db_session)
@@ -116,7 +116,7 @@ async def test_get_executive_summary_smoke(db_session):
 
 
 async def test_latest_brief_returns_placeholder_when_table_empty(db_session):
-    from app.services.analytics import brief
+    from app.features.analytics.services import brief
 
     result = await brief._latest_brief(db_session)
 
@@ -124,8 +124,8 @@ async def test_latest_brief_returns_placeholder_when_table_empty(db_session):
 
 
 async def test_regenerate_weekly_brief_persists_ok_row(db_session):
-    from app.services.analytics import brief
-    from app.services.llm import LlmResult, LlmUsageInfo
+    from app.features.analytics.services import brief
+    from app.features.llm.services import LlmResult, LlmUsageInfo
 
     llm_result = LlmResult(
         content="generated brief", tool_calls=None,
@@ -133,7 +133,7 @@ async def test_regenerate_weekly_brief_persists_ok_row(db_session):
         raw={},
     )
 
-    with patch("app.services.llm.chat", new=AsyncMock(return_value=llm_result)):
+    with patch("app.features.llm.services.chat", new=AsyncMock(return_value=llm_result)):
         result = await brief.regenerate_weekly_brief(db_session)
 
     assert result.status == "ok"
@@ -144,8 +144,8 @@ async def test_regenerate_weekly_brief_calls_chat_with_session(db_session):
     """chat() is session-first; regenerate_weekly_brief must thread its session through."""
     from sqlalchemy.ext.asyncio import AsyncSession
 
-    from app.services.analytics import brief
-    from app.services.llm import LlmResult, LlmUsageInfo
+    from app.features.analytics.services import brief
+    from app.features.llm.services import LlmResult, LlmUsageInfo
 
     llm_result = LlmResult(
         content="generated brief", tool_calls=None,
@@ -154,16 +154,16 @@ async def test_regenerate_weekly_brief_calls_chat_with_session(db_session):
     )
     fake_chat = AsyncMock(return_value=llm_result)
 
-    with patch("app.services.llm.chat", new=fake_chat):
+    with patch("app.features.llm.services.chat", new=fake_chat):
         await brief.regenerate_weekly_brief(db_session)
 
     assert isinstance(fake_chat.call_args.args[0], AsyncSession)
 
 
 async def test_regenerate_weekly_brief_persists_error_row_on_llm_failure(db_session):
-    from app.services.analytics import brief
+    from app.features.analytics.services import brief
 
-    with patch("app.services.llm.chat", new=AsyncMock(side_effect=RuntimeError("network error"))):
+    with patch("app.features.llm.services.chat", new=AsyncMock(side_effect=RuntimeError("network error"))):
         result = await brief.regenerate_weekly_brief(db_session)
 
     assert result.status == "error"
@@ -173,7 +173,7 @@ async def test_regenerate_weekly_brief_persists_error_row_on_llm_failure(db_sess
 async def test_get_executive_summary_january_month_boundary(db_session):
     """prev_month must be 12 in January, not 0 — verified via the actual EXTRACT(month) query."""
     import datetime as dt
-    from app.services.analytics import brief
+    from app.features.analytics.services import brief
 
     jan_15 = dt.datetime(2026, 1, 15, tzinfo=dt.timezone.utc)
     captured_months = []

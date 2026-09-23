@@ -3,13 +3,13 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.models.agency import AgencyStatus
-from app.models.audit import AuditLog
-from app.models.event import DomainEvent
-from app.repositories import agency as agency_repo
-from app.services import event_consumers, events
-from app.services.agency_lifecycle import transition_status
-from app.services.event_consumers import register_consumers
+from app.features.agency.models.agency import AgencyStatus
+from app.core.models.audit import AuditLog
+from app.core.models.event import DomainEvent
+from app.features.agency.repositories import agency as agency_repo
+from app.core import event_consumers, events
+from app.features.agency.services.agency_lifecycle import transition_status
+from app.core.event_consumers import register_consumers
 
 pytestmark = pytest.mark.asyncio
 

@@ -1,5 +1,5 @@
 from app.main import app
-from app.auth.dependencies import require_scope
+from app.core.security.dependencies import require_scope
 
 _WHITELIST_EXACT = {("GET", "/api/v1/authentication/me")}
 _WHITELIST_PREFIX = ("/api/v1/agent-proxy/",)  # external OneChat callback, own auth

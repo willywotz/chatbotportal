@@ -14,7 +14,7 @@ from pathlib import Path
 # Ensure the backend root (parent of scripts/) is on sys.path so `app` is importable.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.services.seed import run_seed_agencies
+from app.features.agency.services.seed import run_seed_agencies
 
 
 async def main() -> None:

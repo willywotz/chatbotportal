@@ -1,19 +1,19 @@
 from sqlalchemy import Enum as SAEnum, UniqueConstraint
 
-from app.models.agency import Agency, AgencyStatus, ConnectionType
-from app.models.audit import AuditLog
-from app.models.base import Base
-from app.models.connection_log import ConnectionLog
-from app.models.conversation import Conversation, Message
-from app.models.evaluation import EvalResult, GoldenQuestion
-from app.models.event import DomainEvent
-from app.models.executive_brief import ExecutiveBrief
-from app.models.llm_provider import LlmProvider
-from app.models.llm_route import LlmRoute
-from app.models.llm_usage import LlmUsage
-from app.models.popular_question import PopularQuestion, PopularQuestionSource
-from app.models.rate_limit_counter import RateLimitCounter
-from app.models.setting import Setting
+from app.features.agency.models.agency import Agency, AgencyStatus, ConnectionType
+from app.core.models.audit import AuditLog
+from app.core.base import Base
+from app.core.models.connection_log import ConnectionLog
+from app.features.chat.models.conversation import Conversation, Message
+from app.features.agency.models.evaluation import EvalResult, GoldenQuestion
+from app.core.models.event import DomainEvent
+from app.features.analytics.models.executive_brief import ExecutiveBrief
+from app.features.llm.models.llm_provider import LlmProvider
+from app.features.llm.models.llm_route import LlmRoute
+from app.features.llm.models.llm_usage import LlmUsage
+from app.features.analytics.models.popular_question import PopularQuestion, PopularQuestionSource
+from app.features.llm.models.rate_limit_counter import RateLimitCounter
+from app.features.settings.models.setting import Setting
 
 
 def test_agency_table_and_columns():
@@ -152,7 +152,7 @@ def test_popular_question_fk_set_null():
 
 
 def test_all_15_tables_registered():
-    from app import models  # noqa: F401
+    from app import models# noqa: F401
 
     expected = {
         "agencies", "audit_logs", "connection_logs", "conversations", "messages",

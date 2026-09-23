@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
-from app.errors import ApiError, ErrorCode, register_error_handlers
+from app.core.errors import ApiError, ErrorCode, register_error_handlers
 
 
 def _app():

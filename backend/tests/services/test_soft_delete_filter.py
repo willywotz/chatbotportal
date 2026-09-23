@@ -2,8 +2,8 @@ import uuid
 
 import pytest
 
-from app.repositories import conversation as conversation_repo
-from app.utils import now
+from app.features.chat.repositories import conversation as conversation_repo
+from app.core.utils import now
 
 pytestmark = pytest.mark.asyncio
 

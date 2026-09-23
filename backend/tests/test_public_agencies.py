@@ -1,6 +1,6 @@
-from app.models import AgencyStatus, ConnectionType
-from app.repositories import agency as agency_repo
-from app.routers.public_status import public_agencies
+from app.features.agency.models.agency import AgencyStatus, ConnectionType
+from app.features.agency.repositories import agency as agency_repo
+from app.features.analytics.routers.public_status import public_agencies
 
 
 async def test_public_agencies_display_fields_only(db_session):

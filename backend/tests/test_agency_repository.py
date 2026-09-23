@@ -1,6 +1,6 @@
 import pytest
 
-from app.repositories import agency as agency_repo
+from app.features.agency.repositories import agency as agency_repo
 
 pytestmark = pytest.mark.asyncio
 

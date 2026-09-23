@@ -1,6 +1,6 @@
 """The chat stream must never pin one DB transaction for the whole SSE/WS
 turn: the similarity-cache read, the conversation lookup, and the end-of-turn
-persistence each open their own short-lived session (app.db.AsyncSessionLocal).
+persistence each open their own short-lived session (app.core.db.AsyncSessionLocal).
 
 These tests bind that short-lived session factory to the test's own connection
 (same pattern as test_rate_limit.py/test_outbox_transactional.py) so writes are
@@ -13,12 +13,12 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.models.connection_log import ConnectionLog
-from app.models.conversation import Conversation, Message
-from app.repositories import conversation as conversation_repo
-from app.services.chat import stream as turn_stream
-from app.services.chat.stream import TurnPlan, _persist, prepare_turn
-from app.utils import generate_uuid
+from app.core.models.connection_log import ConnectionLog
+from app.features.chat.models.conversation import Conversation, Message
+from app.features.chat.repositories import conversation as conversation_repo
+from app.features.chat.services import stream as turn_stream
+from app.features.chat.services.stream import TurnPlan, _persist, prepare_turn
+from app.core.utils import generate_uuid
 
 pytestmark = pytest.mark.asyncio
 

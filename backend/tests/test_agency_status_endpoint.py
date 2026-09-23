@@ -2,13 +2,13 @@ import uuid
 
 import pytest
 
-from app.auth.principal import Principal
-from app.errors import ApiError
-from app.models import Agency
-from app.models.agency import AgencyStatus
-from app.repositories import agency as agency_repo
-from app.routers import agencies as r
-from app.schemas.agency import StatusUpdateRequest
+from app.core.security.principal import Principal
+from app.core.errors import ApiError
+from app.features.agency.models.agency import Agency
+from app.features.agency.models.agency import AgencyStatus
+from app.features.agency.repositories import agency as agency_repo
+from app.features.agency import routers as r
+from app.features.agency.schemas.agency import StatusUpdateRequest
 
 
 async def _admin():

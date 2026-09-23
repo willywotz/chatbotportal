@@ -3,8 +3,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from app.services.llm import client as c
-from app.services.rate_limit import RateLimitResult
+from app.features.llm.services import client as c
+from app.features.llm.services.rate_limit import RateLimitResult
 
 
 @pytest.mark.asyncio

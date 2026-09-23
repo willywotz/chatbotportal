@@ -3,9 +3,9 @@ from datetime import timedelta
 
 import pytest
 
-from app.repositories import audit as audit_repo
-from app.services import audit as audit_service
-from app.utils import now
+from app.core.repositories import audit as audit_repo
+from app.core import audit as audit_service
+from app.core.utils import now
 
 pytestmark = pytest.mark.asyncio
 

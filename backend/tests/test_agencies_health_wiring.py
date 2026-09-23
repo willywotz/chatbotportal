@@ -2,9 +2,9 @@ import uuid
 
 import pytest
 
-from app.auth.principal import Principal
-from app.routers import agencies as r
-from app.schemas.agency import AgencyCreate
+from app.core.security.principal import Principal
+from app.features.agency import routers as r
+from app.features.agency.schemas.agency import AgencyCreate
 
 
 async def _admin():

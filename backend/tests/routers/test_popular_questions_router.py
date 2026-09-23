@@ -4,9 +4,9 @@ from unittest.mock import AsyncMock
 import pytest
 from sqlalchemy import literal, select
 
-from app.models.popular_question import PopularQuestion
-from app.repositories import agency as agency_repo
-from app.repositories import popular_question as pq_repo
+from app.features.analytics.models.popular_question import PopularQuestion
+from app.features.agency.repositories import agency as agency_repo
+from app.features.analytics.repositories import popular_question as pq_repo
 
 
 async def _exists(session, question_id) -> bool:
@@ -113,7 +113,7 @@ async def test_delete_ok(client, db_session, as_principal):
 async def test_regenerate_returns_202(client, monkeypatch, as_principal):
     as_principal()
     mock_regen = AsyncMock(return_value=0)
-    monkeypatch.setattr("app.routers.popular_questions.regenerate", mock_regen)
+    monkeypatch.setattr("app.features.analytics.routers.popular_questions.regenerate", mock_regen)
     r = await client.post(f"{_ADMIN}/regenerate")
     assert r.status_code == 202
 

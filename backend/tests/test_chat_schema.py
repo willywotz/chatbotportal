@@ -6,7 +6,7 @@ Verify that the OpenAPI schema exposes only the canonical chat surface
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.routers.chat import router as chat_router
+from app.features.chat.routers.chat import router as chat_router
 
 
 def _app() -> FastAPI:
@@ -27,11 +27,11 @@ def test_openapi_hides_internal_chat_variants():
 def test_internal_chat_route_is_removed():
     """The LangGraph /chat/internal endpoint is fully removed (not just hidden)."""
     assert not any(getattr(r, "path", "") == "/chat/internal" for r in chat_router.routes)
-    from app.routers import chat as chat_module
+    from app.features.chat.routers import chat as chat_module
     assert not hasattr(chat_module, "chat_internal")
 
 
-from app.schemas.chat import ChatRequest
+from app.features.chat.schemas.chat import ChatRequest
 
 
 def test_chat_request_stream_and_model_defaults():

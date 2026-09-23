@@ -3,9 +3,9 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.errors import ApiError
-from app.models.agency import Agency, AgencyStatus, ConnectionType
-from app.models.connection_log import ConnectionLog
+from app.core.errors import ApiError
+from app.features.agency.models.agency import Agency, AgencyStatus, ConnectionType
+from app.core.models.connection_log import ConnectionLog
 
 pytestmark = pytest.mark.asyncio
 
@@ -19,18 +19,18 @@ async def _agency(session, **fields):
 
 
 async def test_parse_spec_raises_on_http_error():
-    from app.services.agency import parse_spec
-    from app.services.llm import LlmError
+    from app.features.agency.services.agency import parse_spec
+    from app.features.llm.services import LlmError
 
-    with patch("app.services.llm.chat", AsyncMock(side_effect=LlmError("parse_spec: provider returned 429", status=429))):
+    with patch("app.features.llm.services.chat", AsyncMock(side_effect=LlmError("parse_spec: provider returned 429", status=429))):
         with pytest.raises(LlmError):
             await parse_spec("some spec text")
 
 
 async def test_parse_spec_calls_chat_with_session():
     """chat() is session-first; parse_spec must thread a session through."""
-    from app.services.agency import parse_spec
-    from app.services.llm import LlmResult, LlmUsageInfo
+    from app.features.agency.services.agency import parse_spec
+    from app.features.llm.services import LlmResult, LlmUsageInfo
 
     fake_chat = AsyncMock(return_value=LlmResult(
         content="", tool_calls=[{"function": {"arguments": '{"a": 1}'}}],
@@ -38,7 +38,7 @@ async def test_parse_spec_calls_chat_with_session():
         raw={},
     ))
 
-    with patch("app.services.llm.chat", fake_chat):
+    with patch("app.features.llm.services.chat", fake_chat):
         result = await parse_spec("some spec text")
 
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -47,7 +47,7 @@ async def test_parse_spec_calls_chat_with_session():
 
 
 async def test_get_agency_or_404_raises_for_missing_agency(db_session):
-    from app.services.agency import get_agency_or_404
+    from app.features.agency.services.agency import get_agency_or_404
 
     with pytest.raises(ApiError) as exc:
         await get_agency_or_404(db_session, uuid.uuid4())
@@ -56,7 +56,7 @@ async def test_get_agency_or_404_raises_for_missing_agency(db_session):
 
 
 async def test_get_agency_or_404_returns_the_agency(db_session):
-    from app.services.agency import get_agency_or_404
+    from app.features.agency.services.agency import get_agency_or_404
 
     created = await _agency(db_session)
     found = await get_agency_or_404(db_session, created.id)
@@ -64,7 +64,7 @@ async def test_get_agency_or_404_returns_the_agency(db_session):
 
 
 async def test_list_agencies_filters_by_status_connection_and_search(db_session):
-    from app.services.agency import list_agencies
+    from app.features.agency.services.agency import list_agencies
 
     await _agency(db_session, name="DOPA", short_name="d", connection_type=ConnectionType.API, status=AgencyStatus.active)
     await _agency(db_session, name="MOI", short_name="m", connection_type=ConnectionType.MCP, status=AgencyStatus.draft)
@@ -87,8 +87,8 @@ async def test_list_agencies_filters_by_status_connection_and_search(db_session)
 
 
 async def test_create_agency_persists_endpoints_and_headers(db_session):
-    from app.schemas.agency import AgencyCreate
-    from app.services.agency import create_agency
+    from app.features.agency.schemas.agency import AgencyCreate
+    from app.features.agency.services.agency import create_agency
 
     body = AgencyCreate(
         name="A", short_name="a", connection_type="API", status="draft",
@@ -102,8 +102,8 @@ async def test_create_agency_persists_endpoints_and_headers(db_session):
 
 
 async def test_replace_agency_overwrites_fields(db_session):
-    from app.schemas.agency import AgencyCreate
-    from app.services.agency import replace_agency
+    from app.features.agency.schemas.agency import AgencyCreate
+    from app.features.agency.services.agency import replace_agency
 
     agency = await _agency(db_session, name="old", short_name="o", connection_type=ConnectionType.API)
     body = AgencyCreate(name="new", short_name="n", connection_type="MCP")
@@ -113,8 +113,8 @@ async def test_replace_agency_overwrites_fields(db_session):
 
 
 async def test_update_agency_demotes_active_agency_on_connection_identity_change(db_session):
-    from app.schemas.agency import AgencyUpdate
-    from app.services.agency import update_agency
+    from app.features.agency.schemas.agency import AgencyUpdate
+    from app.features.agency.services.agency import update_agency
 
     agency = await _agency(
         db_session, status=AgencyStatus.active,
@@ -128,10 +128,10 @@ async def test_update_agency_demotes_active_agency_on_connection_identity_change
 async def test_update_agency_flushes_similarity_cache(db_session, monkeypatch):
     from sqlalchemy.ext.asyncio import async_sessionmaker
 
-    import app.services.agency as agency_module
-    from app.repositories import setting as setting_repo
-    from app.schemas.agency import AgencyUpdate
-    from app.services.agency import update_agency
+    import app.features.agency.services.agency as agency_module
+    from app.features.settings.repositories import setting as setting_repo
+    from app.features.agency.schemas.agency import AgencyUpdate
+    from app.features.agency.services.agency import update_agency
 
     # _flush_similarity_cache_best_effort opens its OWN session; bind it to the
     # test's connection (same DB transaction) so the flushed row is visible here.
@@ -146,8 +146,8 @@ async def test_update_agency_flushes_similarity_cache(db_session, monkeypatch):
 
 
 async def test_delete_agency_removes_the_row(db_session):
-    from app.repositories import agency as agency_repo
-    from app.services.agency import delete_agency
+    from app.features.agency.repositories import agency as agency_repo
+    from app.features.agency.services.agency import delete_agency
 
     agency = await _agency(db_session)
     await delete_agency(db_session, agency)
@@ -156,8 +156,8 @@ async def test_delete_agency_removes_the_row(db_session):
 
 
 async def test_increment_calls_persists_the_counter(db_session):
-    from app.repositories import agency as agency_repo
-    from app.services.agency import increment_calls
+    from app.features.agency.repositories import agency as agency_repo
+    from app.features.agency.services.agency import increment_calls
 
     agency = await _agency(db_session, total_calls=1)
     updated = await increment_calls(db_session, agency)
@@ -169,11 +169,11 @@ async def test_increment_calls_persists_the_counter(db_session):
 async def test_run_connection_test_logs_a_connection_log_row(db_session):
     from sqlalchemy import select
 
-    from app.services.agency import run_connection_test
+    from app.features.agency.services.agency import run_connection_test
 
     agency = await _agency(db_session, endpoint_url="https://x.example")
     fake_result = {"success": True, "protocol": "REST API", "version": "-", "steps": [], "latency": "12ms", "statusCode": 200}
-    with patch("app.services.agency.test_connection", AsyncMock(return_value=fake_result)):
+    with patch("app.features.agency.services.agency.test_connection", AsyncMock(return_value=fake_result)):
         raw = await run_connection_test(db_session, agency)
     assert raw["success"] is True
     logs = (await db_session.execute(select(ConnectionLog).where(ConnectionLog.agency_id == agency.id))).scalars().all()
@@ -182,22 +182,22 @@ async def test_run_connection_test_logs_a_connection_log_row(db_session):
 
 
 async def test_run_connection_test_recovers_auto_maintenance(db_session):
-    from app.services.agency import run_connection_test
+    from app.features.agency.services.agency import run_connection_test
 
     agency = await _agency(
         db_session, endpoint_url="https://x.example",
         status=AgencyStatus.maintenance, auto_maintenance=True,
     )
     fake_result = {"success": True, "protocol": "REST API", "version": "-", "steps": [], "latency": "5ms", "statusCode": 200}
-    with patch("app.services.agency.test_connection", AsyncMock(return_value=fake_result)):
+    with patch("app.features.agency.services.agency.test_connection", AsyncMock(return_value=fake_result)):
         await run_connection_test(db_session, agency)
     assert agency.status == "active"
     assert agency.auto_maintenance is False
 
 
 async def test_update_logo_saves_the_url(db_session):
-    from app.repositories import agency as agency_repo
-    from app.services.agency import update_logo
+    from app.features.agency.repositories import agency as agency_repo
+    from app.features.agency.services.agency import update_logo
 
     agency = await _agency(db_session)
     await update_logo(db_session, agency, "/api/v1/agencies/x/logo?v=abc")

@@ -1,7 +1,7 @@
 import uuid
 
-from app.repositories import conversation as conversation_repo
-from app.repositories import message as message_repo
+from app.features.chat.repositories import conversation as conversation_repo
+from app.features.chat.repositories import message as message_repo
 
 
 async def test_new_fields_exist_with_defaults(db_session):

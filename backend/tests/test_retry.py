@@ -1,7 +1,7 @@
 import httpx
 import pytest
 
-from app.utils.retry import retry_async
+from app.core.utils.retry import retry_async
 
 
 async def test_retries_transient_then_succeeds():

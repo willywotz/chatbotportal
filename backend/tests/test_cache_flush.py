@@ -2,8 +2,8 @@ from datetime import timedelta
 
 import pytest
 
-from app.services.cache_flush import effective_cutoff, flush_similarity_cache
-from app.utils import now
+from app.features.settings.services.cache_flush import effective_cutoff, flush_similarity_cache
+from app.core.utils import now
 
 pytestmark = pytest.mark.asyncio
 

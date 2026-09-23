@@ -2,9 +2,9 @@
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.repositories import llm as llm_repo
-from app.routers.settings import MASK
-from app.services.llm import KNOWN_PURPOSES
+from app.features.llm.repositories import llm as llm_repo
+from app.features.settings.routers.settings import MASK
+from app.features.llm.services import KNOWN_PURPOSES
 
 _PROVIDERS = "/api/v1/language-model/providers"
 _ROUTES = "/api/v1/language-model/routes"
@@ -143,7 +143,7 @@ async def test_create_route_valid_purpose_succeeds(client, db_session, as_princi
 
 async def test_test_route_success(client, db_session, as_principal):
     as_principal()
-    from app.services.llm import client as llm_client
+    from app.features.llm.services import client as llm_client
     llm_client.invalidate()
     provider = await llm_repo.create_provider(db_session, name="pt", base_url="https://pt.example", api_key="k")
     await llm_repo.create_route(db_session, purpose="classification", provider_id=provider.id, model="m1")
@@ -160,7 +160,7 @@ async def test_test_route_success(client, db_session, as_principal):
 
 async def test_test_route_disabled_returns_ok_false(client, db_session, as_principal):
     as_principal()
-    from app.services.llm import client as llm_client
+    from app.features.llm.services import client as llm_client
     llm_client.invalidate()
     provider = await llm_repo.create_provider(db_session, name="pt2", base_url="https://pt2.example", api_key="k")
     await llm_repo.create_route(db_session, purpose="brief", provider_id=provider.id, model="m", enabled=False)
@@ -186,7 +186,7 @@ async def test_test_route_requires_admin(client, as_principal):
 async def test_mutation_invalidates_route_cache(client, monkeypatch, as_principal):
     as_principal()
     mock_invalidate = MagicMock()
-    monkeypatch.setattr("app.routers.llm.invalidate", mock_invalidate)
+    monkeypatch.setattr("app.features.llm.routers.llm.invalidate", mock_invalidate)
     r = await client.post(_PROVIDERS, json={"name": "p7", "base_url": "https://p7.example"})
     assert r.status_code == 201
     mock_invalidate.assert_called_once()

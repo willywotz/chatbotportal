@@ -1,8 +1,8 @@
 import pytest
 
-from app.models.conversation import Message
-from app.repositories import conversation as conversation_repo
-from app.repositories import message as message_repo
+from app.features.chat.models.conversation import Message
+from app.features.chat.repositories import conversation as conversation_repo
+from app.features.chat.repositories import message as message_repo
 
 pytestmark = pytest.mark.asyncio
 

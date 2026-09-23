@@ -1,8 +1,8 @@
 import pytest
 
-from app.repositories import agency as agency_repo
-from app.repositories import connection_log as connection_log_repo
-from app.routers import agencies as r
+from app.features.agency.repositories import agency as agency_repo
+from app.core.repositories import connection_log as connection_log_repo
+from app.features.agency import routers as r
 
 
 @pytest.mark.asyncio
@@ -20,7 +20,7 @@ async def test_health_history_endpoint(db_session):
 @pytest.mark.asyncio
 async def test_health_history_404(db_session):
     import uuid
-    from app.errors import ApiError
+    from app.core.errors import ApiError
     with pytest.raises(ApiError) as exc:
         await r.agency_health_history(uuid.uuid4(), window="24h", session=db_session)
     assert exc.value.status == 404

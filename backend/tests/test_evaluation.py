@@ -4,11 +4,11 @@ from unittest.mock import AsyncMock
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.models.agency import Agency
-from app.models.evaluation import EvalResult, GoldenQuestion
-from app.repositories import evaluation as evaluation_repo
-from app.services import evaluation
-from app.services.llm import LlmResult, LlmUsageInfo
+from app.features.agency.models.agency import Agency
+from app.features.agency.models.evaluation import EvalResult, GoldenQuestion
+from app.features.agency.repositories import evaluation as evaluation_repo
+from app.features.agency.services import evaluation
+from app.features.llm.services import LlmResult, LlmUsageInfo
 
 pytestmark = pytest.mark.asyncio
 
@@ -45,7 +45,7 @@ async def test_eval_run_scores_each_question(db_session, monkeypatch):
         )
 
     monkeypatch.setattr(evaluation, "_ask", fake_ask)
-    monkeypatch.setattr("app.services.llm.chat", fake_judge)
+    monkeypatch.setattr("app.features.llm.services.chat", fake_judge)
 
     ran = await evaluation.run_evaluation()
 
@@ -73,7 +73,7 @@ async def test_eval_judge_calls_chat_with_session(db_session, monkeypatch):
     ))
 
     monkeypatch.setattr(evaluation, "_ask", fake_ask)
-    monkeypatch.setattr("app.services.llm.chat", fake_chat)
+    monkeypatch.setattr("app.features.llm.services.chat", fake_chat)
 
     ran = await evaluation.run_evaluation()
 

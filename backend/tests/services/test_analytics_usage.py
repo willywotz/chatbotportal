@@ -1,6 +1,6 @@
-"""Tests for app.services.analytics.usage — service-level home of usage_summary."""
-from app.models.llm_usage import LlmUsage
-from app.services.analytics.usage import usage_summary
+"""Tests for app.features.analytics.services.usage — service-level home of usage_summary."""
+from app.features.llm.models.llm_usage import LlmUsage
+from app.features.analytics.services.usage import usage_summary
 
 
 async def test_usage_groups_by_purpose(db_session):

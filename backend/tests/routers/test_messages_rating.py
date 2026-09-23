@@ -9,12 +9,12 @@ import uuid
 
 import pytest
 
-from app.errors import ApiError
-from app.repositories import agency as agency_repo
-from app.repositories import conversation as conversation_repo
-from app.repositories import message as message_repo
-from app.routers import messages as messages_router
-from app.schemas.conversation import RatingUpdate
+from app.core.errors import ApiError
+from app.features.agency.repositories import agency as agency_repo
+from app.features.chat.repositories import conversation as conversation_repo
+from app.features.chat.repositories import message as message_repo
+from app.features.chat.routers import messages as messages_router
+from app.features.chat.schemas.conversation import RatingUpdate
 
 
 async def _agency(session, short_name="DOPA"):

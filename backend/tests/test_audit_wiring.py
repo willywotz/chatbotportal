@@ -6,15 +6,15 @@ from unittest.mock import AsyncMock
 
 from sqlalchemy import select
 
-from app.auth.principal import Principal
-from app.models.agency import AgencyStatus
-from app.models.audit import AuditLog
-from app.repositories import agency as agency_repo
-from app.routers import agencies as agencies_router
-from app.routers import users as users_router
-from app.schemas.agency import StatusUpdateRequest
-from app.schemas.user import UserResponse
-from app.services import user_admin
+from app.core.security.principal import Principal
+from app.features.agency.models.agency import AgencyStatus
+from app.core.models.audit import AuditLog
+from app.features.agency.repositories import agency as agency_repo
+from app.features.agency import routers as agencies_router
+from app.features.identity.routers import users as users_router
+from app.features.agency.schemas.agency import StatusUpdateRequest
+from app.features.identity.schemas.user import UserResponse
+from app.features.identity.services import user_admin
 
 
 def _admin(email="admin@audit.com"):

@@ -1,7 +1,8 @@
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from app.models import LlmProvider, LlmRoute
+from app.features.llm.models.llm_provider import LlmProvider
+from app.features.llm.models.llm_route import LlmRoute
 
 pytestmark = pytest.mark.asyncio
 

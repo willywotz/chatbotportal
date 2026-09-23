@@ -8,12 +8,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.models.conversation import Conversation, Message
-from app.repositories import conversation as conversation_repo
-from app.repositories import message as message_repo
-from app.services.chat import stream as turn_stream
-from app.services.chat.stream import ConversationNotFound, prepare_turn, run_turn
-from app.services.chat.turn import save_turn
+from app.features.chat.models.conversation import Conversation, Message
+from app.features.chat.repositories import conversation as conversation_repo
+from app.features.chat.repositories import message as message_repo
+from app.features.chat.services import stream as turn_stream
+from app.features.chat.services.stream import ConversationNotFound, prepare_turn, run_turn
+from app.features.chat.services.turn import save_turn
 
 pytestmark = pytest.mark.asyncio
 

@@ -5,11 +5,11 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy import update
 
-from app.models.conversation import Message
-from app.repositories import connection_log as connection_log_repo
-from app.repositories import conversation as conversation_repo
-from app.repositories import message as message_repo
-from app.repositories import similarity as similarity_repo
+from app.features.chat.models.conversation import Message
+from app.core.repositories import connection_log as connection_log_repo
+from app.features.chat.repositories import conversation as conversation_repo
+from app.features.chat.repositories import message as message_repo
+from app.features.chat.repositories import similarity as similarity_repo
 
 pytestmark = pytest.mark.asyncio
 

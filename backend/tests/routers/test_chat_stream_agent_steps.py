@@ -7,9 +7,9 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.models.conversation import Message
-from app.services.chat import stream as turn_stream
-from app.services.onechat import OneChatClient
+from app.features.chat.models.conversation import Message
+from app.features.chat.services import stream as turn_stream
+from app.features.onechat.services import OneChatClient
 
 pytestmark = pytest.mark.asyncio
 

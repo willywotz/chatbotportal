@@ -1,8 +1,8 @@
 import pytest
 from sqlalchemy import select
 
-from app.models.llm_usage import LlmUsage
-from app.repositories import llm_usage as llm_usage_repo
+from app.features.llm.models.llm_usage import LlmUsage
+from app.features.llm.repositories import llm_usage as llm_usage_repo
 
 pytestmark = pytest.mark.asyncio
 

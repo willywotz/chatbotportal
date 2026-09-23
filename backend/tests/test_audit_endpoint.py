@@ -1,10 +1,10 @@
 import uuid
 from datetime import timedelta
 
-from app.auth.principal import Principal
-from app.repositories import audit as audit_repo
-from app.routers.audit_log import list_audit_log
-from app.utils import now
+from app.core.security.principal import Principal
+from app.core.repositories import audit as audit_repo
+from app.features.analytics.routers.audit_log import list_audit_log
+from app.core.utils import now
 
 
 def _admin(email: str) -> Principal:

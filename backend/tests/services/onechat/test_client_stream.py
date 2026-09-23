@@ -1,8 +1,8 @@
 import httpx
 import pytest
 
-from app.services.onechat import OneChatClient, OneChatError
-from app.services.onechat.client import parse_sse_block
+from app.features.onechat.services import OneChatClient, OneChatError
+from app.features.onechat.services.client import parse_sse_block
 
 SSE_BODY = (
     "event: status\ndata: {\"stage\": \"routing\"}\n\n"

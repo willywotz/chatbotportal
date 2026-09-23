@@ -7,12 +7,12 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.models.conversation import Conversation, Message
-from app.repositories import conversation as conversation_repo
-from app.services.chat import stream as turn_stream
-from app.services.chat.stream import TurnPlan, _persist
-from app.services.chat.turn import save_turn
-from app.utils import generate_uuid
+from app.features.chat.models.conversation import Conversation, Message
+from app.features.chat.repositories import conversation as conversation_repo
+from app.features.chat.services import stream as turn_stream
+from app.features.chat.services.stream import TurnPlan, _persist
+from app.features.chat.services.turn import save_turn
+from app.core.utils import generate_uuid
 
 pytestmark = pytest.mark.asyncio
 
@@ -134,7 +134,7 @@ async def test_stream_empty_answer_marks_failed(db_session):
 
 async def test_message_stores_summary_and_summary_references(db_session):
     """Message carries the v5 executive summary and its reference list."""
-    from app.repositories import message as message_repo
+    from app.features.chat.repositories import message as message_repo
 
     conv = await _make_conv(db_session)
     msg = await message_repo.create(
@@ -153,7 +153,7 @@ async def test_message_stores_summary_and_summary_references(db_session):
 
 async def test_message_summary_defaults_are_empty(db_session):
     """v4 mode and the v5 degrade path leave both fields empty, not null-ish junk."""
-    from app.repositories import message as message_repo
+    from app.features.chat.repositories import message as message_repo
 
     conv = await _make_conv(db_session)
     msg = await message_repo.create(db_session, conversation_id=conv.id, role="assistant", content="a")

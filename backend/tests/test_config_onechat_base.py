@@ -1,4 +1,4 @@
-from app.config import SETTINGS_GROUPS, settings
+from app.core.config import SETTINGS_GROUPS, settings
 
 
 def test_onechat_base_url_default():
@@ -10,7 +10,7 @@ def test_onechat_base_url_in_settings_group():
 
 
 def test_legacy_onechat_urls_removed():
-    from app import config
+    from app.core import config
     assert not hasattr(config.settings, "ONECHAT_V3_URL")
     assert "ONECHAT_V3_URL" not in config.SETTINGS_GROUPS["OneChat"]
     assert config.SETTINGS_GROUPS["OneChat"] == [
@@ -19,5 +19,5 @@ def test_legacy_onechat_urls_removed():
 
 
 def test_chat_stream_version_setting_removed():
-    from app import config
+    from app.core import config
     assert not hasattr(config.settings, "CHAT_STREAM_VERSION")

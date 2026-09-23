@@ -2,9 +2,9 @@ from datetime import timedelta
 
 import pytest
 
-from app.models.agency import Agency
-from app.models.connection_log import ConnectionLog
-from app.utils import now
+from app.features.agency.models.agency import Agency
+from app.core.models.connection_log import ConnectionLog
+from app.core.utils import now
 
 pytestmark = pytest.mark.asyncio
 
@@ -27,12 +27,12 @@ async def _logs(session, ag, statuses, ago_minutes=1):
 
 
 async def _refresh(session, agency_id):
-    from app.repositories import agency as agency_repo
+    from app.features.agency.repositories import agency as agency_repo
     return await agency_repo.by_id(session, agency_id)
 
 
 async def test_active_to_maintenance_when_error_over_50(db_session):
-    from app.services.agency_reconcile import reconcile_statuses
+    from app.features.agency.services.agency_reconcile import reconcile_statuses
 
     ag = await _agency(db_session, status="active")
     await _logs(db_session, ag, ["error", "error", "error", "error", "success"])  # 80% error, 5 checks
@@ -43,7 +43,7 @@ async def test_active_to_maintenance_when_error_over_50(db_session):
 
 
 async def test_no_flip_when_fewer_than_5_checks(db_session):
-    from app.services.agency_reconcile import reconcile_statuses
+    from app.features.agency.services.agency_reconcile import reconcile_statuses
 
     ag = await _agency(db_session, status="active")
     await _logs(db_session, ag, ["error", "error", "error", "error"])  # 100% error but only 4 checks
@@ -52,7 +52,7 @@ async def test_no_flip_when_fewer_than_5_checks(db_session):
 
 
 async def test_no_flip_at_exactly_50(db_session):
-    from app.services.agency_reconcile import reconcile_statuses
+    from app.features.agency.services.agency_reconcile import reconcile_statuses
 
     ag = await _agency(db_session, status="active")
     await _logs(db_session, ag, ["error", "error", "error", "success", "success", "success"])  # 50%, 6 checks
@@ -61,7 +61,7 @@ async def test_no_flip_at_exactly_50(db_session):
 
 
 async def test_auto_maintenance_back_to_active_when_error_under_50(db_session):
-    from app.services.agency_reconcile import reconcile_statuses
+    from app.features.agency.services.agency_reconcile import reconcile_statuses
 
     ag = await _agency(db_session, status="maintenance", auto_maintenance=True)
     await _logs(db_session, ag, ["success", "success", "success", "success", "error"])  # 20% error, 5 checks
@@ -72,7 +72,7 @@ async def test_auto_maintenance_back_to_active_when_error_under_50(db_session):
 
 
 async def test_human_set_maintenance_not_reactivated(db_session):
-    from app.services.agency_reconcile import reconcile_statuses
+    from app.features.agency.services.agency_reconcile import reconcile_statuses
 
     ag = await _agency(db_session, status="maintenance", auto_maintenance=False)
     await _logs(db_session, ag, ["success"] * 5)  # 0% error
@@ -81,7 +81,7 @@ async def test_human_set_maintenance_not_reactivated(db_session):
 
 
 async def test_draft_and_disabled_untouched(db_session):
-    from app.services.agency_reconcile import reconcile_statuses
+    from app.features.agency.services.agency_reconcile import reconcile_statuses
 
     draft = await _agency(db_session, name="D", short_name="D", status="draft")
     disabled = await _agency(db_session, name="Z", short_name="Z", status="disabled")
@@ -93,7 +93,7 @@ async def test_draft_and_disabled_untouched(db_session):
 
 
 async def test_reconcile_ignores_pre_reset_failures(db_session):
-    from app.services.agency_reconcile import reconcile_statuses
+    from app.features.agency.services.agency_reconcile import reconcile_statuses
 
     ag = await _agency(db_session, status="active", stats_reset_at=now() - timedelta(minutes=30))
     # 5 failures all BEFORE the reset baseline -> must be ignored
@@ -103,7 +103,7 @@ async def test_reconcile_ignores_pre_reset_failures(db_session):
 
 
 async def test_reconcile_still_flips_on_post_reset_failures(db_session):
-    from app.services.agency_reconcile import reconcile_statuses
+    from app.features.agency.services.agency_reconcile import reconcile_statuses
 
     ag = await _agency(db_session, status="active", stats_reset_at=now() - timedelta(hours=2))
     # 5 failures AFTER the reset baseline -> still trips

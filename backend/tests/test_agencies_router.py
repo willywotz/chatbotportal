@@ -1,4 +1,4 @@
-"""Tests for app.routers.agencies — create with the new lifecycle states.
+"""Tests for app.features.agency.routers — create with the new lifecycle states.
 
 Regression net for the 500 raised when the redesigned frontend creates an
 agency in the `draft` state: the AgencyStatus enum previously allowed only
@@ -10,9 +10,9 @@ import uuid
 
 import pytest
 
-from app.auth.principal import Principal
-from app.routers import agencies as agencies_router
-from app.schemas.agency import AgencyCreate
+from app.core.security.principal import Principal
+from app.features.agency import routers as agencies_router
+from app.features.agency.schemas.agency import AgencyCreate
 
 
 async def _admin(email="admin@example.com"):

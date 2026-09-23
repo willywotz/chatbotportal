@@ -1,4 +1,4 @@
-from app.config import SETTINGS_GROUPS, Settings
+from app.core.config import SETTINGS_GROUPS, Settings
 
 
 def test_llm_provider_settings_not_editable_via_generic_ui():

@@ -1,0 +1,16 @@
+import app.core.models.audit  # noqa: F401
+import app.core.models.connection_log  # noqa: F401
+import app.core.models.event  # noqa: F401
+import app.features.agency.models.agency  # noqa: F401
+import app.features.agency.models.evaluation  # noqa: F401
+import app.features.analytics.models.executive_brief  # noqa: F401
+import app.features.analytics.models.popular_question  # noqa: F401
+import app.features.chat.models.conversation  # noqa: F401
+import app.features.identity.models.oauth  # noqa: F401
+import app.features.identity.models.signing_key  # noqa: F401
+import app.features.identity.models.user  # noqa: F401
+import app.features.llm.models.llm_provider  # noqa: F401
+import app.features.llm.models.llm_route  # noqa: F401
+import app.features.llm.models.llm_usage  # noqa: F401
+import app.features.llm.models.rate_limit_counter  # noqa: F401
+import app.features.settings.models.setting  # noqa: F401

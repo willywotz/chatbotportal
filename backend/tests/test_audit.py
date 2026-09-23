@@ -3,9 +3,9 @@ import uuid
 import pytest
 from sqlalchemy import select
 
-from app.auth.principal import Principal
-from app.models.audit import AuditLog
-from app.services.audit import record_audit
+from app.core.security.principal import Principal
+from app.core.models.audit import AuditLog
+from app.core.audit import record_audit
 
 pytestmark = pytest.mark.asyncio
 
@@ -31,7 +31,7 @@ async def test_record_audit_handles_none_actor(db_session):
 
 async def test_record_audit_never_raises_on_failure(db_session, monkeypatch):
     # A failure to write the audit row must NOT propagate (best-effort).
-    from app.repositories import audit as audit_repo
+    from app.core.repositories import audit as audit_repo
 
     async def boom(*a, **k):
         raise RuntimeError("db down")

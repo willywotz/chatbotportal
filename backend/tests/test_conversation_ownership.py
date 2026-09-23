@@ -8,10 +8,10 @@ import uuid
 
 import pytest
 
-from app.auth.principal import Principal
-from app.errors import ApiError
-from app.repositories import conversation as conversation_repo
-from app.routers.conversations import (
+from app.core.security.principal import Principal
+from app.core.errors import ApiError
+from app.features.chat.repositories import conversation as conversation_repo
+from app.features.chat.routers.conversations import (
     delete_conversation,
     get_conversation,
     get_conversation_messages,

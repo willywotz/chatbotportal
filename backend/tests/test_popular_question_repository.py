@@ -2,11 +2,11 @@ from datetime import timedelta
 
 import pytest
 
-from app.repositories import agency as agency_repo
-from app.repositories import conversation as conversation_repo
-from app.repositories import message as message_repo
-from app.repositories import popular_question as pq_repo
-from app.utils import now
+from app.features.agency.repositories import agency as agency_repo
+from app.features.chat.repositories import conversation as conversation_repo
+from app.features.chat.repositories import message as message_repo
+from app.features.analytics.repositories import popular_question as pq_repo
+from app.core.utils import now
 
 pytestmark = pytest.mark.asyncio
 

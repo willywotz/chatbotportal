@@ -11,7 +11,7 @@ prefer cf-visitor, then X-Forwarded-Proto, then the raw connection scheme.
 from starlette.datastructures import Headers
 from starlette.requests import Request
 
-from app.mcp.server import _external_scheme
+from app.features.mcp.server import _external_scheme
 
 
 def _request(headers: dict) -> Request:

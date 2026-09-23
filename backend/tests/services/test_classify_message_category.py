@@ -1,6 +1,6 @@
 """classify_message_category is a fire-and-forget background task (scheduled by
-app.services.chat.stream with no session in scope), so it opens its own
-short-lived session (app.db.AsyncSessionLocal) for the LLM call and the
+app.features.chat.services.stream with no session in scope), so it opens its own
+short-lived session (app.core.db.AsyncSessionLocal) for the LLM call and the
 category write. Bind that session factory to the test's own connection (same
 pattern as test_agent_proxy_own_session.py) so writes are visible/rolled back
 with `db_session`.
@@ -11,12 +11,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.models.conversation import Message
-from app.repositories import conversation as conversation_repo
-from app.repositories import llm as llm_repo
-from app.repositories import message as message_repo
-from app.services.chat import llm as chat_llm
-from app.services.llm import client as llm_client
+from app.features.chat.models.conversation import Message
+from app.features.chat.repositories import conversation as conversation_repo
+from app.features.llm.repositories import llm as llm_repo
+from app.features.chat.repositories import message as message_repo
+from app.features.chat.services import llm as chat_llm
+from app.features.llm.services import client as llm_client
 
 pytestmark = pytest.mark.asyncio
 

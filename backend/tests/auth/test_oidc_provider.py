@@ -4,11 +4,11 @@ import hashlib
 
 import pytest
 
-from app.auth.oidc import provider
-from app.auth.oidc.tokens import verify_token
-from app.config import settings
-from app.models.user import UserRole
-from app.repositories import user as user_repo
+from app.features.identity.oidc import provider
+from app.core.security.tokens import verify_token
+from app.core.config import settings
+from app.features.identity.models.user import UserRole
+from app.features.identity.repositories import user as user_repo
 
 REDIRECT = settings.OIDC_ALLOWED_REDIRECT_URIS[0]
 CLIENT = settings.OIDC_CLIENT_ID

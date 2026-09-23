@@ -1,7 +1,7 @@
 import asyncio
 import logging
 
-from app.concurrency import spawn_logged
+from app.core.concurrency import spawn_logged
 
 
 async def test_spawn_logged_runs_coro():
@@ -18,7 +18,7 @@ async def test_spawn_logged_logs_exception(caplog):
     async def boom():
         raise ValueError("kaboom")
 
-    with caplog.at_level(logging.ERROR, logger="app.concurrency"):
+    with caplog.at_level(logging.ERROR, logger="app.core.concurrency"):
         spawn_logged(boom(), name="boom")
         await asyncio.sleep(0.05)
     errors = [r for r in caplog.records if r.levelno == logging.ERROR]

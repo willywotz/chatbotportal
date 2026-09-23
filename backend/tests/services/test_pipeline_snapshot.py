@@ -1,4 +1,4 @@
-from app.services.chat.pipeline_snapshot import build_pipeline_snapshot
+from app.features.chat.services.pipeline_snapshot import build_pipeline_snapshot
 
 
 def test_empty_events_return_empty_list():

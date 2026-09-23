@@ -6,7 +6,7 @@ import pytest
 
 
 def _find_route(path: str, method: str):
-    from app.routers import executive_summary
+    from app.features.analytics.routers import executive_summary
 
     for route in executive_summary.router.routes:
         if route.path == path and method in route.methods:
@@ -15,7 +15,7 @@ def _find_route(path: str, method: str):
 
 
 def _scopes(route) -> list[str]:
-    from app.auth.dependencies import require_scope
+    from app.core.security.dependencies import require_scope
 
     for d in route.dependant.dependencies:
         if d.call is require_scope:
@@ -35,7 +35,7 @@ def test_get_route_requires_executive_read_scope():
 
 @pytest.mark.asyncio
 async def test_regenerate_endpoint_returns_new_brief():
-    from app.routers import executive_summary as router_module
+    from app.features.analytics.routers import executive_summary as router_module
 
     brief = MagicMock()
     brief.content = "fresh brief"

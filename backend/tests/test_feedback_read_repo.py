@@ -2,10 +2,10 @@ from datetime import timedelta
 
 import pytest
 
-from app.models.agency import Agency
-from app.models.conversation import Conversation, Message
-from app.repositories import feedback_read as repo
-from app.utils import now
+from app.features.agency.models.agency import Agency
+from app.features.chat.models.conversation import Conversation, Message
+from app.features.analytics.repositories import feedback_read as repo
+from app.core.utils import now
 
 pytestmark = pytest.mark.asyncio
 

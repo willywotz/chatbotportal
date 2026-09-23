@@ -1,4 +1,4 @@
-from app.schemas.agency import (
+from app.features.agency.schemas.agency import (
     AgencyCreate,
     AgencyHealthEmbed,
     HealthHistoryBucket,

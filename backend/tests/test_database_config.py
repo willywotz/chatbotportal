@@ -1,6 +1,6 @@
 """Tests for database_url/connect_args helpers in config.py."""
 
-from app.config import Settings, connect_args, database_url
+from app.core.config import Settings, connect_args, database_url
 
 
 def test_plain_url_becomes_asyncpg_scheme():

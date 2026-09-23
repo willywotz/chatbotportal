@@ -3,15 +3,15 @@ import uuid
 
 import pytest
 
-from app.repositories import event as event_repo
-from app.repositories import message as message_repo
+from app.core.repositories import event as event_repo
+from app.features.chat.repositories import message as message_repo
 
 pytestmark = pytest.mark.asyncio
 
 
 async def test_turn_and_event_share_one_transaction(db_session):
-    from app.services.chat import turn
-    from app.services.events import publish
+    from app.features.chat.services import turn
+    from app.core.events import publish
 
     conv_id = str(uuid.uuid4())
     await turn.save_turn(
@@ -30,7 +30,7 @@ async def test_dispatch_pending_marks_events_dispatched(db_session, monkeypatch)
     (same DB transaction) so the row it wrote is visible without a real commit."""
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-    from app.services import events
+    from app.core import events
 
     await events.publish(db_session, "thing.happened", {"a": 1})
     await db_session.flush()

@@ -1,8 +1,9 @@
 import pytest
 from sqlalchemy import select
 
-from app.models import LlmProvider, LlmRoute
-from app.services.llm.seed import seed_llm_defaults
+from app.features.llm.models.llm_provider import LlmProvider
+from app.features.llm.models.llm_route import LlmRoute
+from app.features.llm.services.seed import seed_llm_defaults
 
 pytestmark = pytest.mark.asyncio
 

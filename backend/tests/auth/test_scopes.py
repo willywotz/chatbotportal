@@ -1,7 +1,7 @@
 """Role to scope mapping mirrors the retired Keycloak realm composites."""
 from __future__ import annotations
 
-from app.auth.scopes import ROLE_SCOPES, scopes_for_role
+from app.core.security.scopes import ROLE_SCOPES, scopes_for_role
 
 _EXPECTED_USER = {
     "agency:list", "conversation:read:own", "conversation:write:own", "message:rate",

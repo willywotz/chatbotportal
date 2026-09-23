@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncEngine
-from app.db import engine, AsyncSessionLocal, get_db
+from app.core.db import engine, AsyncSessionLocal, get_db
 
 
 def test_engine_uses_asyncpg_and_no_expire_on_commit():

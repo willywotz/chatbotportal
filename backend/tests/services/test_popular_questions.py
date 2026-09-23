@@ -1,17 +1,17 @@
-"""Tests for app.services.popular_questions."""
+"""Tests for app.features.analytics.services.popular_questions."""
 import uuid
 
 import pytest
 
-from app.errors import ApiError
-from app.models.popular_question import PopularQuestionSource
-from app.repositories import agency as agency_repo
-from app.repositories import conversation as conversation_repo
-from app.repositories import message as message_repo
-from app.repositories import popular_question as pq_repo
-from app.schemas.popular_question import PopularQuestionCreate, PopularQuestionUpdate
-from app.services import popular_questions as pq_service
-from app.services.llm import LlmResult, LlmUsageInfo
+from app.core.errors import ApiError
+from app.features.analytics.models.popular_question import PopularQuestionSource
+from app.features.agency.repositories import agency as agency_repo
+from app.features.chat.repositories import conversation as conversation_repo
+from app.features.chat.repositories import message as message_repo
+from app.features.analytics.repositories import popular_question as pq_repo
+from app.features.analytics.schemas.popular_question import PopularQuestionCreate, PopularQuestionUpdate
+from app.features.analytics.services import popular_questions as pq_service
+from app.features.llm.services import LlmResult, LlmUsageInfo
 
 
 def _fake_llm_result(content: str) -> LlmResult:
@@ -118,7 +118,7 @@ async def test_ask_llm_parses_markdown_fenced_json(db_session, monkeypatch):
     async def fake_chat(session, **_kwargs):
         return _fake_llm_result(content)
 
-    monkeypatch.setattr("app.services.llm.chat", fake_chat)
+    monkeypatch.setattr("app.features.llm.services.chat", fake_chat)
 
     result = await pq_service._ask_llm(db_session, [{"text": "q", "agencies": []}])
 
@@ -131,7 +131,7 @@ async def test_ask_llm_parses_json_with_leading_prose(db_session, monkeypatch):
     async def fake_chat(session, **_kwargs):
         return _fake_llm_result(content)
 
-    monkeypatch.setattr("app.services.llm.chat", fake_chat)
+    monkeypatch.setattr("app.features.llm.services.chat", fake_chat)
 
     result = await pq_service._ask_llm(db_session, [{"text": "q", "agencies": []}])
 
@@ -142,7 +142,7 @@ async def test_ask_llm_returns_empty_on_garbage_output(db_session, monkeypatch):
     async def fake_chat(session, **_kwargs):
         return _fake_llm_result("ขอโทษครับ ไม่สามารถตอบคำถามนี้ได้")
 
-    monkeypatch.setattr("app.services.llm.chat", fake_chat)
+    monkeypatch.setattr("app.features.llm.services.chat", fake_chat)
 
     result = await pq_service._ask_llm(db_session, [{"text": "q", "agencies": []}])
 
@@ -261,7 +261,7 @@ async def test_regenerate_feeds_known_agency_to_llm_and_resolves(db_session, mon
             f'{{"questions": [{{"text": "ขอคัดโฉนดที่ดิน", "agency_id": "{ag.id}", "score": 0.8}}]}}'
         )
 
-    monkeypatch.setattr("app.services.llm.chat", fake_chat)
+    monkeypatch.setattr("app.features.llm.services.chat", fake_chat)
 
     await pq_service.regenerate(db_session)
 

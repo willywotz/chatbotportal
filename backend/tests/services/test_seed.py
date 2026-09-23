@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.services import seed
+from app.features.agency.services import seed
 
 pytestmark = pytest.mark.asyncio
 

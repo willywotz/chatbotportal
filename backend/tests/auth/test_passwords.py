@@ -1,7 +1,7 @@
 """bcrypt password hashing round-trips and rejects wrong / malformed input."""
 from __future__ import annotations
 
-from app.auth.oidc.passwords import hash_password, verify_password
+from app.features.identity.oidc.passwords import hash_password, verify_password
 
 
 def test_hash_verifies_correct_password():

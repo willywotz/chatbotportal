@@ -2,9 +2,9 @@ from datetime import timedelta
 
 import pytest
 
-from app.models.agency import Agency
-from app.models.connection_log import ConnectionLog
-from app.utils import now
+from app.features.agency.models.agency import Agency
+from app.core.models.connection_log import ConnectionLog
+from app.core.utils import now
 
 pytestmark = pytest.mark.asyncio
 
@@ -28,7 +28,7 @@ async def _log(session, agency, status="success", latency=300, ago_minutes=10):
 
 
 async def test_error_window_counts_checks_and_failures(db_session):
-    from app.services.agency_health import error_window
+    from app.features.agency.services.agency_health import error_window
 
     ag = await _agency(db_session)
     for s in ["success", "success", "error", "error", "error"]:
@@ -39,14 +39,14 @@ async def test_error_window_counts_checks_and_failures(db_session):
 
 
 async def test_error_window_empty_returns_zeros(db_session):
-    from app.services.agency_health import error_window
+    from app.features.agency.services.agency_health import error_window
 
     ag = await _agency(db_session)
     assert await error_window(db_session, ag.id) == (0, 0)
 
 
 async def test_error_window_excludes_old_logs(db_session):
-    from app.services.agency_health import error_window
+    from app.features.agency.services.agency_health import error_window
 
     ag = await _agency(db_session)
     await _log(db_session, ag, status="error", ago_minutes=25 * 60)
@@ -56,7 +56,7 @@ async def test_error_window_excludes_old_logs(db_session):
 
 
 async def test_embedded_health_unknown_when_no_logs(db_session):
-    from app.services.agency_health import embedded_health
+    from app.features.agency.services.agency_health import embedded_health
 
     ag = await _agency(db_session)
     h = await embedded_health(db_session, ag.id)
@@ -66,7 +66,7 @@ async def test_embedded_health_unknown_when_no_logs(db_session):
 
 
 async def test_embedded_health_up(db_session):
-    from app.services.agency_health import embedded_health
+    from app.features.agency.services.agency_health import embedded_health
 
     ag = await _agency(db_session)
     for _ in range(10):
@@ -78,7 +78,7 @@ async def test_embedded_health_up(db_session):
 
 
 async def test_embedded_health_down_when_last_failed(db_session):
-    from app.services.agency_health import embedded_health
+    from app.features.agency.services.agency_health import embedded_health
 
     ag = await _agency(db_session)
     await _log(db_session, ag, status="success", ago_minutes=60)
@@ -88,7 +88,7 @@ async def test_embedded_health_down_when_last_failed(db_session):
 
 
 async def test_embedded_health_degraded(db_session):
-    from app.services.agency_health import embedded_health
+    from app.features.agency.services.agency_health import embedded_health
 
     ag = await _agency(db_session)
     await _log(db_session, ag, status="error", ago_minutes=120)
@@ -101,7 +101,7 @@ async def test_embedded_health_degraded(db_session):
 
 
 async def test_health_history_bucket_counts(db_session):
-    from app.services.agency_health import health_history
+    from app.features.agency.services.agency_health import health_history
 
     ag = await _agency(db_session)
     await _log(db_session, ag, status="success", ago_minutes=30)
@@ -115,7 +115,7 @@ async def test_health_history_bucket_counts(db_session):
 
 
 async def test_error_window_ignores_pre_reset(db_session):
-    from app.services.agency_health import error_window
+    from app.features.agency.services.agency_health import error_window
 
     ag = await _agency(db_session)
     for _ in range(4):
@@ -126,7 +126,7 @@ async def test_error_window_ignores_pre_reset(db_session):
 
 
 async def test_embedded_health_ignores_pre_reset(db_session):
-    from app.services.agency_health import embedded_health
+    from app.features.agency.services.agency_health import embedded_health
 
     ag = await _agency(db_session)
     await _log(db_session, ag, status="error", ago_minutes=180)
@@ -138,7 +138,7 @@ async def test_embedded_health_ignores_pre_reset(db_session):
 
 
 async def test_health_history_ignores_pre_reset_keeps_grid(db_session):
-    from app.services.agency_health import health_history
+    from app.features.agency.services.agency_health import health_history
 
     ag = await _agency(db_session)
     await _log(db_session, ag, status="error", ago_minutes=180)

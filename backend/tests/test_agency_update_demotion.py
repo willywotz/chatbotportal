@@ -4,11 +4,11 @@ import uuid
 
 import pytest
 
-from app.auth.principal import Principal
-from app.models import Agency
-from app.repositories import agency as agency_repo
-from app.routers.agencies import crud
-from app.schemas.agency import AgencyUpdate
+from app.core.security.principal import Principal
+from app.features.agency.models.agency import Agency
+from app.features.agency.repositories import agency as agency_repo
+from app.features.agency.routers import crud
+from app.features.agency.schemas.agency import AgencyUpdate
 
 _CONFORMANCE = {"passed": True, "checks": []}
 

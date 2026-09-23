@@ -5,7 +5,7 @@ import pytest
 from opentelemetry import trace
 
 import app.main  # noqa: F401 — configures the SDK tracer provider and instruments httpx (the change under test)
-from app.services.onechat import OneChatClient
+from app.features.onechat.services import OneChatClient
 
 
 class _CaptureHandler(BaseHTTPRequestHandler):

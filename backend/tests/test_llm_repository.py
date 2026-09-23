@@ -2,7 +2,7 @@ import uuid
 
 import pytest
 
-from app.repositories import llm as llm_repo
+from app.features.llm.repositories import llm as llm_repo
 
 pytestmark = pytest.mark.asyncio
 

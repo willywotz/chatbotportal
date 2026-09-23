@@ -4,9 +4,9 @@ import time
 import jwt
 import pytest
 
-from app.auth.oidc.tokens import verify_token
-from app.auth.principal import InvalidToken, Principal
-from app.config import settings
+from app.core.security.tokens import verify_token
+from app.core.security.principal import InvalidToken, Principal
+from app.core.config import settings
 
 
 def test_valid_token_yields_principal(make_token):

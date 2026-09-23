@@ -4,9 +4,9 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-import app.services.rate_limit as rl
-from app.models.rate_limit_counter import RateLimitCounter
-from app.services.rate_limit import (
+import app.features.llm.services.rate_limit as rl
+from app.features.llm.models.rate_limit_counter import RateLimitCounter
+from app.features.llm.services.rate_limit import (
     PostgresFixedWindowLimiter,
     RateLimitResult,
     build_limiter,
@@ -79,7 +79,7 @@ async def test_db_error_fails_closed_and_logs_once(db_session, monkeypatch, capl
 
     monkeypatch.setattr(rl, "_upsert_and_count", boom)
 
-    with caplog.at_level(logging.WARNING, logger="app.services.rate_limit"):
+    with caplog.at_level(logging.WARNING, logger="app.features.llm.services.rate_limit"):
         r1 = await lim.check("llm:p:s", limit=3, window_s=60.0)
         r2 = await lim.check("llm:p:s", limit=3, window_s=60.0)
     assert r1 == RateLimitResult(False, 1)
@@ -107,7 +107,7 @@ async def test_recovery_logs_degraded_count_once(db_session, monkeypatch, caplog
 
     monkeypatch.setattr(rl, "_upsert_and_count", boom_then_ok)
 
-    with caplog.at_level(logging.INFO, logger="app.services.rate_limit"):
+    with caplog.at_level(logging.INFO, logger="app.features.llm.services.rate_limit"):
         await lim.check("llm:p:s", limit=3, window_s=60.0)
         await lim.check("llm:p:s", limit=3, window_s=60.0)
         r3 = await lim.check("llm:p:s", limit=3, window_s=60.0)

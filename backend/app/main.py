@@ -36,19 +36,23 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.config import settings, load_settings_from_db
-from app.errors import register_error_handlers
-from app.db import init_db, close_db
-from app.mcp.server import mcp
-from app.routers import agencies, audit_log, conversations, messages, dashboard, feedback, auth, chat, connection_logs, executive_summary, insight, popular_questions, public_status, users, settings as settings_router
-from app.routers import agent_proxy
-from app.routers import llm as llm_router
-from app.auth.oidc.router import router as oidc_router
-from app.services.seed import run_seed_agencies
-from app.services.popular_questions import seed_popular_questions
+from app.core.config import settings, load_settings_from_db
+from app.core.errors import register_error_handlers
+from app.core.db import init_db, close_db
+from app.features.mcp.server import mcp
+from app.features.agency import routers as agencies
+from app.features.analytics.routers import audit_log, dashboard, feedback, connection_logs, executive_summary, insight, popular_questions, public_status
+from app.features.chat.routers import conversations, messages, chat
+from app.features.identity.routers import auth, users
+from app.features.settings.routers import settings as settings_router
+from app.features.mcp.routers import agent_proxy
+from app.features.llm.routers import llm as llm_router
+from app.features.identity.oidc.router import router as oidc_router
+from app.features.agency.services.seed import run_seed_agencies
+from app.features.analytics.services.popular_questions import seed_popular_questions
 from app.scheduler import start_scheduler, stop_scheduler
-from app.trace_util import QueryTraceparentASGI
-from app.utils import generate_uuid, now
+from app.core.trace_util import QueryTraceparentASGI
+from app.core.utils import generate_uuid, now
 
 # ---------------------------------------------------------------------------
 # Opentelemetry auto-instrumentation

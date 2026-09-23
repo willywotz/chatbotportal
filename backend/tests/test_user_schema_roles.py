@@ -2,7 +2,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.user import UserCreate
+from app.features.identity.schemas.user import UserCreate
 
 
 @pytest.mark.parametrize("role", ["user", "staff", "admin"])

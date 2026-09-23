@@ -2,7 +2,7 @@
 the Postgres testcontainer via `get_db`."""
 import pytest
 
-from app.models.agency import Agency
+from app.features.agency.models.agency import Agency
 
 pytestmark = pytest.mark.asyncio
 

@@ -1,6 +1,6 @@
 import pytest
 
-from app.repositories import setting as setting_repo
+from app.features.settings.repositories import setting as setting_repo
 
 pytestmark = pytest.mark.asyncio
 

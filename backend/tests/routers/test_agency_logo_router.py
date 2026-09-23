@@ -9,9 +9,9 @@ from pathlib import Path
 
 import pytest
 
-from app.config import settings
-from app.models import Agency
-from app.repositories import agency as agency_repo
+from app.core.config import settings
+from app.features.agency.models.agency import Agency
+from app.features.agency.repositories import agency as agency_repo
 
 _PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
 _JPEG_BYTES = b"\xff\xd8\xff" + b"\x00" * 32

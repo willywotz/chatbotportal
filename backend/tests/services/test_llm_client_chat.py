@@ -3,9 +3,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlalchemy import select
 
-from app.models.llm_usage import LlmUsage
-from app.repositories import llm as llm_repo
-from app.services.llm import client as c
+from app.features.llm.models.llm_usage import LlmUsage
+from app.features.llm.repositories import llm as llm_repo
+from app.features.llm.services import client as c
 
 pytestmark = pytest.mark.asyncio
 
@@ -48,7 +48,7 @@ async def test_client_chat_is_transport_only(db_session):
 
 
 async def test_package_chat_records_usage(db_session):
-    from app.services.llm import chat as pkg_chat
+    from app.features.llm.services import chat as pkg_chat
     c.invalidate()
     p = await llm_repo.create_provider(
         db_session, name="openrouter", base_url="https://api/x", api_key="sk",
