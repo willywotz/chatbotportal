@@ -22,7 +22,8 @@ This rebuild has three goals:
    events; a consumer projects them to the audit trail. Alert delivery
    can subscribe later with no rework.
 3. **Better data model / history** — per-agency check state, downsampled
-   uptime buckets for cheap 24h/7d/30d reads, and first-class incidents.
+   uptime buckets (hourly and daily) for cheap 24h/7d/30d reads, and
+   first-class incidents.
 
 The probe behaviour itself does not change: one reachability probe per
 connection type (HEAD then GET), any HTTP response counts as reachable,
@@ -34,7 +35,8 @@ only a transport failure is an error.
 - New `monitoring` feature: models, repositories, services.
 - Claim-based (sharded) scheduling with `FOR UPDATE SKIP LOCKED`.
 - Retries with exponential backoff and jitter; per-agency intervals.
-- Synchronous write of check-state, uptime bucket, and incident.
+- Synchronous write of check-state, uptime buckets (hourly + daily via
+  dual-write), and incident.
 - Incident domain events plus an in-process audit consumer.
 - Public read path switches to buckets; add `uptime_7d_pct` and
   `uptime_30d_pct` while keeping `uptime_24h_pct`.
@@ -82,13 +84,13 @@ monitor_tick (every MONITOR_TICK_SECONDS, in each worker)
   -> probe each (bounded concurrency, retries + backoff + jitter)
   -> record result (one transaction per agency):
        update agency_check_state
-       upsert current hourly uptime_bucket
+       upsert current hour + day uptime_bucket rows (dual-write)
        open/close incident on transition
        publish agency.incident_opened / agency.incident_closed
   -> outbox dispatch_pending delivers incident events
        -> _on_incident_opened / _on_incident_closed -> audit_logs
 public_status (read)
-  -> aggregate uptime_bucket over 24h / 7d / 30d
+  -> aggregate uptime_bucket: hour grain for 24h/7d, day grain for 30d
 ```
 
 ## 4. Data model
@@ -115,20 +117,28 @@ Source of truth for scheduling and current health.
 
 Index: btree on `next_check_at` (partial `WHERE enabled` is optional).
 
-### `uptime_bucket` — hourly downsample
+### `uptime_bucket` — hourly + daily downsample
 | column | type | notes |
 |---|---|---|
 | `id` | UUID PK | |
 | `agency_id` | UUID FK→agencies cascade | |
-| `bucket_start` | timestamptz | truncated to the hour |
+| `granularity` | enum `hour`/`day` | `Enum(..., native_enum=False, create_constraint=False, length=8)` |
+| `bucket_start` | timestamptz | truncated to the hour or the day |
 | `total_checks` | int | |
 | `ok_checks` | int | |
 
-Unique constraint `(agency_id, bucket_start)` — the upsert conflict
-target. Windows are computed by summing rows since a cutoff. Hourly only
-(daily is a later optimisation). Retention
-`UPTIME_BUCKET_RETENTION_DAYS`, longer than the raw `ConnectionLog`
-retention, so history survives the log purge.
+Unique constraint `(agency_id, granularity, bucket_start)` — the upsert
+conflict target. Both grains are kept current by **dual-write**: each
+result upserts one `hour` row and one `day` row in the same transaction
+(no rollup job, no lag). Windows sum rows since a cutoff, choosing the
+grain per window (24h/7d → `hour`, 30d → `day`, so 30d is ~30 rows per
+agency).
+
+Retention (both longer than the raw `ConnectionLog` retention, so
+history survives the log purge): `hour` rows pruned after
+`UPTIME_BUCKET_HOUR_RETENTION_DAYS` (e.g. 14), `day` rows after
+`UPTIME_BUCKET_DAY_RETENTION_DAYS` (e.g. 365). Pruning rides the existing
+`purge_old_connection_logs` 24h job (or a sibling in the same job).
 
 ### `incident` — up→down / down→up episodes
 | column | type | notes |
@@ -184,9 +194,10 @@ batch):
 1. Update `agency_check_state`: `last_checked_at`, `last_status`,
    `last_latency_ms`; `consecutive_failures = 0` on success else `+1`;
    clear `leased_until`.
-2. Upsert the current hourly `uptime_bucket`
-   (`INSERT ... ON CONFLICT (agency_id, bucket_start) DO UPDATE`):
-   `total_checks + 1`, and `ok_checks + 1` when up.
+2. Dual-write the `uptime_bucket` rows for the current hour and current
+   day (`INSERT ... ON CONFLICT (agency_id, granularity, bucket_start)
+   DO UPDATE`): `total_checks + 1`, and `ok_checks + 1` when up, for each
+   grain. Both upserts run in this same transaction.
 3. Incident state machine (`services/incidents.py`):
    - `consecutive_failures >= FAILURE_THRESHOLD` and no open incident →
      insert incident, set `current_incident_id`,
@@ -223,9 +234,11 @@ path, so a manual test also updates state, bucket, and incident.
 ## 7. Read path — public status
 
 `services/uptime_read.py`:
-`uptime_by_agency(session, since) -> dict[agency_id, (total, ok)]`,
-summing `uptime_bucket` rows with `bucket_start >= since`, grouped by
-agency (one query for all agencies).
+`uptime_by_agency(session, since, granularity) -> dict[agency_id, (total, ok)]`,
+summing `uptime_bucket` rows of that `granularity` with
+`bucket_start >= since`, grouped by agency (one query for all agencies).
+The service uses `hour` for the 24h and 7d windows and `day` for the 30d
+window.
 
 `analytics/services/public_status.py` computes three windows (24h, 7d,
 30d) and keeps the contract:
@@ -248,7 +261,8 @@ New settings:
 `MONITOR_TICK_SECONDS`, `MONITOR_CLAIM_BATCH`, `MONITOR_LEASE_SECONDS`,
 `MONITOR_PROBE_CONCURRENCY`, `DEFAULT_CHECK_INTERVAL_SECONDS`,
 `CHECK_RETRY_MAX`, `CHECK_BACKOFF_BASE_MS`, `CHECK_JITTER_MS`,
-`FAILURE_THRESHOLD`, `UPTIME_BUCKET_RETENTION_DAYS`.
+`FAILURE_THRESHOLD`, `UPTIME_BUCKET_HOUR_RETENTION_DAYS`,
+`UPTIME_BUCKET_DAY_RETENTION_DAYS`.
 
 Retire `HEALTH_CHECK_INTERVAL_MINUTES`. Keep `CONNECTION_TEST_TIMEOUT`.
 `AGENCY_CHAT_CONCURRENCY` / `AGENCY_CHAT_TIMEOUT` are replaced by the
@@ -290,8 +304,9 @@ advisory lock, so the new tables appear before the first tick.
   expired lease is reclaimable.
 - **Retry/backoff:** up on attempt N counts up; all attempts failing
   counts down (probe mocked).
-- **Bucket:** upsert increments `total`/`ok`; window aggregation sums
-  correctly across hour boundaries.
+- **Bucket:** one result increments both the `hour` and the `day` row
+  (dual-write); window aggregation sums correctly across hour and day
+  boundaries; the read picks `hour` for 24h/7d and `day` for 30d.
 - **Incident machine:** opens on threshold, closes on recovery, one-open
   invariant, correct events published.
 - **Maintenance auto-recover** preserved.
@@ -306,6 +321,5 @@ advisory lock, so the new tables appear before the first tick.
 
 - Alert delivery (email/webhook) as a later consumer of the incident
   events.
-- Daily uptime buckets if 30d hourly sums become costly.
 - De-duplicating the other per-worker scheduler jobs (brief, popular,
   eval, purge).
