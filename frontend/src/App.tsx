@@ -28,6 +28,7 @@ const PublicPortal = lazy(() => import("@/features/public/PublicPortal"));
 const InfoPage = lazy(() => import("@/features/public/InfoPage"));
 const StatusPage = lazy(() => import("@/features/status/StatusPage"));
 const LoginPage = lazy(() => import("@/features/auth/LoginPage"));
+const CallbackPage = lazy(() => import("@/features/auth/CallbackPage"));
 const SettingsPage = lazy(() => import("@/features/settings/SettingsPage"));
 const SettingsLayout = lazy(() => import("@/features/settings/SettingsLayout"));
 const LlmSettingsPage = lazy(() => import("@/features/llm/LlmSettingsPage"));
@@ -71,6 +72,7 @@ const App = () => (
               <Route path="/contact" element={<InfoPage />} />
               <Route path="/status" element={<StatusPage />} />
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/auth/callback" element={<CallbackPage />} />
 
               <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
                 {/* Every authenticated role */}

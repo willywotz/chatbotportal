@@ -1,5 +1,5 @@
 import { api } from '@/shared/lib/apiClient';
-import { keycloak, updateToken } from '@/shared/lib/keycloak';
+import { ensureToken } from '@/shared/lib/oidc';
 import { STREAM_IDLE_TIMEOUT_MS } from '@/shared/constants/query';
 import type { AgentStep } from '@/shared/types';
 import type {
@@ -113,20 +113,15 @@ export async function sendChatQuerySSE(
   const baseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '';
   const url = `${baseUrl}/api/v1/public/chat`;
 
-  if (keycloak.authenticated) {
-    try {
-      await updateToken(30);
-    } catch {
-      // Refresh failed; proceed unauthenticated and let the server 401.
-    }
-  }
+  // ensureToken silently renews the access token; undefined for a guest.
+  const token = await ensureToken();
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'Accept': 'text/event-stream',
   };
-  if (keycloak.token) {
-    headers.Authorization = `Bearer ${keycloak.token}`;
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
   }
 
   let response: Response;

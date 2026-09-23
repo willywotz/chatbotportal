@@ -13,7 +13,7 @@ import { useChat } from '@/features/chat/useChat';
 import { usePublicPopularQuestions } from '@/features/popular-questions/popularQuestionsApi';
 import { usePublicAgencies } from '@/features/public/publicAgenciesApi';
 import { useState } from 'react';
-import { login } from '@/shared/lib/keycloak';
+import { login } from '@/shared/lib/oidc';
 
 export default function PublicPortal() {
   const {
@@ -41,7 +41,7 @@ export default function PublicPortal() {
       variant="outline"
       size="sm"
       className="rounded-full bg-white"
-      onClick={() => login(`${window.location.origin}/chat`)}
+      onClick={() => login('/chat')}
     >
       เข้าสู่ระบบ <ArrowRight className="w-3 h-3" />
     </Button>

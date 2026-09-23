@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, axiosInstance } from '@/shared/lib/apiClient';
-import { keycloak, updateToken } from '@/shared/lib/keycloak';
+import { ensureToken } from '@/shared/lib/oidc';
 import { REFETCH, STALE_TIME } from '@/shared/constants/query';
 import { connectionLogKeys } from '@/features/connection-logs/useConnectionLogs';
 import type { Agency } from '@/shared/types';
@@ -123,16 +123,10 @@ export function useUploadAgencyLogo() {
     mutationFn: async ({ id, file }: { id: string; file: File }): Promise<Agency> => {
       const formData = new FormData();
       formData.append('file', file);
-      if (keycloak.authenticated) {
-        try {
-          await updateToken(30);
-        } catch {
-          // Refresh failed; proceed unauthenticated and let the server 401.
-        }
-      }
+      const token = await ensureToken();
       const headers: Record<string, string> = {};
-      if (keycloak.token) {
-        headers.Authorization = `Bearer ${keycloak.token}`;
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
       }
       // Uses fetch (not axios) so the browser sets multipart/form-data with
       // the correct boundary itself, instead of axios's default JSON header.

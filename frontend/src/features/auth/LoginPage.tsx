@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/features/auth/useAuth";
-import { login } from "@/shared/lib/keycloak";
+import { login } from "@/shared/lib/oidc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { Button } from "@/shared/components/ui/button";
 import { ArrowLeft, LogIn } from "lucide-react";

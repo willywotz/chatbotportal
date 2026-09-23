@@ -2,21 +2,21 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "@/shared/lib/apiClient";
-import { keycloak, logout } from "@/shared/lib/keycloak";
+import { isAuthenticated, logout } from "@/shared/lib/oidc";
 import { AuthProvider, useAuth, type AuthUser } from "./useAuth";
 
 vi.mock("@/shared/lib/apiClient", () => ({
   api: { get: vi.fn() },
 }));
 
-vi.mock("@/shared/lib/keycloak", () => ({
-  keycloak: { authenticated: false },
+vi.mock("@/shared/lib/oidc", () => ({
+  isAuthenticated: vi.fn().mockReturnValue(false),
   logout: vi.fn(),
 }));
 
 beforeEach(() => {
   vi.clearAllMocks();
-  keycloak.authenticated = false;
+  vi.mocked(isAuthenticated).mockReturnValue(false);
 });
 
 // The backend returns the principal fields flat and snake_case (see
@@ -43,8 +43,8 @@ function Consumer() {
 }
 
 describe("AuthProvider", () => {
-  it("loads the user from GET /api/v1/authentication/me when keycloak.authenticated is true", async () => {
-    keycloak.authenticated = true;
+  it("loads the user from GET /api/v1/authentication/me when a session exists", async () => {
+    vi.mocked(isAuthenticated).mockReturnValue(true);
     vi.mocked(api.get).mockResolvedValueOnce(mePayload);
     render(
       <AuthProvider>
@@ -57,7 +57,7 @@ describe("AuthProvider", () => {
     expect(screen.getByText("admin:true")).toBeInTheDocument();
   });
 
-  it("sets user to null without calling /me when keycloak.authenticated is false", async () => {
+  it("sets user to null without calling /me when no session exists", async () => {
     render(
       <AuthProvider>
         <Consumer />
@@ -69,7 +69,7 @@ describe("AuthProvider", () => {
   });
 
   it("sets user to null when /me fails", async () => {
-    keycloak.authenticated = true;
+    vi.mocked(isAuthenticated).mockReturnValue(true);
     vi.mocked(api.get).mockRejectedValueOnce(new Error("401"));
     render(
       <AuthProvider>
@@ -80,7 +80,7 @@ describe("AuthProvider", () => {
     expect(screen.getByText("user:none")).toBeInTheDocument();
   });
 
-  it("signOut calls keycloak logout()", async () => {
+  it("signOut calls logout()", async () => {
     render(
       <AuthProvider>
         <Consumer />

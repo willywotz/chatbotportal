@@ -6,18 +6,22 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { server } from "@/mocks/server";
-import { login } from "@/shared/lib/keycloak";
+import { login } from "@/shared/lib/oidc";
 import PublicPortal from "./PublicPortal";
 
 const { resetMock } = vi.hoisted(() => ({ resetMock: vi.fn() }));
 
-// Keep the real keycloak instance (the axios client uses it); stub login only.
-vi.mock("@/shared/lib/keycloak", async () => {
-  const actual = await vi.importActual<typeof import("@/shared/lib/keycloak")>(
-    "@/shared/lib/keycloak",
-  );
-  return { ...actual, login: vi.fn() };
-});
+// Stub the OIDC wrapper: login is asserted, ensureToken/isAuthenticated keep
+// the axios client working without a real provider.
+vi.mock("@/shared/lib/oidc", () => ({
+  login: vi.fn(),
+  logout: vi.fn(),
+  ensureToken: vi.fn().mockResolvedValue(undefined),
+  isAuthenticated: vi.fn().mockReturnValue(false),
+  getToken: vi.fn(),
+  initAuth: vi.fn().mockResolvedValue(false),
+  completeLogin: vi.fn(),
+}));
 
 vi.mock("@/features/chat/useChat", () => ({
   useChat: () => ({

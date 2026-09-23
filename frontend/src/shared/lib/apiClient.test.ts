@@ -1,16 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('@/shared/lib/keycloak', () => ({
-  keycloak: { authenticated: true, token: 'tok123' },
-  updateToken: vi.fn().mockResolvedValue(false),
+vi.mock('@/shared/lib/oidc', () => ({
+  ensureToken: vi.fn().mockResolvedValue('tok123'),
+  isAuthenticated: vi.fn().mockReturnValue(true),
+  login: vi.fn(),
 }));
 
-import { keycloak } from '@/shared/lib/keycloak';
+import { ensureToken } from '@/shared/lib/oidc';
 import { axiosInstance } from '@/shared/lib/apiClient';
 
 describe('apiClient request interceptor', () => {
   beforeEach(() => {
-    keycloak.token = 'tok123';
+    vi.mocked(ensureToken).mockResolvedValue('tok123');
   });
 
   it('attaches the bearer token when one exists', async () => {
@@ -21,7 +22,7 @@ describe('apiClient request interceptor', () => {
   });
 
   it('omits the Authorization header when no token exists', async () => {
-    keycloak.token = undefined;
+    vi.mocked(ensureToken).mockResolvedValue(undefined);
     const cfg = await (axiosInstance.interceptors.request as any).handlers[0].fulfilled({
       headers: {},
     });

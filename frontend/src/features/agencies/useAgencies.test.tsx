@@ -4,7 +4,11 @@ import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { resetMockData } from "@/mocks/fixtures";
-import { keycloak } from "@/shared/lib/keycloak";
+
+vi.mock("@/shared/lib/oidc", () => ({
+  ensureToken: vi.fn().mockResolvedValue(undefined),
+}));
+import { ensureToken } from "@/shared/lib/oidc";
 
 import {
   useAgencies,
@@ -67,8 +71,7 @@ describe("useUpdateAgencyStatus", () => {
 
 describe("useUploadAgencyLogo", () => {
   afterEach(() => {
-    keycloak.authenticated = false;
-    keycloak.token = undefined;
+    vi.mocked(ensureToken).mockResolvedValue(undefined);
   });
 
   it("sends the logo upload with no credentials and no Authorization header when unauthenticated", async () => {
@@ -88,9 +91,8 @@ describe("useUploadAgencyLogo", () => {
     fetchSpy.mockRestore();
   });
 
-  it("attaches the Keycloak bearer token when authenticated", async () => {
-    keycloak.authenticated = true;
-    keycloak.token = "tok123";
+  it("attaches the OIDC bearer token when authenticated", async () => {
+    vi.mocked(ensureToken).mockResolvedValue("tok123");
     const agency = { id: ACTIVE_ID, name: "n", logo: "l" };
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify(agency), { status: 200 }),

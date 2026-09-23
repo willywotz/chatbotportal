@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-import { login } from "@/shared/lib/keycloak";
+import { login } from "@/shared/lib/oidc";
 import LoginPage from "./LoginPage";
 
 const mockNavigate = vi.fn();
@@ -10,7 +10,7 @@ let mockUser: unknown = null;
 vi.mock("@/features/auth/useAuth", () => ({
   useAuth: () => ({ user: mockUser, isAdmin: false, isLoading: false }),
 }));
-vi.mock("@/shared/lib/keycloak", () => ({
+vi.mock("@/shared/lib/oidc", () => ({
   login: vi.fn(),
 }));
 vi.mock("react-router-dom", async () => {

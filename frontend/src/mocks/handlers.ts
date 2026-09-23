@@ -73,7 +73,7 @@ function findAgency(id: string): AgencyRow | undefined {
 }
 
 export const handlers = [
-  // Mock-mode stand-in for Keycloak + the backend `/authentication/me`
+  // Mock-mode stand-in for the OIDC session + the backend `/authentication/me`
   // principal lookup: dev/test always sees a signed-in admin.
   http.get("*/api/v1/authentication/me", () =>
     HttpResponse.json({

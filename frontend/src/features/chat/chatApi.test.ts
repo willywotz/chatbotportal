@@ -1,14 +1,13 @@
 import { http, HttpResponse } from 'msw';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-vi.mock('@/shared/lib/keycloak', () => ({
-  keycloak: { authenticated: false, token: undefined },
-  updateToken: vi.fn().mockResolvedValue(false),
+vi.mock('@/shared/lib/oidc', () => ({
+  ensureToken: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { server } from '@/mocks/server';
 import { STREAM_IDLE_TIMEOUT_MS } from '@/shared/constants/query';
-import { keycloak } from '@/shared/lib/keycloak';
+import { ensureToken } from '@/shared/lib/oidc';
 
 import { sendChatQuery, sendChatQuerySSE } from './chatApi';
 
@@ -163,8 +162,7 @@ describe('sendChatQuerySSE — idle timeout', () => {
   });
 
   it('attaches the bearer token when authenticated', async () => {
-    keycloak.authenticated = true;
-    keycloak.token = 'tok123';
+    vi.mocked(ensureToken).mockResolvedValueOnce('tok123');
     server.use(makeCompletingSSEHandler());
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
@@ -174,8 +172,6 @@ describe('sendChatQuerySSE — idle timeout', () => {
     expect((options?.headers as Record<string, string>).Authorization).toBe('Bearer tok123');
 
     fetchSpy.mockRestore();
-    keycloak.authenticated = false;
-    keycloak.token = undefined;
   });
 });
 

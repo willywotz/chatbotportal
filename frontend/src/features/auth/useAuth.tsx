@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { api } from "@/shared/lib/apiClient";
-import { keycloak, logout } from "@/shared/lib/keycloak";
+import { isAuthenticated, logout } from "@/shared/lib/oidc";
 import { type Role } from "@/features/auth/roles";
 
 export interface AuthUser {
@@ -56,14 +56,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // On mount: Keycloak (initialized in main.tsx) already knows whether a
+  // On mount: the OIDC client (initialized in main.tsx) already knows whether a
   // session exists; if so, ask the backend who the bearer token belongs to.
-  // Mock mode has no real Keycloak server (main.tsx skips initKeycloak()),
-  // so `keycloak.authenticated` stays false there — MSW's `/me` mock stands
-  // in for a signed-in session instead.
+  // Mock mode has no real OIDC provider (main.tsx skips initAuth()), so
+  // `isAuthenticated()` stays false there — MSW's `/me` mock stands in for a
+  // signed-in session instead.
   useEffect(() => {
     const mocks = import.meta.env.VITE_USE_MOCKS === "true";
-    if (!keycloak.authenticated && !mocks) {
+    if (!isAuthenticated() && !mocks) {
       setUser(null);
       setIsLoading(false);
       return;

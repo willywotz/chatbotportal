@@ -3,12 +3,11 @@
  *
  * Base URL:  VITE_API_BASE_URL  (default: http://localhost:8000)
  *
- * A request interceptor refreshes the Keycloak token (when authenticated)
- * and attaches it as `Authorization: Bearer <token>`; no session cookie is
- * sent.
+ * A request interceptor silently renews and attaches the OIDC access token
+ * as `Authorization: Bearer <token>`; no session cookie is sent.
  *
  * A response interceptor unwraps Axios errors and surfaces the FastAPI
- * `detail` field as a plain Error message, and re-triggers Keycloak login
+ * `detail` field as a plain Error message, and re-triggers OIDC login
  * on a 401 for a previously-authenticated session.
  *
  * Usage:
@@ -19,7 +18,7 @@
 
 import axios, { type AxiosInstance, type AxiosResponse } from 'axios';
 
-import { keycloak, updateToken } from '@/shared/lib/keycloak';
+import { ensureToken, isAuthenticated, login } from '@/shared/lib/oidc';
 
 var baseURL = import.meta.env.VITE_API_BASE_URL as string | undefined;
 
@@ -32,20 +31,16 @@ const axiosInstance: AxiosInstance = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// -- Request interceptor: refresh and attach the Keycloak bearer token ------
+// -- Request interceptor: refresh and attach the OIDC bearer token ----------
 axiosInstance.interceptors.request.use(async (config) => {
-  if (keycloak.authenticated) {
-    try {
-      await updateToken(30);
-    } catch {
-      // Refresh failed; let the request proceed and fail with a 401.
-    }
-  }
-  if (keycloak.token) {
+  // ensureToken silently renews an expired access token via the refresh token,
+  // returning undefined when there is no session (guest / public pages).
+  const token = await ensureToken();
+  if (token) {
     // config.headers is always defined here (axios sets it before running
     // interceptors); a direct property assignment works whether it's a
     // plain object (as in apiClient.test.ts) or a real AxiosHeaders instance.
-    (config.headers as Record<string, string>).Authorization = `Bearer ${keycloak.token}`;
+    (config.headers as Record<string, string>).Authorization = `Bearer ${token}`;
   }
   return config;
 });
@@ -56,8 +51,8 @@ axiosInstance.interceptors.response.use(
   (error) => {
     // Only re-login when a previously-authenticated session got a 401;
     // an anonymous 401 must not trigger a redirect loop.
-    if (error?.response?.status === 401 && keycloak.authenticated) {
-      keycloak.login();
+    if (error?.response?.status === 401 && isAuthenticated()) {
+      login();
     }
     const data = error?.response?.data;
     // New envelope shape: {"error": {"code", "message", "retryable"}}
