@@ -68,7 +68,7 @@ export function AgentStepsCard({
                   <Check className="h-3 w-3" />ผ่าน {passed}
                 </Badge>
               )}
-              {rejected > 0 && (
+              {/* {rejected > 0 && (
                 <Badge variant="outline" className="gap-1 border-amber-300 text-[0.75em] text-amber-700 dark:text-amber-400">
                   <X className="h-3 w-3" />ไม่ผ่าน {rejected}
                 </Badge>
@@ -77,7 +77,7 @@ export function AgentStepsCard({
                 <Badge variant="outline" className="border-red-300 text-[0.75em] text-red-700 dark:text-red-400">
                   error {errored}
                 </Badge>
-              )}
+              )} */}
             </div>
           )}
 
@@ -118,11 +118,11 @@ export function AgentStepsCard({
             )}
           </div>
 
-          {steps.agencies.length > 0 && (
+          {steps.agencies.filter((a) => a.status === 'passed').length > 0 && (
             <div className="mt-3">
               <p className="mb-1 text-[0.6875em] font-medium text-muted-foreground">หน่วยงาน</p>
               <div className="space-y-1 rounded-md bg-muted/60 p-2">
-                {steps.agencies.map((a) => {
+                {steps.agencies.filter((a) => a.status === 'passed').map((a) => {
                   const style = AGENCY_STYLE[a.status] ?? AGENCY_STYLE.pending;
                   return (
                     <div key={a.id} className={cn('flex items-center gap-1.5 text-[0.75em] leading-snug', style.className)}>
@@ -137,7 +137,7 @@ export function AgentStepsCard({
             </div>
           )}
 
-          {steps.errors.length > 0 && (
+          {/* {steps.errors.length > 0 && (
             <div className="mt-2 space-y-1">
               {steps.errors.map((e, i) => (
                 <div key={`err-${i}`} className="flex items-center gap-1.5 text-[0.75em] text-red-700 dark:text-red-400">
@@ -146,7 +146,7 @@ export function AgentStepsCard({
                 </div>
               ))}
             </div>
-          )}
+          )} */}
         </div>
       )}
     </div>
