@@ -21,9 +21,9 @@ _USER_SCOPES = ["agency:list", "conversation:read:own", "conversation:write:own"
 
 @pytest.fixture
 def fake_kind():
-    if "faker" not in providers.known_kinds():
+    if "fakeradmin" not in providers.known_kinds():
         providers.register(ProviderSpec(
-            kind="faker", model_provider="openai", transient_errors=(),
+            kind="fakeradmin", model_provider="openai", transient_errors=(),
             map_error=lambda e: None,
             build_model=lambda model, **kw: GenericFakeChatModel(
                 messages=iter([AIMessage(content="pong")]))))
@@ -146,7 +146,7 @@ async def test_list_kinds_returns_openai(client, as_principal):
 
 async def test_binding_test_success(client, db_session, as_principal, fake_kind):
     as_principal()
-    provider = await llm_repo.create_provider(db_session, name="pt", provider="faker", model="m1")
+    provider = await llm_repo.create_provider(db_session, name="pt", provider="fakeradmin", model="m1")
     await llm_repo.create_binding(db_session, purpose="brief", provider_id=provider.id)
     r = await client.post(f"{_BINDINGS}/brief/test")
     assert r.status_code == 200

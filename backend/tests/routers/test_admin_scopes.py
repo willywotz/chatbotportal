@@ -63,6 +63,6 @@ async def test_llm_write_scope_allows_post(client, as_principal):
     as_principal(role="staff", scopes=["llm:write"])
     r = await client.post(
         "/api/v1/language-model/providers",
-        json={"name": "p2", "base_url": "https://p2.example"},
+        json={"name": "p2", "provider": "openai", "model": "gpt-4o", "base_url": "https://p2.example"},
     )
     assert r.status_code == 201
