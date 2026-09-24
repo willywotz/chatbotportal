@@ -138,9 +138,6 @@ def test_llm_binding_fk_restrict():
     fk = list(t.c.provider_id.foreign_keys)[0]
     assert fk.column.table.name == "llm_provider"
     assert fk.ondelete == "RESTRICT"
-    fallback_fk = list(t.c.fallback_binding_id.foreign_keys)[0]
-    assert fallback_fk.column.table.name == "llm_binding"
-    assert fallback_fk.ondelete == "SET NULL"
 
 
 def test_popular_question_fk_set_null():

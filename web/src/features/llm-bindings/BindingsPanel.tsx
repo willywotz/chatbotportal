@@ -83,7 +83,6 @@ export function BindingsPanel() {
 
       <EditLlmBindingDialog
         target={editTarget}
-        bindings={bindings}
         providers={providers}
         providersLoading={providersLoading}
         mutation={editMutation}

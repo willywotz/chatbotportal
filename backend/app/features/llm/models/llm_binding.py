@@ -17,8 +17,6 @@ class LlmBinding(Base):
     provider_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("llm_provider.id", ondelete="RESTRICT"), nullable=False)
     model_override: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    fallback_binding_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("llm_binding.id", ondelete="SET NULL"), nullable=True)
     timeout_override: Mapped[float | None] = mapped_column(Float, nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

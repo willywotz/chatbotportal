@@ -12,7 +12,6 @@ class LLMBindingBase(BaseModel):
     purpose: Purpose
     provider_id: uuid.UUID
     model_override: str | None = None
-    fallback_binding_id: uuid.UUID | None = None
     timeout_override: float | None = None
     enabled: bool = True
 
@@ -24,7 +23,6 @@ class LLMBindingCreate(LLMBindingBase):
 class LLMBindingUpdate(BaseModel):
     provider_id: uuid.UUID | None = None
     model_override: str | None = None
-    fallback_binding_id: uuid.UUID | None = None
     timeout_override: float | None = None
     enabled: bool | None = None
 
@@ -36,7 +34,6 @@ class LLMBindingResponse(BaseModel):
     provider_name: str
     model: str
     model_override: str | None = None
-    fallback_binding_id: uuid.UUID | None = None
     timeout_override: float | None = None
     enabled: bool
     created_at: datetime

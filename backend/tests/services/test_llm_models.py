@@ -13,7 +13,8 @@ def test_provider_columns():
 def test_binding_columns():
     cols = set(LlmBinding.__table__.columns.keys())
     assert {"purpose", "provider_id", "model_override",
-            "fallback_binding_id", "timeout_override", "enabled"} <= cols
+            "timeout_override", "enabled"} <= cols
+    assert "fallback_binding_id" not in cols
 
 
 def test_usage_total_tokens_property():

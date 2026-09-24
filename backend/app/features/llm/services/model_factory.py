@@ -23,7 +23,4 @@ def build(resolved, *, schema=None, tools=None, tool_choice=None) -> Runnable:
         stop_after_attempt=resolved.max_retries + 1,
         wait_exponential_jitter=True,
     )
-    if resolved.fallback is not None:
-        runnable = runnable.with_fallbacks(
-            [build(resolved.fallback, schema=schema, tools=tools, tool_choice=tool_choice)])
     return runnable

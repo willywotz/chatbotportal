@@ -13,41 +13,21 @@ async def test_no_binding_is_config_error(db_session):
 
 
 @pytest.mark.asyncio
-async def test_resolves_with_fallback_chain(db_session, make_binding, set_fallback):
-    primary = await make_binding("judge", model="a")
-    fb = await make_binding("judge_fb", model="b")
-    await set_fallback(primary, fb)
+async def test_resolves_enabled_binding(db_session, make_binding):
+    await make_binding("judge", model="a")
     resolve.invalidate()
     r = await resolve.for_purpose(db_session, "judge")
     assert r.model == "a"
-    assert r.fallback is not None and r.fallback.model == "b"
+    assert r.kind == "openai"
 
 
 @pytest.mark.asyncio
-async def test_disabled_fallback_dropped_not_fatal(db_session, make_binding, set_fallback):
+async def test_disabled_provider_is_config_error(db_session, make_binding):
     from app.features.llm.repositories import llm as llm_repo
-    primary = await make_binding("judge", model="a")
-    fb = await make_binding("judge_fb", model="b")
-    await set_fallback(primary, fb)
-    fb_provider = await llm_repo.get_provider(db_session, fb.provider_id)
-    await llm_repo.update_provider(db_session, fb_provider, {"enabled": False})
+    binding = await make_binding("judge", model="a")
+    provider = await llm_repo.get_provider(db_session, binding.provider_id)
+    await llm_repo.update_provider(db_session, provider, {"enabled": False})
     resolve.invalidate()
-    r = await resolve.for_purpose(db_session, "judge")
-    assert r.model == "a"
-    assert r.fallback is None
-
-
-@pytest.mark.asyncio
-async def test_cycle_is_bounded(db_session, make_binding, set_fallback):
-    a = await make_binding("p_a", model="a")
-    b = await make_binding("p_b", model="b")
-    await set_fallback(a, b)
-    await set_fallback(b, a)
-    resolve.invalidate()
-    r = await resolve.for_purpose(db_session, "p_a")
-    depth = 0
-    node = r
-    while node is not None:
-        depth += 1
-        node = node.fallback
-    assert depth <= 3
+    with pytest.raises(LlmError) as e:
+        await resolve.for_purpose(db_session, "judge")
+    assert e.value.kind == "config"

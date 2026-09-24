@@ -22,7 +22,7 @@ def fake_kind():
 def _route(**kw):
     base = dict(provider_name="p", kind="faker", model="m", base_url=None, api_key="k",
                 timeout=30.0, max_retries=2, rate_limit_rps=None, rate_limit_rpm=None,
-                max_queue_size=10, fallback=None)
+                max_queue_size=10)
     base.update(kw)
     return ResolvedRoute(**base)
 
@@ -32,23 +32,3 @@ async def test_build_invokes(fake_kind):
     runnable = model_factory.build(_route())
     out = await runnable.ainvoke([{"role": "user", "content": "hey"}])
     assert isinstance(out, AIMessage)
-
-
-@pytest.mark.asyncio
-async def test_fallback_used_when_primary_fails(fake_kind):
-    def boom_model(model, **kwargs):
-        class Boom:
-            async def ainvoke(self, *a, **k):
-                raise RuntimeError("primary down")
-            def with_retry(self, **k):
-                return self
-            def with_fallbacks(self, fbs):
-                return fbs[0]
-        return Boom()
-    providers.register(ProviderSpec(kind="boom", model_provider="openai",
-                                    transient_errors=(RuntimeError,),
-                                    map_error=lambda e: None, build_model=boom_model))
-    r = _route(kind="boom", fallback=_route(kind="faker"))
-    runnable = model_factory.build(r)
-    out = await runnable.ainvoke([{"role": "user", "content": "hey"}])
-    assert out.content == "hi"

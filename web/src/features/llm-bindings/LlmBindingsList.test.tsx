@@ -12,7 +12,6 @@ const binding: LlmBinding = {
   provider_name: "openrouter",
   model: "gpt-x",
   model_override: null,
-  fallback_binding_id: null,
   timeout_override: null,
   enabled: true,
 };

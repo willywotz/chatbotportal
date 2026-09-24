@@ -7,14 +7,12 @@ export interface LlmBinding {
   provider_name: string;
   model: string;
   model_override: string | null;
-  fallback_binding_id: string | null;
   timeout_override: number | null;
   enabled: boolean;
 }
 export type LlmBindingInput = {
   provider_id: string;
   model_override: string | null;
-  fallback_binding_id: string | null;
   timeout_override: number | null;
   enabled: boolean;
 };

@@ -45,7 +45,6 @@ const makeBinding = (o: Partial<LlmBinding> = {}): LlmBinding => ({
   provider_name: "OpenAI",
   model: "gpt-4o",
   model_override: null,
-  fallback_binding_id: null,
   timeout_override: null,
   enabled: true,
   ...o,

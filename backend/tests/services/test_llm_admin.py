@@ -68,24 +68,6 @@ async def test_create_binding_duplicate_purpose_raises_409(db_session):
     assert exc.value.status == 409
 
 
-async def test_validate_fallback_self_raises_409(db_session):
-    provider = await llm_repo.create_provider(db_session, name="p1", provider="openai", model="m")
-    b = await llm_repo.create_binding(db_session, purpose="brief", provider_id=provider.id)
-    with pytest.raises(ApiError) as exc:
-        await llm_admin.validate_fallback(db_session, b.id, b.id)
-    assert exc.value.status == 409
-
-
-async def test_validate_fallback_cycle_raises_409(db_session):
-    provider = await llm_repo.create_provider(db_session, name="p1", provider="openai", model="m")
-    a = await llm_repo.create_binding(db_session, purpose="brief", provider_id=provider.id)
-    b = await llm_repo.create_binding(db_session, purpose="judge", provider_id=provider.id)
-    await llm_repo.update_binding(db_session, a, {"fallback_binding_id": b.id})
-    with pytest.raises(ApiError) as exc:
-        await llm_admin.validate_fallback(db_session, b.id, a.id)
-    assert exc.value.status == 409
-
-
 async def test_update_binding_new_provider_not_found_raises_404(db_session):
     provider = await llm_repo.create_provider(db_session, name="p1", provider="openai", model="m")
     binding = await llm_repo.create_binding(db_session, purpose="brief", provider_id=provider.id)

@@ -22,10 +22,6 @@ import type { UseMutationResult } from "@tanstack/react-query";
 import type { LlmBinding, LlmBindingInput } from "./llmBindingApi";
 import type { LlmProvider } from "@/features/llm-providers/llmProviderApi";
 
-// Radix Select forbids an empty-string item value; this sentinel stands in
-// for "no fallback" and maps back to null in the payload.
-const NO_FALLBACK = "__none__";
-
 // Empty input means "no override" (null); otherwise coerce to a number,
 // guarding against NaN. Do NOT use `Number(x) || default` — that would
 // incorrectly discard an explicit, legitimate `0`.
@@ -38,7 +34,6 @@ function parseTimeoutOverride(v: string): number | null {
 
 interface Props {
   target: LlmBinding | null;
-  bindings: LlmBinding[];
   providers: LlmProvider[];
   providersLoading: boolean;
   mutation: UseMutationResult<
@@ -55,7 +50,6 @@ function emptyForm(target: LlmBinding | null) {
   return {
     provider_id: target?.provider_id ?? "",
     model_override: target?.model_override ?? "",
-    fallback_binding_id: target?.fallback_binding_id ?? NO_FALLBACK,
     timeout_override:
       target?.timeout_override != null ? String(target.timeout_override) : "",
     enabled: target?.enabled ?? true,
@@ -64,7 +58,6 @@ function emptyForm(target: LlmBinding | null) {
 
 export function EditLlmBindingDialog({
   target,
-  bindings,
   providers,
   providersLoading,
   mutation,
@@ -77,7 +70,6 @@ export function EditLlmBindingDialog({
   }, [target]);
 
   const canSubmit = form.provider_id !== "";
-  const fallbackOptions = bindings.filter((b) => b.id !== target?.id);
 
   const handleSubmit = () => {
     if (!target) return;
@@ -86,8 +78,6 @@ export function EditLlmBindingDialog({
       body: {
         provider_id: form.provider_id,
         model_override: form.model_override.trim() === "" ? null : form.model_override.trim(),
-        fallback_binding_id:
-          form.fallback_binding_id === NO_FALLBACK ? null : form.fallback_binding_id,
         timeout_override: parseTimeoutOverride(form.timeout_override),
         enabled: form.enabled,
       },
@@ -133,25 +123,6 @@ export function EditLlmBindingDialog({
               value={form.model_override}
               onChange={(e) => setForm((f) => ({ ...f, model_override: e.target.value }))}
             />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="edit-fallback">การผูกสำรอง (Fallback)</Label>
-            <Select
-              value={form.fallback_binding_id}
-              onValueChange={(v) => setForm((f) => ({ ...f, fallback_binding_id: v }))}
-            >
-              <SelectTrigger id="edit-fallback">
-                <SelectValue placeholder="ไม่มี" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NO_FALLBACK}>ไม่มี</SelectItem>
-                {fallbackOptions.map((b) => (
-                  <SelectItem key={b.id} value={b.id}>
-                    {b.purpose}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
           <div className="space-y-2">
             <Label htmlFor="edit-timeout-override">หมดเวลาเฉพาะการผูก (วินาที)</Label>

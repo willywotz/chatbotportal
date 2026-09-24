@@ -43,8 +43,6 @@ export function LlmBindingsList({ bindings, onEdit, onTest, testState }: Props) 
     );
   }
 
-  const nameById = new Map(bindings.map((b) => [b.id, b.purpose]));
-
   return (
     <div className="space-y-2">
       {bindings.map((b) => (
@@ -69,11 +67,7 @@ export function LlmBindingsList({ bindings, onEdit, onTest, testState }: Props) 
                   {b.model_override != null ? " (แทนที่)" : ""}
                 </p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">
-                  สำรอง{" "}
-                  {b.fallback_binding_id != null
-                    ? nameById.get(b.fallback_binding_id) ?? b.fallback_binding_id
-                    : "—"}
-                  {" · หมดเวลาเฉพาะการผูก "}
+                  หมดเวลาเฉพาะการผูก{" "}
                   {b.timeout_override != null
                     ? `${b.timeout_override}s`
                     : "ใช้ค่าเริ่มต้นของผู้ให้บริการ"}

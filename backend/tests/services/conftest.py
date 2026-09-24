@@ -11,11 +11,3 @@ def make_binding(db_session):
         return await llm_repo.create_binding(
             db_session, purpose=purpose, provider_id=provider.id)
     return _make
-
-
-@pytest.fixture
-def set_fallback(db_session):
-    async def _set(binding, fallback):
-        await llm_repo.update_binding(
-            db_session, binding, {"fallback_binding_id": fallback.id})
-    return _set
