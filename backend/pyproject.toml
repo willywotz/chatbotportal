@@ -33,6 +33,10 @@ dependencies = [
     "apscheduler>=3.11.2",
     "pytz>=2026.1.post1",
     "pyjwt[crypto]>=2.9.0",
+    # LLM — pluggable LangChain layer
+    "langchain>=0.3.27",
+    "langchain-core>=0.3.49",
+    "langchain-openai>=0.3.0",
 ]
 
 [project.optional-dependencies]
