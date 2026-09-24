@@ -1,0 +1,123 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway-nginx
+  namespace: chatbotportal
+data:
+  default.conf: |
+    map $http_upgrade $connection_upgrade {
+      default upgrade;
+      '' close;
+    }
+
+    server {
+      listen 8080;
+
+      proxy_set_header Host $http_host;
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+
+      proxy_set_header Origin $http_origin;
+
+      proxy_set_header CF-Connecting-IP $http_cf_connecting_ip;
+      proxy_set_header CF-Connecting-IPv6 $http_cf_connecting_ipv6;
+      proxy_set_header CF-Ray $http_cf_ray;
+      proxy_set_header CF-IPCountry $http_cf_ipcountry;
+      proxy_set_header CF-Visitor $http_cf_visitor;
+
+      proxy_http_version 1.1;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection $connection_upgrade;
+
+      location /healthz { return 200; }
+
+      location ~ ^/(api|sse|messages|mcp|docs|redoc|openapi\.json|\.well-known|oauth2) {
+        proxy_pass http://backend:8080;
+        proxy_read_timeout 3700s;
+        proxy_send_timeout 3700s;
+      }
+
+      location /jaeger/ { proxy_pass http://jaeger:16686; }
+
+      location / { proxy_pass http://web:8080; }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: chatbotportal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+      volumes:
+        - name: config
+          configMap:
+            name: gateway-nginx
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  namespace: chatbotportal
+spec:
+  selector:
+    app: gateway
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gateway
+  namespace: chatbotportal
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: chatbotportal.opdc.ai.in.th
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port:
+                  number: 80

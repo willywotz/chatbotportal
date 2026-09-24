@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: chatbotportal-secrets
+  namespace: chatbotportal
+type: Opaque
+stringData:
+  POSTGRES_PASSWORD: REPLACE_WITH_POSTGRES_PASSWORD
+  DATABASE_URL: postgres://chatbot:REPLACE_WITH_POSTGRES_PASSWORD@postgres:5432/chatbot
+  OPENROUTER_API_KEY: REPLACE_WITH_OPENROUTER_API_KEY
+  SEED_ADMIN_PASSWORD: REPLACE_WITH_SEED_ADMIN_PASSWORD
+  PARSE_SPEC_API_KEY: ""
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: chatbotportal-config
+  namespace: chatbotportal
+data:
+  POSTGRES_DB: chatbot
+  POSTGRES_USER: chatbot
+  LOG_LEVEL: INFO
+  CORS_ORIGINS: '["https://chatbotportal.opdc.ai.in.th"]'
+  OIDC_ISSUER: https://chatbotportal.opdc.ai.in.th
+  OIDC_AUTHORITY: https://chatbotportal.opdc.ai.in.th
+  OIDC_CLIENT_ID: chatbotportal-web
+  OIDC_ALLOWED_REDIRECT_URIS: '["https://chatbotportal.opdc.ai.in.th/auth/callback"]'
+  API_BASE_URL: https://chatbotportal.opdc.ai.in.th
+  SEED_ADMIN_EMAIL: admin@chatbotportal.local
+  ONECHAT_BASE_URL: http://185.84.160.55:8000
+  MCP_ENDPOINT_URL: http://185.84.161.145/mcp/
