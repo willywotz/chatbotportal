@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from "@/shared/components/ui/dialog";
 import type { UseMutationResult } from "@tanstack/react-query";
+import { HeadersEditor } from "@/features/agencies/HeadersEditor";
 import { listKinds, type LlmProvider, type LlmProviderInput } from "./llmProviderApi";
 
 function numOr(v: string, d: number): number {
@@ -49,6 +50,7 @@ function emptyForm(target: LlmProvider | null) {
     model: target?.model ?? "",
     base_url: target?.base_url ?? "",
     api_key: "",
+    headers: target?.headers ?? [],
     timeout_seconds: String(target?.timeout_seconds ?? 60),
     max_retries: String(target?.max_retries ?? 2),
     rate_limit_rps: target?.rate_limit_rps != null ? String(target.rate_limit_rps) : "",
@@ -81,6 +83,7 @@ export function EditLlmProviderDialog({ target, mutation, onClose }: Props) {
         model: form.model.trim(),
         base_url: form.base_url.trim() === "" ? null : form.base_url.trim(),
         ...(apiKey !== "" && apiKey !== MASKED_KEY ? { api_key: apiKey } : {}),
+        headers: form.headers.filter((h) => h.name.trim() !== ""),
         timeout_seconds: numOr(form.timeout_seconds, 60),
         max_retries: numOr(form.max_retries, 2),
         rate_limit_rps: form.rate_limit_rps.trim() === "" ? null : Number(form.rate_limit_rps),
@@ -208,6 +211,13 @@ export function EditLlmProviderDialog({ target, mutation, onClose }: Props) {
                 onChange={(e) => setForm((f) => ({ ...f, rate_limit_rpm: e.target.value }))}
               />
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Headers (ไม่บังคับ)</Label>
+            <HeadersEditor
+              headers={form.headers}
+              onChange={(headers) => setForm((f) => ({ ...f, headers }))}
+            />
           </div>
           <div className="flex items-center justify-between">
             <Label htmlFor="edit-enabled">เปิดใช้งาน</Label>

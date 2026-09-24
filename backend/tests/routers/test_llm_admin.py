@@ -43,6 +43,22 @@ async def test_create_provider_returns_masked_key(client, db_session, as_princip
     assert stored.api_key == "sk-real-secret"
 
 
+async def test_create_provider_persists_custom_headers(client, db_session, as_principal):
+    as_principal()
+    r = await client.post(_PROVIDERS, json={
+        "name": "hdr-p", "provider": "openai", "model": "gpt-4o",
+        "headers": [{"name": "X-Title", "value": "portal"},
+                    {"name": "HTTP-Referer", "value": "https://x"}],
+    })
+    assert r.status_code == 201
+    body = r.json()
+    assert body["headers"] == [{"name": "X-Title", "value": "portal"},
+                               {"name": "HTTP-Referer", "value": "https://x"}]
+    stored = await llm_repo.get_provider(db_session, uuid.UUID(body["id"]))
+    assert stored.headers == [{"name": "X-Title", "value": "portal"},
+                              {"name": "HTTP-Referer", "value": "https://x"}]
+
+
 async def test_create_provider_unknown_kind_422(client, as_principal):
     as_principal()
     r = await client.post(_PROVIDERS, json={"name": "bad", "provider": "nope", "model": "m"})

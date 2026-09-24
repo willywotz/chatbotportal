@@ -1,5 +1,10 @@
 import { api } from "@/shared/lib/apiClient";
 
+export interface LlmHeader {
+  name: string;
+  value: string;
+}
+
 export interface LlmProvider {
   id: string;
   name: string;
@@ -7,6 +12,7 @@ export interface LlmProvider {
   model: string;
   base_url: string | null;
   api_key: string;
+  headers: LlmHeader[];
   timeout_seconds: number;
   max_retries: number;
   rate_limit_rps: number | null;

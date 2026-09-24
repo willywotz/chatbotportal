@@ -41,6 +41,7 @@ export function LlmProviderList({ providers, onEdit, onDelete }: Props) {
                 </p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">
                   {p.base_url ?? "ค่าเริ่มต้นของผู้ให้บริการ"} · Key: {p.api_key}
+                  {p.headers.length > 0 ? ` · ${p.headers.length} header` : ""}
                 </p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">
                   หมดเวลา {p.timeout_seconds}s · ลองใหม่สูงสุด {p.max_retries} · คิวสูงสุด {p.max_queue_size}

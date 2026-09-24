@@ -3,7 +3,12 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+
+class LLMProviderHeader(BaseModel):
+    name: str
+    value: str
 
 
 class LLMProviderBase(BaseModel):
@@ -12,6 +17,7 @@ class LLMProviderBase(BaseModel):
     model: str
     base_url: str | None = None
     api_key: str = ""
+    headers: list[LLMProviderHeader] = Field(default_factory=list)
     timeout_seconds: float = 60.0
     max_retries: int = 2
     rate_limit_rps: int | None = None
@@ -30,6 +36,7 @@ class LLMProviderUpdate(BaseModel):
     model: str | None = None
     base_url: str | None = None
     api_key: str | None = None
+    headers: list[LLMProviderHeader] | None = None
     timeout_seconds: float | None = None
     max_retries: int | None = None
     rate_limit_rps: int | None = None
@@ -45,6 +52,7 @@ class LLMProviderResponse(BaseModel):
     model: str
     base_url: str | None = None
     api_key: str
+    headers: list[LLMProviderHeader] = Field(default_factory=list)
     timeout_seconds: float
     max_retries: int
     rate_limit_rps: int | None = None

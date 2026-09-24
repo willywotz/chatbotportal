@@ -5,7 +5,7 @@ from app.features.llm.models.llm_usage import LlmUsage
 
 def test_provider_columns():
     cols = set(LlmProvider.__table__.columns.keys())
-    assert {"provider", "model", "base_url", "api_key", "max_retries",
+    assert {"provider", "model", "base_url", "api_key", "max_retries", "headers",
             "rate_limit_rps", "rate_limit_rpm", "max_queue_size", "enabled"} <= cols
     assert "auth_header" not in cols and "auth_scheme" not in cols
 

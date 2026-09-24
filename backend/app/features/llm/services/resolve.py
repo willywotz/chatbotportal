@@ -21,6 +21,7 @@ class ResolvedRoute:
     rate_limit_rps: int | None
     rate_limit_rpm: int | None
     max_queue_size: int
+    headers: dict[str, str]
 
 
 _cache: dict[str, tuple[ResolvedRoute, float]] = {}
@@ -49,6 +50,7 @@ async def for_purpose(session: AsyncSession, purpose: str) -> ResolvedRoute:
         max_retries=provider.max_retries,
         rate_limit_rps=provider.rate_limit_rps, rate_limit_rpm=provider.rate_limit_rpm,
         max_queue_size=provider.max_queue_size,
+        headers={h["name"]: h["value"] for h in (provider.headers or []) if h.get("name")},
     )
     _cache[purpose] = (resolved, time.monotonic())
     return resolved

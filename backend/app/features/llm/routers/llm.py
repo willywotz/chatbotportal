@@ -48,6 +48,7 @@ def _provider_response(provider: LlmProvider) -> LLMProviderResponse:
         model=provider.model,
         base_url=provider.base_url,
         api_key=MASK,
+        headers=provider.headers or [],
         timeout_seconds=provider.timeout_seconds,
         max_retries=provider.max_retries,
         rate_limit_rps=provider.rate_limit_rps,

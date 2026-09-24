@@ -13,6 +13,7 @@ def build(resolved, *, schema=None, tools=None, tool_choice=None) -> Runnable:
         timeout=resolved.timeout,
         max_retries=0,
         rate_limiter=rate_limit.limiter_for(resolved),
+        default_headers=resolved.headers or None,
     )
     if tools:
         model = model.bind_tools(tools, tool_choice=tool_choice)

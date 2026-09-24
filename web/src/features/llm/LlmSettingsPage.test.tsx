@@ -29,6 +29,7 @@ const makeProvider = (o: Partial<LlmProvider> = {}): LlmProvider => ({
   model: "gpt-4o",
   base_url: "https://api.openai.com/v1",
   api_key: "*****",
+  headers: [],
   timeout_seconds: 60,
   max_retries: 2,
   rate_limit_rps: null,
