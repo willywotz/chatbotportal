@@ -142,6 +142,13 @@ export function CreateLlmProviderDialog({ open, mutation, onClose }: Props) {
               onChange={(e) => setForm((f) => ({ ...f, api_key: e.target.value }))}
             />
           </div>
+          <div className="space-y-2">
+            <Label>Headers (ไม่บังคับ)</Label>
+            <HeadersEditor
+              headers={form.headers}
+              onChange={(headers) => setForm((f) => ({ ...f, headers }))}
+            />
+          </div>
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-2">
               <Label htmlFor="create-timeout">หมดเวลา (วินาที)</Label>
@@ -198,13 +205,6 @@ export function CreateLlmProviderDialog({ open, mutation, onClose }: Props) {
                 onChange={(e) => setForm((f) => ({ ...f, rate_limit_rpm: e.target.value }))}
               />
             </div>
-          </div>
-          <div className="space-y-2">
-            <Label>Headers (ไม่บังคับ)</Label>
-            <HeadersEditor
-              headers={form.headers}
-              onChange={(headers) => setForm((f) => ({ ...f, headers }))}
-            />
           </div>
           <div className="flex items-center justify-between">
             <Label htmlFor="create-enabled">เปิดใช้งาน</Label>
