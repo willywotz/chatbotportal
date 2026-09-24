@@ -3,11 +3,6 @@ name: release
 on:
   push:
     tags: ["v*"]
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: "Existing image tag to redeploy (e.g. v0.1.0)"
-        required: true
 
 permissions:
   contents: read
@@ -15,8 +10,18 @@ permissions:
 
 jobs:
   build:
-    if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - image_name: chatbotportal
+            context: ./backend
+            target: production
+          - image_name: chatbotportal-web
+            context: ./web
+            target: production
+          - image_name: chatbotportal-caddy
+            context: ./deploy/caddy
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
@@ -25,54 +30,46 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push backend
+      - name: build and push ${{ matrix.image_name }}
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
-          context: ./backend
-          target: production
+          context: ${{ matrix.context }}
+          target: ${{ matrix.target }}
           push: true
           tags: |
-            ghcr.io/willywotz/chatbotportal:${{ github.ref_name }}
-            ghcr.io/willywotz/chatbotportal:${{ github.sha }}
-      - name: Build and push web
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
-        with:
-          context: ./web
-          target: production
-          push: true
-          tags: |
-            ghcr.io/willywotz/chatbotportal-web:${{ github.ref_name }}
-            ghcr.io/willywotz/chatbotportal-web:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.image_name }}:latest
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.image_name }}:${{ replace(github.ref_name, 'v', '') }}
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.image_name }}:${{ github.sha }}
 
-  deploy:
-    needs: build
-    if: always() && (needs.build.result == 'success' || github.event_name == 'workflow_dispatch')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Install ansible, sops, age
-        run: |
-          pipx install ansible-core
-          sudo apt-get update
-          sudo apt-get install -y age
-          SOPS_VERSION=v3.13.3
-          curl -sSL "https://github.com/getsops/sops/releases/download/${SOPS_VERSION}/sops-${SOPS_VERSION}.linux.amd64" -o /usr/local/bin/sops
-          sudo chmod +x /usr/local/bin/sops
-      - name: Install Ansible collections
-        run: ansible-galaxy collection install -r deploy/requirements.yml
-      - name: Load age key
-        run: |
-          mkdir -p ~/.config/sops/age
-          printf '%s\n' "${{ secrets.SOPS_AGE_KEY }}" > ~/.config/sops/age/keys.txt
-          chmod 600 ~/.config/sops/age/keys.txt
-      - name: Configure SSH
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          printf '%s\n' "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
-      - name: Deploy with Ansible
-        working-directory: deploy
-        env:
-          SOPS_AGE_KEY_FILE: /home/runner/.config/sops/age/keys.txt
-        run: ansible-playbook deploy.yml -e image_tag=${{ github.event.inputs.tag || github.ref_name }}
+  # deploy:
+  #   needs: build
+  #   if: always() && (needs.build.result == 'success' || github.event_name == 'workflow_dispatch')
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+  #     - name: Install ansible, sops, age
+  #       run: |
+  #         pipx install ansible-core
+  #         sudo apt-get update
+  #         sudo apt-get install -y age
+  #         SOPS_VERSION=v3.13.3
+  #         curl -sSL "https://github.com/getsops/sops/releases/download/${SOPS_VERSION}/sops-${SOPS_VERSION}.linux.amd64" -o /usr/local/bin/sops
+  #         sudo chmod +x /usr/local/bin/sops
+  #     - name: Install Ansible collections
+  #       run: ansible-galaxy collection install -r deploy/requirements.yml
+  #     - name: Load age key
+  #       run: |
+  #         mkdir -p ~/.config/sops/age
+  #         printf '%s\n' "${{ secrets.SOPS_AGE_KEY }}" > ~/.config/sops/age/keys.txt
+  #         chmod 600 ~/.config/sops/age/keys.txt
+  #     - name: Configure SSH
+  #       run: |
+  #         mkdir -p ~/.ssh
+  #         printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+  #         chmod 600 ~/.ssh/id_ed25519
+  #         printf '%s\n' "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+  #     - name: Deploy with Ansible
+  #       working-directory: deploy
+  #       env:
+  #         SOPS_AGE_KEY_FILE: /home/runner/.config/sops/age/keys.txt
+  #       run: ansible-playbook deploy.yml -e image_tag=${{ github.event.inputs.tag || github.ref_name }}

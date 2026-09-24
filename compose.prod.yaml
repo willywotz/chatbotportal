@@ -1,0 +1,28 @@
+services:
+  postgres:
+    ports: !reset []
+
+  backend:
+    image: ghcr.io/willywotz/chatbotportal:${VERSION:-latest}
+    build: !reset []
+    environment:
+      CORS_ORIGINS: ["https://nectec-centraltools.willywotz.com"]
+      OIDC_ISSUER: "https://nectec-centraltools.willywotz.com"
+      OIDC_ALLOWED_REDIRECT_URIS: ["https://nectec-centraltools.willywotz.com/auth/callback"]
+
+  web:
+    image: ghcr.io/willywotz/chatbotportal-web:${VERSION:-latest}
+    build: !reset []
+    environment:
+      API_BASE_URL: "https://nectec-centraltools.willywotz.com"
+      OIDC_AUTHORITY: "https://nectec-centraltools.willywotz.com"
+
+  caddy:
+    image: ghcr.io/willywotz/chatbotportal-caddy:${VERSION:-latest}
+    build: !reset []
+    environment:
+      SITE_ADDRESS: nectec-centraltools.willywotz.com
+      CERT_EMAIL: dogajack@gmail.com
+    ports: !override
+      - "80:80"
+      - "443:443"
