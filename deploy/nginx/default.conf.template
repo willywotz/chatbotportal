@@ -4,7 +4,7 @@ map $http_upgrade $connection_upgrade {
 }
 
 server {
-  listen 8080;
+  listen 80;
 
   resolver 127.0.0.11 valid=3s;
   resolver_timeout 2s;
