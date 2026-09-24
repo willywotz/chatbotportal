@@ -47,7 +47,9 @@ jobs:
       steps:
         - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         - run: echo "VERSION=$(echo '${{ github.ref_name }}' | sed 's/^v//')" >> $GITHUB_ENV
+        - run: echo $VERSION
         - run: docker compose -f compose.yaml -f compose.prod.yaml config
+        - run: VERSION=${{ env.VERSION }} docker compose -f compose.yaml -f compose.prod.yaml config
 
   # deploy:
   #   needs: build
