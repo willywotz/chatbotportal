@@ -5,7 +5,6 @@ Auto-generation churn policy: rows created by ``regenerate`` are tagged
 it to ``source="manual"`` so it survives future churn. A hidden row acts as a
 tombstone — its ``text_key`` blocks the same question from being regenerated.
 """
-import json
 import logging
 import re
 import uuid
@@ -30,7 +29,6 @@ logger = logging.getLogger(__name__)
 
 _WHITESPACE_RE = re.compile(r"\s+")
 _TRAILING_PUNCT_RE = re.compile(r"[\s.,!?;:？！。，、]+$")
-_FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL | re.IGNORECASE)
 
 _LLM_MAX_QUESTIONS = 8
 _LLM_QUESTION_SAMPLE = 200
@@ -148,24 +146,6 @@ async def regenerate(session: AsyncSession) -> int:
     return created
 
 
-def _extract_json_payload(text: str) -> str:
-    """Strip a Markdown code fence, or any leading/trailing prose, around a JSON payload.
-
-    Real chat models often wrap JSON in ```json fences or add a sentence
-    before/after it; this recovers the payload so ``json.loads`` still works.
-    """
-    fenced = _FENCE_RE.search(text)
-    if fenced:
-        return fenced.group(1).strip()
-    start = next((i for i, ch in enumerate(text) if ch in "{["), None)
-    if start is None:
-        return text.strip()
-    end = max(text.rfind("}"), text.rfind("]"))
-    if end < start:
-        return text.strip()
-    return text[start:end + 1]
-
-
 def _format_agency_reference(samples: list[dict]) -> str:
     seen: dict[str, str] = {}
     for sample in samples:
@@ -208,18 +188,17 @@ async def _build_samples(session: AsyncSession, user_rows: list[dict]) -> list[d
 
 
 async def _ask_llm(session: AsyncSession, samples: list[dict]) -> list[dict]:
-    from app.features.llm.services import LlmError, Purpose, chat
+    from app.features.llm.services import LlmError, Purpose, parse
     prompt = _LLM_PROMPT.format(
         k=_LLM_MAX_QUESTIONS,
         agencies=_format_agency_reference(samples),
         questions="\n".join(_format_question(s) for s in samples),
     )
     try:
-        res = await chat(session, purpose=Purpose.POPULAR_QUESTIONS, messages=[{"role": "user", "content": prompt}])
-        data = json.loads(_extract_json_payload(res.content))
-        candidates = data.get("questions", [])
-        return candidates if isinstance(candidates, list) else []
-    except (LlmError, json.JSONDecodeError, ValueError, TypeError, AttributeError) as e:
+        result = await parse(session, Purpose.POPULAR_QUESTIONS,
+                             messages=[{"role": "user", "content": prompt}])
+        return [q.model_dump() for q in result.questions]
+    except (LlmError, Exception) as e:
         logger.error("popular questions LLM call failed: %s", e)
         return []
 

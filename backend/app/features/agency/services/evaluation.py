@@ -1,5 +1,4 @@
 """Scheduled answer-quality evaluation: dispatch golden questions, LLM-judge the answers."""
-import json
 import logging
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -61,7 +60,6 @@ async def _judge(session: AsyncSession, question: str, topics: list, answer: str
     if not answer.strip():
         return 0.0, "no answer from agency"
     prompt = _JUDGE_PROMPT.format(question=question, topics=", ".join(topics), answer=answer[:4000])
-    from app.features.llm.services import Purpose, chat
-    res = await chat(session, purpose=Purpose.JUDGE, messages=[{"role": "user", "content": prompt}])
-    data = json.loads(res.content)
-    return float(data["score"]), str(data.get("reason", ""))
+    from app.features.llm.services import Purpose, parse
+    result = await parse(session, Purpose.JUDGE, messages=[{"role": "user", "content": prompt}])
+    return float(result.score), str(result.reason)

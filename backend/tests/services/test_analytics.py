@@ -154,13 +154,9 @@ async def test_latest_brief_returns_placeholder_when_table_empty(db_session):
 
 async def test_regenerate_weekly_brief_persists_ok_row(db_session):
     from app.features.analytics.services import brief
-    from app.features.llm.services import LlmResult, LlmUsageInfo
+    from langchain_core.messages import AIMessage
 
-    llm_result = LlmResult(
-        content="generated brief", tool_calls=None,
-        usage=LlmUsageInfo(model="m", prompt_tokens=0, completion_tokens=0, cost_usd=None),
-        raw={},
-    )
+    llm_result = AIMessage(content="generated brief")
 
     with patch("app.features.llm.services.chat", new=AsyncMock(return_value=llm_result)):
         result = await brief.regenerate_weekly_brief(db_session)
@@ -174,13 +170,9 @@ async def test_regenerate_weekly_brief_calls_chat_with_session(db_session):
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from app.features.analytics.services import brief
-    from app.features.llm.services import LlmResult, LlmUsageInfo
+    from langchain_core.messages import AIMessage
 
-    llm_result = LlmResult(
-        content="generated brief", tool_calls=None,
-        usage=LlmUsageInfo(model="m", prompt_tokens=0, completion_tokens=0, cost_usd=None),
-        raw={},
-    )
+    llm_result = AIMessage(content="generated brief")
     fake_chat = AsyncMock(return_value=llm_result)
 
     with patch("app.features.llm.services.chat", new=fake_chat):

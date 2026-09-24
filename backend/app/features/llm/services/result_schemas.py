@@ -46,6 +46,7 @@ class PopularQuestionItem(BaseModel):
     """One synthesized popular question."""
     text: str
     agency_id: str | None = None
+    score: float | None = None
 
 
 class PopularQuestionsResult(BaseModel):
