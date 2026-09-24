@@ -105,7 +105,7 @@ async def proxy(
         trace.get_current_span().set_attribute("conversation_id", conversation_id)
 
     upstream_headers = _upstream_headers(headers, agency.api_headers)
-    client = httpx.AsyncClient(timeout=settings.AGENCY_CHAT_TIMEOUT, transport=transport)
+    client = httpx.AsyncClient(timeout=settings.LLM_CALL_TIMEOUT, transport=transport)
     started = time.monotonic()
     request = client.build_request(method, agency.endpoint_url or "", headers=upstream_headers, content=body)
     try:

@@ -77,7 +77,7 @@ class OneChatClient:
     ) -> dict:
         url = f"{self._base_url}{path}"
         try:
-            async with self._open(settings.EXTERNAL_CHAT_TIMEOUT) as client:
+            async with self._open(settings.LLM_CALL_TIMEOUT) as client:
                 resp = await client.post(
                     url,
                     headers={"Content-Type": "application/json"},
@@ -103,7 +103,7 @@ class OneChatClient:
     async def health(self) -> dict:
         url = f"{self._base_url}/health"
         try:
-            async with self._open(settings.EXTERNAL_CHAT_TIMEOUT) as client:
+            async with self._open(settings.LLM_CALL_TIMEOUT) as client:
                 resp = await client.get(url)
         except httpx.ReadTimeout as e:
             raise OneChatError(504, "onechat /health timed out") from e
@@ -140,7 +140,7 @@ class OneChatClient:
     ) -> AsyncIterator[SseEvent]:
         url = f"{self._base_url}{path}"
         try:
-            async with self._open(settings.V4_STREAM_TIMEOUT) as client:
+            async with self._open(settings.LLM_CALL_TIMEOUT) as client:
                 async with client.stream(
                     "POST", url,
                     headers={"Content-Type": "application/json"},

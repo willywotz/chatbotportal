@@ -27,7 +27,7 @@ def _tool_name(tool) -> str:
 
 
 def _dispatch_timeout(route: dict) -> int:
-    return route.get("dispatch_timeout_s") or settings.AGENCY_CHAT_TIMEOUT
+    return route.get("dispatch_timeout_s") or settings.LLM_CALL_TIMEOUT
 
 
 def build_api_headers(api_headers: list[dict] | None) -> dict:
@@ -129,7 +129,7 @@ async def dispatch_a2a(route: dict, conversation_id: str) -> dict:
     sub_q = route["sub_question"]
 
     async def _call():
-        async with httpx.AsyncClient(timeout=settings.A2A_DISPATCH_TIMEOUT) as client:
+        async with httpx.AsyncClient(timeout=settings.LLM_CALL_TIMEOUT) as client:
             return await client.post(
                 route["endpoint_url"],
                 json={

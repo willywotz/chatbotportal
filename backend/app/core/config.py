@@ -18,9 +18,9 @@ class OverrideReport:
 class Settings(BaseSettings):
     # ── App ──────────────────────────────────────────────────────────────────
     TIMEZONE: str = "Asia/Bangkok"
-    USER_AGENT_PREFIX: str = "AI-Chatbot-Portal/1.0"
     LOG_LEVEL: str = "INFO"   # 15-Factor XI: log level for the stdout event stream
     EVENT_DISPATCH_INTERVAL_SECONDS: int = 10  # domain-event outbox dispatcher tick
+    LLM_CALL_TIMEOUT: int = 300
 
     # ── Database ─────────────────────────────────────────────────────────────
     DATABASE_URL: str = "postgres://postgres:postgres@localhost:5432/chatbot"
@@ -55,19 +55,17 @@ class Settings(BaseSettings):
     OIDC_PRIVATE_KEY: str = ""
 
     # Startup seed for the first administrator (created only if no admin exists).
-    SEED_ADMIN_EMAIL: str = "admin@chatbotportal.local"
-    SEED_ADMIN_PASSWORD: str = "admin"
+    SEED_ADMIN_EMAIL: str = "admin@example.com"
+    SEED_ADMIN_PASSWORD: str = "admin1234"
 
     # ── LLM / OpenRouter ────────────────────────────────────────────────────
     OPENROUTER_API_KEY: str = ""
     OPENROUTER_API_URL: str = "https://openrouter.ai/api/v1/chat/completions"
-    CLASSIFICATION_MODEL: str = "google/gemini-2.5-flash-lite"
-    LLM_CALL_TIMEOUT: float = 60.0
+    OPENROUTER_MODEL: str = "google/gemini-2.5-flash-lite"
 
     # ── Parse spec (ThaiLLM) ─────────────────────────────────────────────────
     PARSE_SPEC_URL: str = "http://thaillm.or.th/api/openthaigpt/v1/chat/completions"
     PARSE_SPEC_API_KEY: str = ""
-    PARSE_SPEC_TIMEOUT: int = 60
     PARSE_SPEC_LLM_MODEL: str = "/model"
 
     # ── OneChat endpoints ────────────────────────────────────────────────────
@@ -78,17 +76,11 @@ class Settings(BaseSettings):
     TRACE_URL_PROBE: str = ""
 
     # ── Chat ─────────────────────────────────────────────────────────────────
-    A2A_DISPATCH_TIMEOUT: int = 30
-    V4_STREAM_TIMEOUT: float = 300.0
-    EXTERNAL_CHAT_TIMEOUT: float = 180.0
     TITLE_MAX_LENGTH: int = 50
     PREVIEW_MAX_LENGTH: int = 100
     SPEC_TEXT_MAX_CHARS: int = 30000
-    CHAT_WS_MAX_CONNECTIONS: int = 1024
-    CHAT_WS_MAX_DURATION_SECONDS: int = 900
 
     # ── Agency health / scheduler ────────────────────────────────────────────
-    AGENCY_CHAT_TIMEOUT: int = 180
     HEALTH_CHECK_INTERVAL_MINUTES: int = 15
     CONNECTION_TEST_TIMEOUT: float = 10.0
     HEALTH_DEGRADED_UPTIME_PCT: float = 95.0
@@ -111,7 +103,6 @@ class Settings(BaseSettings):
 
     # ── Executive summary ────────────────────────────────────────────────────
     BRIEF_REGEN_INTERVAL_HOURS: int = 24
-    WEEKLY_BRIEF_TIMEOUT: float = 3600.0  # 1h — effectively no limit for the weekly brief
 
     # ── Popular questions ────────────────────────────────────────────────────
     POPULAR_QUESTIONS_REGEN_INTERVAL_HOURS: int = 24
