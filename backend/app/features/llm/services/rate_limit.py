@@ -1,11 +1,16 @@
 """Rate limiter backed by Postgres (fixed-window, fail-closed)."""
+import asyncio
 import logging
 import math
 import time
+from collections import defaultdict
 from typing import NamedTuple, Protocol
+
+from langchain_core.rate_limiters import BaseRateLimiter
 
 from app.core.db import AsyncSessionLocal
 from app.features.llm.repositories import rate_limit as rate_limit_repo
+from app.features.llm.services.errors import LlmError
 
 
 class RateLimitResult(NamedTuple):
@@ -103,3 +108,61 @@ class PostgresFixedWindowLimiter:
 
 def build_limiter():
     return PostgresFixedWindowLimiter()
+
+
+_fixed_window_limiter = PostgresFixedWindowLimiter()
+_queue_waiters: dict[str, int] = defaultdict(int)
+
+
+async def _allow(key: str, limit: int, window_s: float) -> bool:
+    result = await _fixed_window_limiter.check(key, limit=limit, window_s=window_s)
+    return result.allowed
+
+
+class RedisRateLimiter(BaseRateLimiter):
+    def __init__(self, provider_name, rps, rpm, max_queue_size):
+        self.provider_name = provider_name
+        self.rps = rps
+        self.rpm = rpm
+        self.max_queue_size = max_queue_size
+
+    def acquire(self, *, blocking: bool = True) -> bool:
+        raise NotImplementedError("RedisRateLimiter is async-only; use aacquire")
+
+    async def aacquire(self, *, blocking: bool = True) -> bool:
+        if not self.rps and not self.rpm:
+            return True
+        name = self.provider_name
+        if _queue_waiters[name] >= self.max_queue_size:
+            raise LlmError(f"provider {name!r} rate-limit queue is full",
+                           kind="queue_full", provider=name)
+        _queue_waiters[name] += 1
+        try:
+            while True:
+                if self.rps and not await _allow(f"llm:{name}:s", self.rps, 1.0):
+                    await asyncio.sleep(0.02)
+                    continue
+                if self.rpm and not await _allow(f"llm:{name}:m", self.rpm, 60.0):
+                    await asyncio.sleep(0.02)
+                    continue
+                return True
+        finally:
+            _queue_waiters[name] -= 1
+
+
+_cache: dict[str, RedisRateLimiter] = {}
+
+
+def limiter_for(resolved) -> RedisRateLimiter:
+    existing = _cache.get(resolved.provider_name)
+    if existing is not None:
+        return existing
+    limiter = RedisRateLimiter(resolved.provider_name, resolved.rate_limit_rps,
+                               resolved.rate_limit_rpm, resolved.max_queue_size)
+    _cache[resolved.provider_name] = limiter
+    return limiter
+
+
+def reset_cache() -> None:
+    _cache.clear()
+    _queue_waiters.clear()
