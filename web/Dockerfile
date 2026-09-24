@@ -8,15 +8,13 @@ FROM base AS deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN --mount=type=cache,target=/pnpm/store pnpm install --frozen-lockfile
 
-FROM base AS development
-COPY --from=deps /app/node_modules ./node_modules
+FROM deps AS development
 COPY . .
 CMD ["pnpm", "run", "dev", "--host", "--port", "8080"]
 
-FROM base AS builder
-COPY --from=deps /app/node_modules ./node_modules
+FROM deps AS builder
 COPY . .
-RUN --mount=type=cache,target=/app/node_modules/.vite pnpm run build
+RUN pnpm run build
 
 FROM nginx:alpine AS production
 COPY nginx.conf /etc/nginx/conf.d/default.conf
