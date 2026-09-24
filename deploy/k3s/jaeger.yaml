@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaeger
+  namespace: chatbotportal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jaeger
+  template:
+    metadata:
+      labels:
+        app: jaeger
+    spec:
+      containers:
+        - name: jaeger
+          image: jaegertracing/jaeger:2.18.0
+          args:
+            - "--set=extensions.jaeger_query.base_path=/jaeger"
+            - "--set=extensions.jaeger_storage.backends.some_storage.memory.max_traces=1000"
+          ports:
+            - containerPort: 4317
+            - containerPort: 16686
+          readinessProbe:
+            tcpSocket:
+              port: 16686
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger
+  namespace: chatbotportal
+spec:
+  selector:
+    app: jaeger
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+    - name: query-ui
+      port: 16686
+      targetPort: 16686
