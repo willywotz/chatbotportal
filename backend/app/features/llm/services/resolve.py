@@ -56,7 +56,10 @@ async def _build(session, binding, *, seen: set, depth: int) -> ResolvedRoute:
         seen = seen | {binding.id}
         fb_binding = await llm_repo.get_binding(session, binding.fallback_binding_id)
         if fb_binding is not None and fb_binding.enabled and fb_binding.id not in seen:
-            fallback = await _build(session, fb_binding, seen=seen, depth=depth + 1)
+            try:
+                fallback = await _build(session, fb_binding, seen=seen, depth=depth + 1)
+            except LlmError:
+                fallback = None
     return ResolvedRoute(
         provider_name=provider.name, kind=provider.provider,
         model=binding.model_override or provider.model,

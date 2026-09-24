@@ -22,8 +22,10 @@ async def _run(session, purpose, messages, *, schema, tools, tool_choice, max_to
     cb_metadata = {}
     try:
         with get_usage_metadata_callback() as cb:
-            out = await runnable.ainvoke(messages)
-            cb_metadata = cb.usage_metadata
+            try:
+                out = await runnable.ainvoke(messages)
+            finally:
+                cb_metadata = cb.usage_metadata
         return out
     except Exception as exc:
         raise to_llm_error(exc, spec)
@@ -62,13 +64,8 @@ class LlmPingResult:
 async def ping(session, purpose) -> LlmPingResult:
     start = time.monotonic()
     try:
-        schema = PURPOSE_SCHEMAS.get(Purpose(purpose))
-        if schema is None:
-            out = await chat(session, purpose, [{"role": "user", "content": "ping"}], max_tokens=1)
-            model = getattr(out, "response_metadata", {}).get("model_name")
-        else:
-            await parse(session, purpose, [{"role": "user", "content": "ping"}], max_tokens=1)
-            model = None
+        out = await chat(session, purpose, [{"role": "user", "content": "ping"}], max_tokens=1)
+        model = getattr(out, "response_metadata", {}).get("model_name")
         return LlmPingResult(ok=True, latency_ms=_ms(start), model=model, error=None)
     except LlmError as exc:
         return LlmPingResult(ok=False, latency_ms=_ms(start), model=None, error=str(exc))

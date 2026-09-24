@@ -24,6 +24,20 @@ async def test_resolves_with_fallback_chain(db_session, make_binding, set_fallba
 
 
 @pytest.mark.asyncio
+async def test_disabled_fallback_dropped_not_fatal(db_session, make_binding, set_fallback):
+    from app.features.llm.repositories import llm as llm_repo
+    primary = await make_binding("judge", model="a")
+    fb = await make_binding("judge_fb", model="b")
+    await set_fallback(primary, fb)
+    fb_provider = await llm_repo.get_provider(db_session, fb.provider_id)
+    await llm_repo.update_provider(db_session, fb_provider, {"enabled": False})
+    resolve.invalidate()
+    r = await resolve.for_purpose(db_session, "judge")
+    assert r.model == "a"
+    assert r.fallback is None
+
+
+@pytest.mark.asyncio
 async def test_cycle_is_bounded(db_session, make_binding, set_fallback):
     a = await make_binding("p_a", model="a")
     b = await make_binding("p_b", model="b")

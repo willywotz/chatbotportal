@@ -38,6 +38,62 @@ async def test_schema_and_tools_together_rejected(db_session, fake_openai, make_
 
 
 @pytest.mark.asyncio
+async def test_ping_ok_for_structured_purpose(db_session, fake_openai, make_binding):
+    await make_binding("classification", kind="fk")
+    result = await service.ping(db_session, Purpose.CLASSIFICATION)
+    assert result.ok is True
+
+
+@pytest.mark.asyncio
+async def test_usage_recorded_when_parse_fails_after_call(db_session, make_binding, monkeypatch):
+    from langchain_core.exceptions import OutputParserException
+    from langchain_core.language_models import BaseChatModel
+    from langchain_core.messages import AIMessage
+    from langchain_core.outputs import ChatGeneration, ChatResult
+    from langchain_core.runnables import RunnableLambda
+
+    class _UsageThenParseFail(BaseChatModel):
+        @property
+        def _llm_type(self):
+            return "usage-then-parse-fail"
+
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            msg = AIMessage(content="x",
+                            usage_metadata={"input_tokens": 5, "output_tokens": 7, "total_tokens": 12},
+                            response_metadata={"model_name": "fakemodel"})
+            return ChatResult(generations=[ChatGeneration(message=msg)],
+                              llm_output={"model_name": "fakemodel"})
+
+        async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
+            return self._generate(messages, stop, run_manager, **kwargs)
+
+        def with_structured_output(self, schema, **kwargs):
+            def _boom(_value):
+                raise OutputParserException("cannot parse")
+            return self | RunnableLambda(_boom)
+
+    recorded = {}
+
+    async def spy_record(session, metadata, **kw):
+        recorded["metadata"] = metadata
+    monkeypatch.setattr(service.usage, "record", spy_record)
+
+    if "usageemit" not in providers.known_kinds():
+        providers.register(ProviderSpec(kind="usageemit", model_provider="openai",
+                                        transient_errors=(ValueError,),
+                                        map_error=lambda e: None,
+                                        build_model=lambda model, **kw: _UsageThenParseFail()))
+    rate_limit.reset_cache()
+    await make_binding("classification", kind="usageemit")
+
+    with pytest.raises(LlmError) as e:
+        await service.parse(db_session, Purpose.CLASSIFICATION,
+                            [{"role": "user", "content": "x"}])
+    assert e.value.kind == "parse"
+    assert recorded["metadata"], "usage must be recorded even when the parser fails after the call"
+
+
+@pytest.mark.asyncio
 async def test_failure_maps_to_llm_error_and_records_usage(db_session, make_binding, monkeypatch):
     recorded = {}
 
