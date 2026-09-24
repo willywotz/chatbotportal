@@ -3,53 +3,51 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 
 from app.features.llm.services.purpose import Purpose
 
 
-class LLMRouteBase(BaseModel):
+class LLMBindingBase(BaseModel):
     purpose: Purpose
     provider_id: uuid.UUID
-    model: str
+    model_override: str | None = None
+    fallback_binding_id: uuid.UUID | None = None
     timeout_override: float | None = None
     enabled: bool = True
 
 
-class LLMRouteCreate(LLMRouteBase):
+class LLMBindingCreate(LLMBindingBase):
     pass
 
 
-class LLMRouteUpdate(BaseModel):
-    purpose: Purpose | None = None
+class LLMBindingUpdate(BaseModel):
     provider_id: uuid.UUID | None = None
-    model: str | None = None
+    model_override: str | None = None
+    fallback_binding_id: uuid.UUID | None = None
     timeout_override: float | None = None
     enabled: bool | None = None
 
 
-class LLMRouteResponse(BaseModel):
-    """Response schema — includes the resolved provider name for display."""
+class LLMBindingResponse(BaseModel):
     id: uuid.UUID
     purpose: str
     provider_id: uuid.UUID
     provider_name: str
     model: str
+    fallback_binding_id: uuid.UUID | None = None
     timeout_override: float | None = None
     enabled: bool
     created_at: datetime
     updated_at: datetime
 
-    model_config = ConfigDict(from_attributes=True)
 
-
-class LLMRouteListResponse(BaseModel):
-    data: list[LLMRouteResponse]
+class LLMBindingListResponse(BaseModel):
+    data: list[LLMBindingResponse]
     total: int
 
 
-class LLMRouteTestResult(BaseModel):
-    """Result of firing a minimal completion through a route (failures ride in `ok`)."""
+class LLMBindingTestResult(BaseModel):
     ok: bool
     latency_ms: int
     model: str | None = None

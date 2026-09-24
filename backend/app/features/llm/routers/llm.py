@@ -1,11 +1,9 @@
-"""Admin CRUD API for LLM providers, routes, and known purposes.
+"""Admin CRUD API for LLM providers, bindings, kinds, and purposes.
 
-Mirrors `app/routers/agencies/crud.py` for CRUD shape and `app/routers/
-settings.py` for secret masking: `api_key` is never returned in the clear,
-and an update whose `api_key` is missing/masked leaves the stored key
-untouched. Every mutation records an audit entry and invalidates the
-route-resolution cache in `app.features.llm.services` so the next chat call picks
-up the change.
+`api_key` is never returned in the clear, and an update whose `api_key` is
+missing or masked leaves the stored key untouched. Every mutation records an
+audit entry and invalidates the resolution cache in
+`app.features.llm.services` so the next chat call picks up the change.
 """
 
 import logging
@@ -14,28 +12,28 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Security, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.audit import record_audit
+from app.core.db import get_db
 from app.core.security.dependencies import require_scope
 from app.core.security.principal import Principal
-from app.core.db import get_db
+from app.features.llm.models.llm_binding import LlmBinding
 from app.features.llm.models.llm_provider import LlmProvider
-from app.features.llm.models.llm_route import LlmRoute
-from app.features.settings.routers.settings import MASK
+from app.features.llm.schemas.llm_binding import (
+    LLMBindingCreate,
+    LLMBindingListResponse,
+    LLMBindingResponse,
+    LLMBindingTestResult,
+    LLMBindingUpdate,
+)
 from app.features.llm.schemas.llm_provider import (
     LLMProviderCreate,
     LLMProviderListResponse,
     LLMProviderResponse,
     LLMProviderUpdate,
 )
-from app.features.llm.schemas.llm_route import (
-    LLMRouteCreate,
-    LLMRouteListResponse,
-    LLMRouteResponse,
-    LLMRouteTestResult,
-    LLMRouteUpdate,
-)
-from app.core.audit import record_audit
-from app.features.llm.services import KNOWN_PURPOSES, invalidate, ping
+from app.features.llm.services import KNOWN_PURPOSES, invalidate, known_kinds, ping
 from app.features.llm.services import admin as llm_admin
+from app.features.settings.routers.settings import MASK
 
 logger = logging.getLogger(__name__)
 
@@ -46,12 +44,12 @@ def _provider_response(provider: LlmProvider) -> LLMProviderResponse:
     return LLMProviderResponse(
         id=provider.id,
         name=provider.name,
+        provider=provider.provider,
+        model=provider.model,
         base_url=provider.base_url,
         api_key=MASK,
-        auth_header=provider.auth_header,
-        auth_scheme=provider.auth_scheme,
         timeout_seconds=provider.timeout_seconds,
-        request_usage=provider.request_usage,
+        max_retries=provider.max_retries,
         rate_limit_rps=provider.rate_limit_rps,
         rate_limit_rpm=provider.rate_limit_rpm,
         max_queue_size=provider.max_queue_size,
@@ -61,19 +59,25 @@ def _provider_response(provider: LlmProvider) -> LLMProviderResponse:
     )
 
 
-async def _route_response(session: AsyncSession, route: LlmRoute) -> LLMRouteResponse:
-    provider_name = await llm_admin.route_provider_name(session, route)
-    return LLMRouteResponse(
-        id=route.id,
-        purpose=route.purpose,
-        provider_id=route.provider_id,
-        provider_name=provider_name,
-        model=route.model,
-        timeout_override=route.timeout_override,
-        enabled=route.enabled,
-        created_at=route.created_at,
-        updated_at=route.updated_at,
+async def _binding_response(session: AsyncSession, binding: LlmBinding) -> LLMBindingResponse:
+    provider = await llm_admin.binding_provider(session, binding)
+    return LLMBindingResponse(
+        id=binding.id,
+        purpose=binding.purpose,
+        provider_id=binding.provider_id,
+        provider_name=provider.name,
+        model=binding.model_override or provider.model,
+        fallback_binding_id=binding.fallback_binding_id,
+        timeout_override=binding.timeout_override,
+        enabled=binding.enabled,
+        created_at=binding.created_at,
+        updated_at=binding.updated_at,
     )
+
+
+@router.get("/kinds", dependencies=[Security(require_scope, scopes=["llm:read"])], summary="List known provider kinds")
+async def list_kinds():
+    return {"data": list(known_kinds())}
 
 
 @router.get("/purposes", dependencies=[Security(require_scope, scopes=["llm:read"])], summary="List known LLM purposes")
@@ -134,7 +138,6 @@ async def update_provider(
     update_data = body.model_dump(exclude_unset=True)
     if update_data.get("api_key") in (None, MASK):
         update_data.pop("api_key", None)
-
     provider = await llm_admin.update_provider(session, provider_id, update_data)
     await record_audit(session, user, "llm_provider.update", object_type="llm_provider", object_id=provider.id)
     invalidate()
@@ -157,87 +160,87 @@ async def delete_provider(
 
 
 @router.get(
-    "/routes",
-    response_model=LLMRouteListResponse,
+    "/bindings",
+    response_model=LLMBindingListResponse,
     dependencies=[Security(require_scope, scopes=["llm:read"])],
-    summary="List LLM routes",
+    summary="List LLM bindings",
 )
-async def list_routes(session: AsyncSession = Depends(get_db)):
-    routes = await llm_admin.list_routes(session)
-    data = [await _route_response(session, r) for r in routes]
-    return LLMRouteListResponse(data=data, total=len(data))
+async def list_bindings(session: AsyncSession = Depends(get_db)):
+    bindings = await llm_admin.list_bindings(session)
+    data = [await _binding_response(session, b) for b in bindings]
+    return LLMBindingListResponse(data=data, total=len(data))
 
 
 @router.post(
-    "/routes",
-    response_model=LLMRouteResponse,
+    "/bindings",
+    response_model=LLMBindingResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Create LLM route",
+    summary="Create LLM binding",
 )
-async def create_route(
-    body: LLMRouteCreate,
+async def create_binding(
+    body: LLMBindingCreate,
     session: AsyncSession = Depends(get_db),
     user: Principal = Security(require_scope, scopes=["llm:write"]),
 ):
-    route = await llm_admin.create_route(session, body.model_dump())
-    await record_audit(session, user, "llm_route.create", object_type="llm_route", object_id=route.id)
+    binding = await llm_admin.create_binding(session, body.model_dump())
+    await record_audit(session, user, "llm_binding.create", object_type="llm_binding", object_id=binding.id)
     invalidate()
-    return await _route_response(session, route)
+    return await _binding_response(session, binding)
 
 
 @router.post(
-    "/routes/{purpose}/test",
-    response_model=LLMRouteTestResult,
+    "/bindings/{purpose}/test",
+    response_model=LLMBindingTestResult,
     dependencies=[Security(require_scope, scopes=["llm:write"])],
-    summary="Test an LLM route end-to-end",
+    summary="Test an LLM binding end-to-end",
 )
-async def test_route(purpose: str, session: AsyncSession = Depends(get_db)):
+async def test_binding(purpose: str, session: AsyncSession = Depends(get_db)):
     if purpose not in KNOWN_PURPOSES:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown purpose")
     result = await ping(session, purpose)
-    return LLMRouteTestResult(ok=result.ok, latency_ms=result.latency_ms,
-                              model=result.model, error=result.error)
+    return LLMBindingTestResult(ok=result.ok, latency_ms=result.latency_ms,
+                                model=result.model, error=result.error)
 
 
 @router.get(
-    "/routes/{route_id}",
-    response_model=LLMRouteResponse,
+    "/bindings/{binding_id}",
+    response_model=LLMBindingResponse,
     dependencies=[Security(require_scope, scopes=["llm:read"])],
-    summary="Get LLM route by ID",
+    summary="Get LLM binding by ID",
 )
-async def get_route(route_id: uuid.UUID, session: AsyncSession = Depends(get_db)):
-    route = await llm_admin.get_route(session, route_id)
-    return await _route_response(session, route)
+async def get_binding(binding_id: uuid.UUID, session: AsyncSession = Depends(get_db)):
+    binding = await llm_admin.get_binding(session, binding_id)
+    return await _binding_response(session, binding)
 
 
 @router.patch(
-    "/routes/{route_id}",
-    response_model=LLMRouteResponse,
-    summary="Partial update LLM route",
+    "/bindings/{binding_id}",
+    response_model=LLMBindingResponse,
+    summary="Partial update LLM binding",
 )
-async def update_route(
-    route_id: uuid.UUID,
-    body: LLMRouteUpdate,
+async def update_binding(
+    binding_id: uuid.UUID,
+    body: LLMBindingUpdate,
     session: AsyncSession = Depends(get_db),
     user: Principal = Security(require_scope, scopes=["llm:write"]),
 ):
     update_data = body.model_dump(exclude_unset=True)
-    route = await llm_admin.update_route(session, route_id, update_data)
-    await record_audit(session, user, "llm_route.update", object_type="llm_route", object_id=route.id)
+    binding = await llm_admin.update_binding(session, binding_id, update_data)
+    await record_audit(session, user, "llm_binding.update", object_type="llm_binding", object_id=binding.id)
     invalidate()
-    return await _route_response(session, route)
+    return await _binding_response(session, binding)
 
 
 @router.delete(
-    "/routes/{route_id}",
+    "/bindings/{binding_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete LLM route",
+    summary="Delete LLM binding",
 )
-async def delete_route(
-    route_id: uuid.UUID,
+async def delete_binding(
+    binding_id: uuid.UUID,
     session: AsyncSession = Depends(get_db),
     user: Principal = Security(require_scope, scopes=["llm:write"]),
 ):
-    await llm_admin.delete_route(session, route_id)
-    await record_audit(session, user, "llm_route.delete", object_type="llm_route", object_id=route_id)
+    await llm_admin.delete_binding(session, binding_id)
+    await record_audit(session, user, "llm_binding.delete", object_type="llm_binding", object_id=binding_id)
     invalidate()

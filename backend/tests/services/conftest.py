@@ -1,16 +1,6 @@
 import pytest
 
 from app.features.llm.repositories import llm as llm_repo
-from app.features.llm.services import rate_limit, resolve
-
-
-@pytest.fixture(autouse=True)
-def _reset_llm_caches():
-    resolve.invalidate()
-    rate_limit.reset_cache()
-    yield
-    resolve.invalidate()
-    rate_limit.reset_cache()
 
 
 @pytest.fixture
