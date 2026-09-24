@@ -1,4 +1,3 @@
-import json
 from unittest.mock import AsyncMock
 
 import pytest
@@ -8,7 +7,7 @@ from app.features.agency.models.agency import Agency
 from app.features.agency.models.evaluation import EvalResult, GoldenQuestion
 from app.features.agency.repositories import evaluation as evaluation_repo
 from app.features.agency.services import evaluation
-from app.features.llm.services import LlmResult, LlmUsageInfo
+from app.features.llm.services.result_schemas import JudgeResult
 
 pytestmark = pytest.mark.asyncio
 
@@ -37,15 +36,11 @@ async def test_eval_run_scores_each_question(db_session, monkeypatch):
     async def fake_ask(agency, question):
         return {"ok": True, "latency_ms": 10, "answer": "ไปที่สำนักงานเขต ใช้บัตรเดิม"}
 
-    async def fake_judge(session, **kw):
-        return LlmResult(
-            content=json.dumps({"score": 0.8, "reason": "covers both"}), tool_calls=None,
-            usage=LlmUsageInfo(model="m", prompt_tokens=0, completion_tokens=0, cost_usd=None),
-            raw={},
-        )
+    async def fake_judge(session, *a, **kw):
+        return JudgeResult(score=0.8, reason="covers both")
 
     monkeypatch.setattr(evaluation, "_ask", fake_ask)
-    monkeypatch.setattr("app.features.llm.services.chat", fake_judge)
+    monkeypatch.setattr("app.features.llm.services.parse", fake_judge)
 
     ran = await evaluation.run_evaluation()
 
@@ -66,19 +61,15 @@ async def test_eval_judge_calls_chat_with_session(db_session, monkeypatch):
     async def fake_ask(agency, question):
         return {"ok": True, "latency_ms": 10, "answer": "some answer"}
 
-    fake_chat = AsyncMock(return_value=LlmResult(
-        content=json.dumps({"score": 0.5, "reason": "ok"}), tool_calls=None,
-        usage=LlmUsageInfo(model="m", prompt_tokens=0, completion_tokens=0, cost_usd=None),
-        raw={},
-    ))
+    fake_parse = AsyncMock(return_value=JudgeResult(score=0.5, reason="ok"))
 
     monkeypatch.setattr(evaluation, "_ask", fake_ask)
-    monkeypatch.setattr("app.features.llm.services.chat", fake_chat)
+    monkeypatch.setattr("app.features.llm.services.parse", fake_parse)
 
     ran = await evaluation.run_evaluation()
 
     assert ran == 1
-    assert isinstance(fake_chat.call_args.args[0], AsyncSession)
+    assert isinstance(fake_parse.call_args.args[0], AsyncSession)
 
 
 async def test_eval_skips_inactive_agencies(db_session, monkeypatch):

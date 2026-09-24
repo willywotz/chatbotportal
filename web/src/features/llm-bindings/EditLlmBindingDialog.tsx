@@ -19,7 +19,7 @@ import {
   DialogTitle,
 } from "@/shared/components/ui/dialog";
 import type { UseMutationResult } from "@tanstack/react-query";
-import type { LlmRoute, LlmRouteInput } from "./llmRouteApi";
+import type { LlmBinding, LlmBindingInput } from "./llmBindingApi";
 import type { LlmProvider } from "@/features/llm-providers/llmProviderApi";
 
 // Empty input means "no override" (null); otherwise coerce to a number,
@@ -33,30 +33,30 @@ function parseTimeoutOverride(v: string): number | null {
 }
 
 interface Props {
-  target: LlmRoute | null;
+  target: LlmBinding | null;
   providers: LlmProvider[];
   providersLoading: boolean;
   mutation: UseMutationResult<
-    LlmRoute,
+    LlmBinding,
     Error,
-    { id: string; body: Partial<LlmRouteInput> }
+    { id: string; body: Partial<LlmBindingInput> }
   >;
   onClose: () => void;
 }
 
-// `purpose` is immutable once a route is created — it is displayed
-// read-only here and never included in the update payload.
-function emptyForm(target: LlmRoute | null) {
+// `purpose` is immutable once a binding exists — it is displayed read-only
+// here and never included in the update payload.
+function emptyForm(target: LlmBinding | null) {
   return {
     provider_id: target?.provider_id ?? "",
-    model: target?.model ?? "",
+    model_override: target?.model_override ?? "",
     timeout_override:
       target?.timeout_override != null ? String(target.timeout_override) : "",
     enabled: target?.enabled ?? true,
   };
 }
 
-export function EditLlmRouteDialog({
+export function EditLlmBindingDialog({
   target,
   providers,
   providersLoading,
@@ -69,7 +69,7 @@ export function EditLlmRouteDialog({
     if (target) setForm(emptyForm(target));
   }, [target]);
 
-  const canSubmit = form.provider_id !== "" && form.model.trim() !== "";
+  const canSubmit = form.provider_id !== "";
 
   const handleSubmit = () => {
     if (!target) return;
@@ -77,7 +77,7 @@ export function EditLlmRouteDialog({
       id: target.id,
       body: {
         provider_id: form.provider_id,
-        model: form.model.trim(),
+        model_override: form.model_override.trim() === "" ? null : form.model_override.trim(),
         timeout_override: parseTimeoutOverride(form.timeout_override),
         enabled: form.enabled,
       },
@@ -88,7 +88,7 @@ export function EditLlmRouteDialog({
     <Dialog open={!!target} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>แก้ไขเส้นทาง LLM</DialogTitle>
+          <DialogTitle>แก้ไขการผูก LLM</DialogTitle>
         </DialogHeader>
         <div className="space-y-3 py-2">
           <div className="space-y-2">
@@ -116,15 +116,16 @@ export function EditLlmRouteDialog({
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="edit-model">โมเดล (Model)</Label>
+            <Label htmlFor="edit-model-override">โมเดลแทนที่ (Model override)</Label>
             <Input
-              id="edit-model"
-              value={form.model}
-              onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}
+              id="edit-model-override"
+              placeholder="เว้นว่างเพื่อใช้โมเดลของผู้ให้บริการ"
+              value={form.model_override}
+              onChange={(e) => setForm((f) => ({ ...f, model_override: e.target.value }))}
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="edit-timeout-override">หมดเวลาเฉพาะเส้นทาง (วินาที)</Label>
+            <Label htmlFor="edit-timeout-override">หมดเวลาเฉพาะการผูก (วินาที)</Label>
             <Input
               id="edit-timeout-override"
               type="number"

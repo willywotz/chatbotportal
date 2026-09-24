@@ -23,11 +23,11 @@ async def classify_message_category(message_id: str, query: str, answer: str) ->
 
 คำตอบ: {answer}
 """
-    from app.features.llm.services import LlmError, Purpose, chat
+    from app.features.llm.services import LlmError, Purpose, parse
     try:
         async with AsyncSessionLocal() as session, session.begin():
-            res = await chat(session, purpose=Purpose.CLASSIFICATION,
-                             messages=[{"role": "user", "content": content}])
-            await message_repo.set_category(session, message_id, res.content)
+            result = await parse(session, Purpose.CLASSIFICATION,
+                                 messages=[{"role": "user", "content": content}])
+            await message_repo.set_category(session, message_id, result.category)
     except (LlmError, Exception) as e:
         logger.error("Error classifying message category: %s", e)

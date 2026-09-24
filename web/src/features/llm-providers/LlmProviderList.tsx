@@ -37,20 +37,19 @@ export function LlmProviderList({ providers, onEdit, onDelete }: Props) {
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground font-mono mt-1 truncate">
-                  {p.base_url}
+                  {p.provider} · {p.model}
                 </p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">
-                  Auth: {p.auth_header} ({p.auth_scheme}) · Key: {p.api_key}
+                  {p.base_url ?? "ค่าเริ่มต้นของผู้ให้บริการ"} · Key: {p.api_key}
+                  {p.headers.length > 0 ? ` · ${p.headers.length} header` : ""}
                 </p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">
-                  หมดเวลา {p.timeout_seconds}s · คิวสูงสุด {p.max_queue_size}
+                  หมดเวลา {p.timeout_seconds}s · ลองใหม่สูงสุด {p.max_retries} · คิวสูงสุด {p.max_queue_size}
                 </p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">
                   จำกัดอัตรา{" "}
                   {p.rate_limit_rps != null ? `${p.rate_limit_rps} ครั้ง/วินาที` : "—"} /{" "}
                   {p.rate_limit_rpm != null ? `${p.rate_limit_rpm} ครั้ง/นาที` : "—"}
-                  {" · บันทึกการใช้งาน "}
-                  {p.request_usage ? "เปิด" : "ปิด"}
                 </p>
               </div>
               <div className="flex items-center gap-1 shrink-0">

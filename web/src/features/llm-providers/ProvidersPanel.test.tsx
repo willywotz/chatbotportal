@@ -16,17 +16,19 @@ vi.mock("@/features/llm-providers/llmProviderApi", () => ({
   createProvider: (...args: unknown[]) => mockCreateProvider(...args),
   updateProvider: (...args: unknown[]) => mockUpdateProvider(...args),
   deleteProvider: (...args: unknown[]) => mockDeleteProvider(...args),
+  listKinds: () => Promise.resolve({ data: ["openai"] }),
 }));
 
 const makeProvider = (overrides: Partial<LlmProvider> = {}): LlmProvider => ({
   id: "p1",
   name: "OpenAI",
+  provider: "openai",
+  model: "gpt-4o",
   base_url: "https://api.openai.com/v1",
   api_key: "*****",
-  auth_header: "Authorization",
-  auth_scheme: "Bearer",
+  headers: [],
   timeout_seconds: 60,
-  request_usage: false,
+  max_retries: 2,
   rate_limit_rps: null,
   rate_limit_rpm: null,
   max_queue_size: 50,
@@ -71,6 +73,15 @@ describe("ProvidersPanel list rendering", () => {
     expect(await screen.findByText("OpenAI")).toBeInTheDocument();
     expect(screen.getByText("Azure")).toBeInTheDocument();
     expect(screen.getByText("ปิดใช้งาน")).toBeInTheDocument();
+  });
+
+  it("shows the custom header count when a provider has headers", async () => {
+    mockListProviders.mockResolvedValue({
+      data: [makeProvider({ id: "p1", name: "OpenAI", headers: [{ name: "X-Title", value: "portal" }] })],
+      total: 1,
+    });
+    renderPanel();
+    expect(await screen.findByText(/1 header/)).toBeInTheDocument();
   });
 });
 

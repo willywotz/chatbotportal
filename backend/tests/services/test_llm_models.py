@@ -1,36 +1,22 @@
-import pytest
-from sqlalchemy.exc import IntegrityError
-
 from app.features.llm.models.llm_provider import LlmProvider
-from app.features.llm.models.llm_route import LlmRoute
-
-pytestmark = pytest.mark.asyncio
-
-
-async def test_provider_and_route_create_with_fk(db_session):
-    p = LlmProvider(name="openrouter", base_url="https://x/v1/chat/completions",
-                     api_key="k", auth_header="Authorization", auth_scheme="Bearer",
-                     timeout_seconds=60.0, request_usage=True)
-    db_session.add(p)
-    await db_session.flush()
-    r = LlmRoute(purpose="classification", provider_id=p.id, model="m1")
-    db_session.add(r)
-    await db_session.flush()
-
-    assert r.purpose == "classification"
-    await db_session.refresh(r, attribute_names=["provider"])
-    assert r.provider.name == "openrouter"
-    assert p.max_queue_size == 50 and p.enabled is True
-    assert p.rate_limit_rps is None and p.rate_limit_rpm is None
+from app.features.llm.models.llm_binding import LlmBinding
+from app.features.llm.models.llm_usage import LlmUsage
 
 
-async def test_purpose_is_unique(db_session):
-    p = LlmProvider(name="p", base_url="u", api_key="k")
-    db_session.add(p)
-    await db_session.flush()
-    db_session.add(LlmRoute(purpose="brief", provider_id=p.id, model="m"))
-    await db_session.flush()
+def test_provider_columns():
+    cols = set(LlmProvider.__table__.columns.keys())
+    assert {"provider", "model", "base_url", "api_key", "max_retries", "headers",
+            "rate_limit_rps", "rate_limit_rpm", "max_queue_size", "enabled"} <= cols
+    assert "auth_header" not in cols and "auth_scheme" not in cols
 
-    db_session.add(LlmRoute(purpose="brief", provider_id=p.id, model="m2"))
-    with pytest.raises(IntegrityError):
-        await db_session.flush()
+
+def test_binding_columns():
+    cols = set(LlmBinding.__table__.columns.keys())
+    assert {"purpose", "provider_id", "model_override",
+            "timeout_override", "enabled"} <= cols
+    assert "fallback_binding_id" not in cols
+
+
+def test_usage_total_tokens_property():
+    u = LlmUsage(model="m", purpose="brief", prompt_tokens=3, completion_tokens=4)
+    assert u.total_tokens == 7

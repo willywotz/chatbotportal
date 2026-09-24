@@ -1,4 +1,3 @@
-import json as _json
 import logging
 from typing import Any
 from uuid import UUID
@@ -131,88 +130,18 @@ async def parse_spec(spec_text: str) -> dict[str, Any]:
 
     Raises ValueError on LLM API error or missing tool call arguments.
     """
-    payload = {
-        "messages": [
-            {
-                "role": "system",
-                "content": "You are an API specification parser. Extract structured information from OpenAPI/Swagger specs including response schemas.",
-            },
-            {
-                "role": "user",
-                "content": f"Parse this API specification and extract the details including response field schemas:\n\n{spec_text[:settings.SPEC_TEXT_MAX_CHARS]}",
-            },
-        ],
-        "tools": [
-            {
-                "type": "function",
-                "function": {
-                    "name": "extract_api_spec",
-                    "description": "Extract structured API specification details including response schemas",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "auth_method": {
-                                "type": "string",
-                                "enum": ["api_key", "oauth2", "basic_auth", "none"],
-                                "description": "Authentication method used by the API",
-                            },
-                            "auth_header": {
-                                "type": "string",
-                                "description": "Authentication header name, e.g. X-API-Key, Authorization",
-                            },
-                            "base_path": {
-                                "type": "string",
-                                "description": "Base path prefix for all endpoints, e.g. /api/v1",
-                            },
-                            "request_format": {
-                                "type": "string",
-                                "enum": ["json", "xml"],
-                                "description": "Default request/response format",
-                            },
-                            "endpoints": {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "method": {"type": "string", "enum": ["GET", "POST", "PUT", "DELETE", "PATCH"]},
-                                        "path": {"type": "string"},
-                                        "description": {"type": "string"},
-                                    },
-                                    "required": ["method", "path", "description"],
-                                    "additionalProperties": False,
-                                },
-                            },
-                            "response_schema": {
-                                "type": "array",
-                                "description": "Common response fields found across endpoint responses",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "field": {"type": "string", "description": "Field name or dot-notation path e.g. data.items[].name"},
-                                        "type": {"type": "string", "description": "Data type: string, number, boolean, array, object, date"},
-                                        "description": {"type": "string", "description": "What this field contains"},
-                                        "example": {"type": "string", "description": "Example value"},
-                                    },
-                                    "required": ["field", "type", "description"],
-                                    "additionalProperties": False,
-                                },
-                            },
-                        },
-                        "required": ["auth_method", "auth_header", "base_path", "request_format", "endpoints", "response_schema"],
-                        "additionalProperties": False,
-                    },
-                },
-            },
-        ],
-        "tool_choice": {"type": "function", "function": {"name": "extract_api_spec"}},
-    }
+    messages = [
+        {
+            "role": "system",
+            "content": "You are an API specification parser. Extract structured information from OpenAPI/Swagger specs including response schemas.",
+        },
+        {
+            "role": "user",
+            "content": f"Parse this API specification and extract the details including response field schemas:\n\n{spec_text[:settings.SPEC_TEXT_MAX_CHARS]}",
+        },
+    ]
 
-    from app.features.llm.services import Purpose, chat
+    from app.features.llm.services import Purpose, parse
     async with AsyncSessionLocal() as session, session.begin():
-        res = await chat(session, purpose=Purpose.PARSE_SPEC, messages=payload["messages"],
-                         tools=payload["tools"], tool_choice=payload["tool_choice"])
-    tool_call = (res.tool_calls or [{}])[0]
-    args_raw = tool_call.get("function", {}).get("arguments")
-    if not args_raw:
-        raise ValueError("Failed to parse specification")
-    return _json.loads(args_raw)
+        result = await parse(session, Purpose.PARSE_SPEC, messages=messages)
+    return result.model_dump()

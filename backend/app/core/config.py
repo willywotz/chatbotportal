@@ -63,6 +63,11 @@ class Settings(BaseSettings):
     OPENROUTER_API_URL: str = "https://openrouter.ai/api/v1/chat/completions"
     OPENROUTER_MODEL: str = "google/gemini-2.5-flash-lite"
 
+    # ── LLM / pluggable LangChain defaults ───────────────────────────────────
+    LLM_DEFAULT_MODEL: str = "gpt-4o-mini"
+    LLM_BASE_URL: str = ""
+    LLM_API_KEY: str = ""
+
     # ── Parse spec (ThaiLLM) ─────────────────────────────────────────────────
     PARSE_SPEC_URL: str = "http://thaillm.or.th/api/openthaigpt/v1/chat/completions"
     PARSE_SPEC_API_KEY: str = ""
@@ -154,7 +159,7 @@ SETTINGS_GROUPS: dict[str, list[str]] = {
 }
 
 SECRET_FIELD_NAMES: set[str] = {
-    "OPENROUTER_API_KEY", "PARSE_SPEC_API_KEY",
+    "OPENROUTER_API_KEY", "PARSE_SPEC_API_KEY", "LLM_API_KEY",
 }
 
 settings = Settings()

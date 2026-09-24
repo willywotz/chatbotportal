@@ -10,7 +10,7 @@ import app.features.identity.models.oauth  # noqa: F401
 import app.features.identity.models.signing_key  # noqa: F401
 import app.features.identity.models.user  # noqa: F401
 import app.features.llm.models.llm_provider  # noqa: F401
-import app.features.llm.models.llm_route  # noqa: F401
+import app.features.llm.models.llm_binding  # noqa: F401
 import app.features.llm.models.llm_usage  # noqa: F401
 import app.features.llm.models.rate_limit_counter  # noqa: F401
 import app.features.monitoring.models.incident  # noqa: F401

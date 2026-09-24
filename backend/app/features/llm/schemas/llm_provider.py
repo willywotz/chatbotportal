@@ -3,17 +3,23 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+
+class LLMProviderHeader(BaseModel):
+    name: str
+    value: str
 
 
 class LLMProviderBase(BaseModel):
     name: str
-    base_url: str
+    provider: str = "openai"
+    model: str
+    base_url: str | None = None
     api_key: str = ""
-    auth_header: str = "Authorization"
-    auth_scheme: str = "Bearer"
+    headers: list[LLMProviderHeader] = Field(default_factory=list)
     timeout_seconds: float = 60.0
-    request_usage: bool = False
+    max_retries: int = 2
     rate_limit_rps: int | None = None
     rate_limit_rpm: int | None = None
     max_queue_size: int = 50
@@ -26,12 +32,13 @@ class LLMProviderCreate(LLMProviderBase):
 
 class LLMProviderUpdate(BaseModel):
     name: str | None = None
+    provider: str | None = None
+    model: str | None = None
     base_url: str | None = None
     api_key: str | None = None
-    auth_header: str | None = None
-    auth_scheme: str | None = None
+    headers: list[LLMProviderHeader] | None = None
     timeout_seconds: float | None = None
-    request_usage: bool | None = None
+    max_retries: int | None = None
     rate_limit_rps: int | None = None
     rate_limit_rpm: int | None = None
     max_queue_size: int | None = None
@@ -39,15 +46,15 @@ class LLMProviderUpdate(BaseModel):
 
 
 class LLMProviderResponse(BaseModel):
-    """Response schema — `api_key` is always masked, never the real secret."""
     id: uuid.UUID
     name: str
-    base_url: str
+    provider: str
+    model: str
+    base_url: str | None = None
     api_key: str
-    auth_header: str
-    auth_scheme: str
+    headers: list[LLMProviderHeader] = Field(default_factory=list)
     timeout_seconds: float
-    request_usage: bool
+    max_retries: int
     rate_limit_rps: int | None = None
     rate_limit_rpm: int | None = None
     max_queue_size: int

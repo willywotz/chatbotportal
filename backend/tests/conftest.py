@@ -144,6 +144,16 @@ async def _reset_usage_context():
         current_user_id.reset(ut)
 
 
+@pytest.fixture(autouse=True)
+def _reset_llm_caches():
+    from app.features.llm.services import rate_limit, resolve
+    resolve.invalidate()
+    rate_limit.reset_cache()
+    yield
+    resolve.invalidate()
+    rate_limit.reset_cache()
+
+
 @pytest.fixture(scope="session")
 def rsa_keypair():
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)

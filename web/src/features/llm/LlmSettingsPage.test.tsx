@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import LlmSettingsPage from "./LlmSettingsPage";
 import type { LlmProvider } from "@/features/llm-providers/llmProviderApi";
-import type { LlmRoute } from "@/features/llm-routes/llmRouteApi";
+import type { LlmBinding } from "@/features/llm-bindings/llmBindingApi";
 
 const mockListProviders = vi.fn();
 vi.mock("@/features/llm-providers/llmProviderApi", () => ({
@@ -12,23 +12,26 @@ vi.mock("@/features/llm-providers/llmProviderApi", () => ({
   createProvider: vi.fn(),
   updateProvider: vi.fn(),
   deleteProvider: vi.fn(),
+  listKinds: () => Promise.resolve({ data: ["openai"] }),
 }));
 
-const mockListRoutes = vi.fn();
-vi.mock("@/features/llm-routes/llmRouteApi", () => ({
-  listRoutes: (...args: unknown[]) => mockListRoutes(...args),
-  updateRoute: vi.fn(),
+const mockListBindings = vi.fn();
+vi.mock("@/features/llm-bindings/llmBindingApi", () => ({
+  listBindings: (...args: unknown[]) => mockListBindings(...args),
+  updateBinding: vi.fn(),
+  testBinding: vi.fn(),
 }));
 
 const makeProvider = (o: Partial<LlmProvider> = {}): LlmProvider => ({
   id: "p1",
   name: "OpenAI",
+  provider: "openai",
+  model: "gpt-4o",
   base_url: "https://api.openai.com/v1",
   api_key: "*****",
-  auth_header: "Authorization",
-  auth_scheme: "Bearer",
+  headers: [],
   timeout_seconds: 60,
-  request_usage: false,
+  max_retries: 2,
   rate_limit_rps: null,
   rate_limit_rpm: null,
   max_queue_size: 50,
@@ -36,12 +39,13 @@ const makeProvider = (o: Partial<LlmProvider> = {}): LlmProvider => ({
   ...o,
 });
 
-const makeRoute = (o: Partial<LlmRoute> = {}): LlmRoute => ({
-  id: "r1",
+const makeBinding = (o: Partial<LlmBinding> = {}): LlmBinding => ({
+  id: "b1",
   purpose: "classification",
   provider_id: "p1",
   provider_name: "OpenAI",
   model: "gpt-4o",
+  model_override: null,
   timeout_override: null,
   enabled: true,
   ...o,
@@ -59,19 +63,19 @@ function renderPage() {
 describe("LlmSettingsPage", () => {
   beforeEach(() => {
     mockListProviders.mockResolvedValue({ data: [makeProvider()], total: 1 });
-    mockListRoutes.mockResolvedValue({ data: [makeRoute()], total: 1 });
+    mockListBindings.mockResolvedValue({ data: [makeBinding()], total: 1 });
   });
   afterEach(() => vi.clearAllMocks());
 
-  it("renders both the Providers and Routes panel headings", async () => {
+  it("renders both the Providers and Bindings panel headings", async () => {
     renderPage();
     expect(await screen.findByText("ผู้ให้บริการ LLM")).toBeInTheDocument();
-    expect(await screen.findByText("เส้นทาง LLM")).toBeInTheDocument();
+    expect(await screen.findByText("การผูก LLM")).toBeInTheDocument();
   });
 
-  it("shows the provider Add button but no route Add button", async () => {
+  it("shows the provider Add button but no binding Add button", async () => {
     renderPage();
     expect(await screen.findByText("เพิ่มผู้ให้บริการ")).toBeInTheDocument();
-    expect(screen.queryByText("เพิ่มเส้นทาง")).not.toBeInTheDocument();
+    expect(screen.queryByText("เพิ่มการผูก")).not.toBeInTheDocument();
   });
 });

@@ -11,15 +11,8 @@ from app.features.chat.repositories import message as message_repo
 from app.features.analytics.repositories import popular_question as pq_repo
 from app.features.analytics.schemas.popular_question import PopularQuestionCreate, PopularQuestionUpdate
 from app.features.analytics.services import popular_questions as pq_service
-from app.features.llm.services import LlmResult, LlmUsageInfo
-
-
-def _fake_llm_result(content: str) -> LlmResult:
-    return LlmResult(
-        content=content, tool_calls=None,
-        usage=LlmUsageInfo(model="m", prompt_tokens=0, completion_tokens=0, cost_usd=None),
-        raw={},
-    )
+from app.features.llm.services.errors import LlmError
+from app.features.llm.services.result_schemas import PopularQuestionItem, PopularQuestionsResult
 
 
 class TestNormalizeTextKey:
@@ -112,37 +105,24 @@ async def test_published_resolves_agency(db_session):
     assert by_text["no agency"]["agency"] is None
 
 
-async def test_ask_llm_parses_markdown_fenced_json(db_session, monkeypatch):
-    content = '```json\n{"questions": [{"text": "คำถาม1", "agency_id": "", "score": 0.5}]}\n```'
+async def test_ask_llm_maps_structured_result_to_dicts(db_session, monkeypatch):
+    async def fake_parse(session, purpose, messages=None, **_kwargs):
+        return PopularQuestionsResult(questions=[
+            PopularQuestionItem(text="คำถาม1", agency_id="", score=0.5),
+        ])
 
-    async def fake_chat(session, **_kwargs):
-        return _fake_llm_result(content)
-
-    monkeypatch.setattr("app.features.llm.services.chat", fake_chat)
+    monkeypatch.setattr("app.features.llm.services.parse", fake_parse)
 
     result = await pq_service._ask_llm(db_session, [{"text": "q", "agencies": []}])
 
     assert result == [{"text": "คำถาม1", "agency_id": "", "score": 0.5}]
 
 
-async def test_ask_llm_parses_json_with_leading_prose(db_session, monkeypatch):
-    content = 'นี่คือคำถามยอดนิยม:\n{"questions": [{"text": "q2", "agency_id": "", "score": 0.3}]}\nขอบคุณครับ'
+async def test_ask_llm_returns_empty_on_llm_error(db_session, monkeypatch):
+    async def fake_parse(session, purpose, messages=None, **_kwargs):
+        raise LlmError("no enabled binding", kind="config")
 
-    async def fake_chat(session, **_kwargs):
-        return _fake_llm_result(content)
-
-    monkeypatch.setattr("app.features.llm.services.chat", fake_chat)
-
-    result = await pq_service._ask_llm(db_session, [{"text": "q", "agencies": []}])
-
-    assert result == [{"text": "q2", "agency_id": "", "score": 0.3}]
-
-
-async def test_ask_llm_returns_empty_on_garbage_output(db_session, monkeypatch):
-    async def fake_chat(session, **_kwargs):
-        return _fake_llm_result("ขอโทษครับ ไม่สามารถตอบคำถามนี้ได้")
-
-    monkeypatch.setattr("app.features.llm.services.chat", fake_chat)
+    monkeypatch.setattr("app.features.llm.services.parse", fake_parse)
 
     result = await pq_service._ask_llm(db_session, [{"text": "q", "agencies": []}])
 
@@ -255,13 +235,13 @@ async def test_regenerate_feeds_known_agency_to_llm_and_resolves(db_session, mon
 
     captured = {}
 
-    async def fake_chat(session, **kwargs):
-        captured["prompt"] = kwargs["messages"][0]["content"]
-        return _fake_llm_result(
-            f'{{"questions": [{{"text": "ขอคัดโฉนดที่ดิน", "agency_id": "{ag.id}", "score": 0.8}}]}}'
-        )
+    async def fake_parse(session, purpose, messages=None, **kwargs):
+        captured["prompt"] = messages[0]["content"]
+        return PopularQuestionsResult(questions=[
+            PopularQuestionItem(text="ขอคัดโฉนดที่ดิน", agency_id=str(ag.id), score=0.8),
+        ])
 
-    monkeypatch.setattr("app.features.llm.services.chat", fake_chat)
+    monkeypatch.setattr("app.features.llm.services.parse", fake_parse)
 
     await pq_service.regenerate(db_session)
 

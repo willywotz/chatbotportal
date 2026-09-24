@@ -18,32 +18,31 @@ async def _agency(session, **fields):
     return ag
 
 
-async def test_parse_spec_raises_on_http_error():
+async def test_parse_spec_raises_on_llm_error():
     from app.features.agency.services.agency import parse_spec
     from app.features.llm.services import LlmError
 
-    with patch("app.features.llm.services.chat", AsyncMock(side_effect=LlmError("parse_spec: provider returned 429", status=429))):
+    with patch("app.features.llm.services.parse",
+               AsyncMock(side_effect=LlmError("provider returned 429", kind="provider", status=429))):
         with pytest.raises(LlmError):
             await parse_spec("some spec text")
 
 
-async def test_parse_spec_calls_chat_with_session():
-    """chat() is session-first; parse_spec must thread a session through."""
+async def test_parse_spec_calls_parse_with_session():
+    """parse() is session-first; parse_spec must thread a session through."""
     from app.features.agency.services.agency import parse_spec
-    from app.features.llm.services import LlmResult, LlmUsageInfo
+    from app.features.llm.services.result_schemas import SpecResult
 
-    fake_chat = AsyncMock(return_value=LlmResult(
-        content="", tool_calls=[{"function": {"arguments": '{"a": 1}'}}],
-        usage=LlmUsageInfo(model="m", prompt_tokens=0, completion_tokens=0, cost_usd=None),
-        raw={},
-    ))
+    spec = SpecResult(auth_method="none", auth_header="", base_path="/",
+                      request_format="json", endpoints=[], response_schema=[])
+    fake_parse = AsyncMock(return_value=spec)
 
-    with patch("app.features.llm.services.chat", fake_chat):
+    with patch("app.features.llm.services.parse", fake_parse):
         result = await parse_spec("some spec text")
 
     from sqlalchemy.ext.asyncio import AsyncSession
-    assert isinstance(fake_chat.call_args.args[0], AsyncSession)
-    assert result == {"a": 1}
+    assert isinstance(fake_parse.call_args.args[0], AsyncSession)
+    assert result == spec.model_dump()
 
 
 async def test_get_agency_or_404_raises_for_missing_agency(db_session):

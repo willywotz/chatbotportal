@@ -9,7 +9,7 @@ from app.features.agency.models.evaluation import EvalResult, GoldenQuestion
 from app.core.models.event import DomainEvent
 from app.features.analytics.models.executive_brief import ExecutiveBrief
 from app.features.llm.models.llm_provider import LlmProvider
-from app.features.llm.models.llm_route import LlmRoute
+from app.features.llm.models.llm_binding import LlmBinding
 from app.features.llm.models.llm_usage import LlmUsage
 from app.features.analytics.models.popular_question import PopularQuestion, PopularQuestionSource
 from app.features.llm.models.rate_limit_counter import RateLimitCounter
@@ -56,7 +56,7 @@ def test_executive_brief_table_and_columns():
 
 def test_llm_provider_table_and_columns():
     t = LlmProvider.__table__
-    assert t.name == "llm_providers"
+    assert t.name == "llm_provider"
     assert t.c.id.primary_key
     assert t.c.name.unique
     assert t.c.timeout_seconds.default.arg == 60.0
@@ -130,13 +130,13 @@ def test_eval_result_fk_cascade():
     assert fk.ondelete == "CASCADE"
 
 
-def test_llm_route_fk_restrict():
-    t = LlmRoute.__table__
-    assert t.name == "llm_routes"
+def test_llm_binding_fk_restrict():
+    t = LlmBinding.__table__
+    assert t.name == "llm_binding"
     assert t.c.purpose.unique
     assert t.c.purpose.type.length == 50
     fk = list(t.c.provider_id.foreign_keys)[0]
-    assert fk.column.table.name == "llm_providers"
+    assert fk.column.table.name == "llm_provider"
     assert fk.ondelete == "RESTRICT"
 
 
@@ -152,12 +152,12 @@ def test_popular_question_fk_set_null():
 
 
 def test_all_15_tables_registered():
-    from app import models# noqa: F401
+    import app.core.registry  # noqa: F401
 
     expected = {
         "agencies", "audit_logs", "connection_logs", "conversations", "messages",
         "golden_questions", "eval_results", "domain_events", "executive_briefs",
-        "llm_providers", "llm_routes", "llm_usage", "popular_questions",
+        "llm_provider", "llm_binding", "llm_usage", "popular_questions",
         "rate_limit_counters", "settings",
     }
     assert expected <= set(Base.metadata.tables)

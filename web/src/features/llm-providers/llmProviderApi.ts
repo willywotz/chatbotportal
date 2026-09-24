@@ -1,14 +1,20 @@
 import { api } from "@/shared/lib/apiClient";
 
+export interface LlmHeader {
+  name: string;
+  value: string;
+}
+
 export interface LlmProvider {
   id: string;
   name: string;
-  base_url: string;
+  provider: string;
+  model: string;
+  base_url: string | null;
   api_key: string;
-  auth_header: string;
-  auth_scheme: string;
+  headers: LlmHeader[];
   timeout_seconds: number;
-  request_usage: boolean;
+  max_retries: number;
   rate_limit_rps: number | null;
   rate_limit_rpm: number | null;
   max_queue_size: number;
@@ -24,3 +30,6 @@ export const updateProvider = (id: string, b: Partial<LlmProviderInput>) =>
   api.patch<LlmProvider>(`/api/v1/language-model/providers/${id}`, b);
 export const deleteProvider = (id: string) =>
   api.delete(`/api/v1/language-model/providers/${id}`);
+
+export const listKinds = () =>
+  api.get<{ data: string[] }>("/api/v1/language-model/kinds");

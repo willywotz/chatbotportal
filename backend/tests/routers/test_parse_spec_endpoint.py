@@ -16,7 +16,7 @@ _PATH = "/api/v1/agencies/parse-specification"
 
 
 async def _raising_parse_spec(_spec_text: str) -> dict:
-    raise LlmError("boom")
+    raise LlmError("boom", kind="provider")
 
 
 def _app(monkeypatch, principal) -> FastAPI:
