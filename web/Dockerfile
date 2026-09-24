@@ -6,15 +6,17 @@ RUN corepack enable
 
 FROM base AS deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile
+RUN --mount=type=cache,target=/pnpm/store pnpm install --frozen-lockfile
 
-FROM deps AS development
+FROM base AS development
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 CMD ["pnpm", "run", "dev", "--host", "--port", "8080"]
 
-FROM deps AS builder
+FROM base AS builder
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN pnpm run build
+RUN --mount=type=cache,target=/app/node_modules/.vite pnpm run build
 
 FROM nginx:alpine AS production
 COPY nginx.conf /etc/nginx/conf.d/default.conf
