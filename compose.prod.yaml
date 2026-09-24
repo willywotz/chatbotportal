@@ -9,6 +9,8 @@ services:
       CORS_ORIGINS: ["https://nectec-centraltools.willywotz.com"]
       OIDC_ISSUER: "https://nectec-centraltools.willywotz.com"
       OIDC_ALLOWED_REDIRECT_URIS: ["https://nectec-centraltools.willywotz.com/auth/callback"]
+      ONECHAT_BASE_URL: "https://203.185.144.41/chatbotportalcenter"
+      MCP_ENDPOINT_URL: "https://nectec-centraltools.willywotz.com/mcp"
 
   web:
     image: ghcr.io/willywotz/chatbotportal-web:${VERSION:-latest}
