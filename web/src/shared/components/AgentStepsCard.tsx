@@ -118,11 +118,11 @@ export function AgentStepsCard({
             )}
           </div>
 
-          {steps.agencies.filter((a) => a.status === 'passed').length > 0 && (
+          {steps.agencies.filter((a) => ['passed', 'pending'].indexOf(a.status) !== -1).length > 0 && (
             <div className="mt-3">
               <p className="mb-1 text-[0.6875em] font-medium text-muted-foreground">หน่วยงาน</p>
               <div className="space-y-1 rounded-md bg-muted/60 p-2">
-                {steps.agencies.filter((a) => a.status === 'passed').map((a) => {
+                {steps.agencies.filter((a) => ['passed', 'pending'].indexOf(a.status) !== -1).map((a) => {
                   const style = AGENCY_STYLE[a.status] ?? AGENCY_STYLE.pending;
                   return (
                     <div key={a.id} className={cn('flex items-center gap-1.5 text-[0.75em] leading-snug', style.className)}>
