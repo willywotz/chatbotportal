@@ -1,5 +1,11 @@
 from enum import StrEnum
 
+from pydantic import BaseModel
+
+from app.features.llm.services.result_schemas import (
+    ClassificationResult, JudgeResult, PopularQuestionsResult, SpecResult,
+)
+
 
 class Purpose(StrEnum):
     CLASSIFICATION = "classification"
@@ -9,5 +15,12 @@ class Purpose(StrEnum):
     POPULAR_QUESTIONS = "popular_questions"
 
 
-# Serialized string values, kept for the /language-model/purposes endpoint and any list use.
 KNOWN_PURPOSES = tuple(p.value for p in Purpose)
+
+PURPOSE_SCHEMAS: dict[Purpose, type[BaseModel] | None] = {
+    Purpose.CLASSIFICATION: ClassificationResult,
+    Purpose.BRIEF: None,
+    Purpose.JUDGE: JudgeResult,
+    Purpose.PARSE_SPEC: SpecResult,
+    Purpose.POPULAR_QUESTIONS: PopularQuestionsResult,
+}
