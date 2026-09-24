@@ -47,16 +47,20 @@ services:
       - "--set=extensions.jaeger_query.base_path=/jaeger"
       - "--set=extensions.jaeger_storage.backends.some_storage.memory.max_traces=1000"
 
-  # certbot:
-  #   build: {context: ./deploy/certbot}
-  #   restart: no
-  #   volumes: [certbot_data:/etc/letsencrypt]
-
-  nginx:
-    build: {context: ./deploy/nginx}
+  caddy:
+    build: {context: ./deploy/caddy}
     restart: unless-stopped
-    ports: ["${HTTP_PORT:-80}:80"]
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-localhost}
+      CERT_EMAIL: ${CERT_EMAIL:-dogajack@gmail.com}
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    ports:
+      - "127.0.0.1:${HTTP_PORT:-8080}:8080"
 
 volumes:
   postgres_data:
-  # certbot_data:
+  certbot_data:
+  caddy_data:
+  caddy_config:
