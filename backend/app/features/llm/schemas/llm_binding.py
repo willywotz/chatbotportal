@@ -35,6 +35,7 @@ class LLMBindingResponse(BaseModel):
     provider_id: uuid.UUID
     provider_name: str
     model: str
+    model_override: str | None = None
     fallback_binding_id: uuid.UUID | None = None
     timeout_override: float | None = None
     enabled: bool

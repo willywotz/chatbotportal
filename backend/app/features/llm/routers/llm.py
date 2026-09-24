@@ -67,6 +67,7 @@ async def _binding_response(session: AsyncSession, binding: LlmBinding) -> LLMBi
         provider_id=binding.provider_id,
         provider_name=provider.name,
         model=binding.model_override or provider.model,
+        model_override=binding.model_override,
         fallback_binding_id=binding.fallback_binding_id,
         timeout_override=binding.timeout_override,
         enabled=binding.enabled,

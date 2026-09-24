@@ -90,6 +90,19 @@ async def test_create_binding_ok(client, db_session, as_principal):
     assert body["provider_name"] == "p3"
     assert body["purpose"] == "classification"
     assert body["model"] == "gpt-x"
+    assert body["model_override"] is None
+
+
+async def test_binding_response_includes_model_override(client, db_session, as_principal):
+    as_principal()
+    provider = await llm_repo.create_provider(db_session, name="p3b", provider="openai", model="gpt-x")
+    binding = await llm_repo.create_binding(
+        db_session, purpose="brief", provider_id=provider.id, model_override="gpt-4o-mini")
+    r = await client.get(f"{_BINDINGS}/{binding.id}")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["model_override"] == "gpt-4o-mini"
+    assert body["model"] == "gpt-4o-mini"
 
 
 async def test_create_binding_unknown_provider_404(client, as_principal):

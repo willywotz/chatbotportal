@@ -16,17 +16,18 @@ vi.mock("@/features/llm-providers/llmProviderApi", () => ({
   createProvider: (...args: unknown[]) => mockCreateProvider(...args),
   updateProvider: (...args: unknown[]) => mockUpdateProvider(...args),
   deleteProvider: (...args: unknown[]) => mockDeleteProvider(...args),
+  listKinds: () => Promise.resolve({ data: ["openai"] }),
 }));
 
 const makeProvider = (overrides: Partial<LlmProvider> = {}): LlmProvider => ({
   id: "p1",
   name: "OpenAI",
+  provider: "openai",
+  model: "gpt-4o",
   base_url: "https://api.openai.com/v1",
   api_key: "*****",
-  auth_header: "Authorization",
-  auth_scheme: "Bearer",
   timeout_seconds: 60,
-  request_usage: false,
+  max_retries: 2,
   rate_limit_rps: null,
   rate_limit_rpm: null,
   max_queue_size: 50,
